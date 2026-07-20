@@ -176,5 +176,3 @@ Neue Python-Module der Core Engine gehören nach `engine/`, zugehörige Tests na
 - `PaperTrailCompare_Architekturspezifikation.docx` — Architektur, Tech-Stack, Verzeichnisstruktur, getroffene Architekturentscheidungen (Quelle der Wahrheit für alle technischen Entscheidungen).
 
 Diese CLAUDE.md ist eine Verdichtung dieser Dokumente. Bei Widersprüchen oder Detailfragen gelten die Originaldokumente als maßgeblich.
-
-.
