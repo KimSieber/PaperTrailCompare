@@ -1,4 +1,8 @@
-"""P1-Testfälle TC-T-001 bis TC-T-004 für engine.text_comparator.
+"""Testfälle TC-T-001 bis TC-T-006 für engine.text_comparator.
+
+TC-T-007 (Mehrspaltigkeit) und TC-T-008 (Tabellenerkennung) betreffen die
+PDF-Extraktion (siehe CLAUDE.md Modulübersicht: pdf_extractor) und werden
+dort implementiert, nicht in text_comparator.
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 2.
 """
@@ -48,3 +52,33 @@ def test_tc_t_004_echter_textunterschied_ergibt_delta():
     assert delta.position is not None
     assert "100" in delta.ref_text
     assert "200" in delta.cnd_text
+
+
+def test_tc_t_005_leerzeichennormalisierung():
+    ref_pages = ["Dies  ist   ein Text  mit doppelten Leerzeichen."]
+    cnd_pages = ["Dies ist ein Text mit doppelten Leerzeichen."]
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is False
+    assert result.deltas == []
+
+
+def test_tc_t_006_case_sensitivity_ignoriert_bei_case_insensitive():
+    ref_pages = ["MUSTER"]
+    cnd_pages = ["muster"]
+
+    result = compare(ref_pages, cnd_pages, case_sensitive=False)
+
+    assert result.has_delta is False
+    assert result.deltas == []
+
+
+def test_tc_t_006_case_sensitivity_delta_bei_case_sensitive():
+    ref_pages = ["MUSTER"]
+    cnd_pages = ["muster"]
+
+    result = compare(ref_pages, cnd_pages, case_sensitive=True)
+
+    assert result.has_delta is True
+    assert len(result.deltas) == 1

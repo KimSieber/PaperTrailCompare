@@ -40,7 +40,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER
 # Konfiguration
 # ---------------------------------------------------------------------------
 
-FIXTURES_DIR = Path(__file__).parent
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 W, H = A4  # 595 x 842 pt
 
 STYLES = getSampleStyleSheet()
@@ -113,6 +113,50 @@ def write_readme(tc_id: str, title: str, description: str, ref_desc: str, cnd_de
         {cnd_desc}
     """)
     (d / "README.md").write_text(text, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# TC-X-001  Nativen Text aus einseitigem PDF extrahieren (pdf_extractor, P1)
+# ---------------------------------------------------------------------------
+# Nicht Teil der Testspezifikation (die definiert für pdf_extractor keine
+# eigenen Grundlagen-Testfälle) – ergänzt als P1-Basis für die reine native
+# Textextraktion, auf der TC-T-007/008 aufbauen.
+
+def generate_tc_x_001() -> None:
+    tc = "TC-X-001"
+    d = fixture_dir(tc)
+    simple_pdf(d / "doc.pdf", [["Dies ist ein einfacher, einseitiger Testtext."]])
+    write_readme(
+        tc,
+        "Nativen Text aus einseitigem PDF extrahieren",
+        "Ein einzelnes PDF mit einer Seite und einfachem Fließtext ohne "
+        "Spalten oder Tabellen.",
+        "doc.pdf: eine Seite, ein Absatz.",
+        "(kein Vergleich – reiner Extraktionstest)",
+    )
+
+
+# ---------------------------------------------------------------------------
+# TC-X-002  Text aus mehrseitigem PDF seitenweise extrahieren (pdf_extractor, P1)
+# ---------------------------------------------------------------------------
+
+def generate_tc_x_002() -> None:
+    tc = "TC-X-002"
+    d = fixture_dir(tc)
+    simple_pdf(d / "doc.pdf", [
+        ["Text auf Seite eins."],
+        ["Text auf Seite zwei."],
+        ["Text auf Seite drei."],
+    ])
+    write_readme(
+        tc,
+        "Text aus mehrseitigem PDF seitenweise extrahieren",
+        "Ein PDF mit drei Seiten, jede mit eindeutigem Text, um zu prüfen, "
+        "dass die Extraktion pro Seite einen eigenen Text liefert (Liste "
+        "mit einem Eintrag pro Seite).",
+        "doc.pdf: drei Seiten mit je einem eindeutigen Satz.",
+        "(kein Vergleich – reiner Extraktionstest)",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1023,6 +1067,8 @@ def generate_tc_s_001_002() -> None:
 # ---------------------------------------------------------------------------
 
 GENERATORS = [
+    ("TC-X-001", generate_tc_x_001),
+    ("TC-X-002", generate_tc_x_002),
     ("TC-T-001", generate_tc_t_001),
     ("TC-T-002", generate_tc_t_002),
     ("TC-T-003", generate_tc_t_003),
