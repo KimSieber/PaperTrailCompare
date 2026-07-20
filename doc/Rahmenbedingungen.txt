@@ -1,0 +1,9 @@
+Zielgruppe:
+- Unternehmen mit zentralen Drucksystemen, die ein Wechsel Ihres Drucksystems planen oder durchführen.
+
+Rechtlich:
+- Aus Datenschutzgründen dürfen die eingegebenen Daten / zu vergleichenden Dokumente nicht das Unternehmen/den Kunden verlassen. Daher muss die Verarbeitung und Speicherung der Daten im Raum/auf den Rechnern der Kunden erfolgen.
+
+Technik:
+- Es muss ein beim Kunden betreibbares System sein (siehe Rechtlich)
+- Es muss ein System sein, dass ohne eigene Serverinstallation auskommt (da dies bei Kunden oft langwierige Auftragswege bedingt, die den Verkauf der Software behindern.

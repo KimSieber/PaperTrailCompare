@@ -1,0 +1,186 @@
+**PaperTrail Compare**
+
+Architektur- & Technologie-Spezifikation
+
+Version 1.0  ·  Juli 2026
+
+# 1  Zweck dieses Dokuments
+
+Dieses Dokument legt die Architektur und den Technologie-Stack für PaperTrail Compare fest. Es dient als verbindliche Grundlage für Implementierung, Einkaufsentscheidungen und Onboarding neuer Entwickler. Die Entscheidungen basieren auf den Anforderungen aus Projektbeschreibung, Rahmenbedingungen und Testspezifikation v1.0.
+
+# 2  Rahmenbedingungen & Designprinzipien
+
+## 2.1  Datenschutz & Lokalität
+
+Die zentrale nicht-funktionale Anforderung ist, dass kein Byte Kundendaten das Unternehmen verlässt. Alle Verarbeitungs- und Speicherschritte laufen ausschließlich auf den Rechnern des Kunden. Dies schließt OCR-Verarbeitung, Diff-Berechnung, temporäre Dateien und Reports ein.
+
+- Keine externen API-Aufrufe (kein Cloud-OCR, kein Telemetrie-Framework)
+
+- Keine Netzwerkverbindung während der Verarbeitung (verifiziert durch Systemtest TC-S-001)
+
+- Temporäre Dateien werden nach Abschluss vollständig bereinigt (TC-S-002)
+
+## 2.2  Standalone-Betrieb
+
+Das System muss ohne eigene Serverinstallation beim Kunden betreibbar sein. Dies ist ein kritisches Verkaufsargument, da Serverinstallationen bei Unternehmenskunden lange Genehmigungswege erfordern.
+
+- Kein Datenbankserver (SQLite als Embedded-Datenbank)
+
+- Kein Application-Server (Python läuft als lokaler Prozess)
+
+- Verteilung als einzelner Installer
+
+# 3  Architekturüberblick
+
+Die Architektur folgt einem dreischichtigen Modell:
+
+- Desktop-Shell (Tauri): Natives Fenster, Installer-Erzeugung, IPC-Bridge zum Python-Prozess
+
+- Python Core Engine: Gesamte Fachlogik — PDF-Extraktion, Diff, OCR, Batch, Report
+
+- Lokaler Speicher: Dateisystem (PDFs), SQLite (Jobs/Status), JSON (Profile)
+
+Die GUI kommuniziert ausschließlich über Tauri-Commands (lokales IPC) mit der Python-Engine. Es werden keine Netzwerk-Sockets geöffnet.
+
+## 3.1  Schichtenmodell
+
+Entsprechend der Testspezifikation v1.0 ist die Core Engine in drei Schichten unterteilt:
+
+- Schicht 1 (Vergleichskern): text_comparator, pdf_extractor, region_filter — vollständig unit-testbar
+
+- Schicht 2 (Konfiguration): profile_loader, page_group_detector — unit-testbar
+
+- Schicht 3 (Batch & Report): batch_processor, report_generator — Integrationstests
+
+P1-Tests der Schicht 1 müssen bestehen, bevor andere Schichten implementiert werden. Ziel: ≥ 90 % Test-Coverage für Schicht 1.
+
+# 4  Technologie-Stack
+
+| **Schicht** | **Technologie** | **Begründung** |
+| --- | --- | --- |
+| Desktop-Shell | Tauri (Rust + WebView2 / WebKit) | Kein Electron-Overhead; erzeugt nativen Installer ohne separate Server-Installation; klein (~10 MB) |
+| GUI-Frontend | React 18 + TypeScript | Komponentenbasiert, gute Tauri-Integration, breite Entwickler-Verfügbarkeit |
+| GUI-Styling | Tailwind CSS | Utility-first, kein Build-Overhead für eigene CSS-Architektur |
+| IPC / API | Tauri-Commands (lokales IPC) | Direkte Rust↔Python-Kommunikation ohne Netzwerk-Socket; keine offenen Ports |
+| Core Engine | Python 3.12 | Stärkstes Ökosystem für PDF-Verarbeitung, OCR, Diff-Algorithmen |
+| PDF-Extraktion | PyMuPDF (fitz) | Präzise Koordinaten, Spalten- und Tabellenerkennung, Performance |
+| PDF alternativ | pdfplumber | Ergänzung für komplexe Tabellen; beide komplementär nutzbar |
+| Text-Diff | diff-match-patch | Semantischer Diff; ignoriert Whitespace/Umbrüche nach Konfiguration |
+| OCR | Tesseract 5 + pytesseract | Vollständig lokal, Open Source; nur Deutsch (deu) gebündelt |
+| XMP-Metadaten | python-xmp-toolkit / PyMuPDF | Auslesen von Document-IDs für Batch-Zuordnung |
+| Batchverarbeitung | Python multiprocessing | Parallele Verarbeitung ohne externe Queue-Server |
+| Job-Persistenz | SQLite (via sqlite3 stdlib) | Kein Datenbankserver; Job-History und Status lokal gespeichert |
+| Konfiguration | JSON-Profildateien | Menschenlesbar, versionierbar, einfach per GUI editierbar |
+| Report-Erzeugung | PyMuPDF + ReportLab | Delta-Markierung in PDF; HTML-Report als Alternative |
+| Lizenzprüfung | Eigene Implementierung (Datei-basiert) | Offline-Lizenzschlüssel; keine Cloud-Aktivierung; vollständig lokal |
+| Ziel-Plattformen | macOS + Windows (Cross-Platform) | Entwicklung auf macOS; Auslieferung für beide; Tauri CI/CD mit je eigenem Runner |
+| Test-Framework | pytest ≥ 8 + pytest-cov | Entspricht Testspezifikation v1.0; Coverage-Ziel ≥ 90 % für Schicht 1 |
+| Fixture-PDFs | reportlab | Synthetische Test-PDFs ohne echte Kundendaten |
+
+# 5  Modulübersicht
+
+| **Schicht** | **Modul** | **Beschreibung** |
+| --- | --- | --- |
+| 1 – Vergleichskern | text_comparator | Normalisierung, Silbentrennung, Seitenumbruch-Toleranz, Diff |
+| 1 – Vergleichskern | pdf_extractor | PDF-Text, Mehrspaltigkeit, Tabellen, OCR-Erkennung |
+| 1 – Vergleichskern | region_filter | Koordinatenbasierter Ausschluss definierter Seitenbereiche |
+| 2 – Konfiguration | profile_loader | JSON-Validierung, typsichere Konfigurationsobjekte |
+| 2 – Konfiguration | page_group_detector | Pattern-basierte Seitengruppen für Batch-PDFs |
+| 3 – Batch & Report | batch_processor | Dateiliste, XMP-Zuordnung, Parallelverarbeitung |
+| 3 – Batch & Report | report_generator | Delta-PDF, HTML-Übersicht, Batch-Report |
+| GUI | Tauri + React | Desktop-Shell, Einzelvergleich, Job-Queue-Verwaltung |
+
+# 6  Begründung der Schlüsselentscheidungen
+
+## 6.1  Tauri statt Electron
+
+Tauri verwendet das systemeigene WebView (WebView2 auf Windows, WebKit auf macOS/Linux) statt eines gebündelten Chromium. Vorteile:
+
+- Installer-Größe ca. 10 MB statt ~150 MB bei Electron
+
+- Geringerer RAM-Verbrauch im Betrieb
+
+- Rust-basierter Kern bietet Memory-Safety ohne Garbage Collector
+
+- Native Installer-Erzeugung (.msi / .exe / .dmg / .deb) out of the box
+
+**💡 Hinweis: **WebView2 ist auf Windows 11 vorinstalliert; Windows 10 erhält es automatisch per Windows Update. Kein manueller Schritt beim Kunden erforderlich.
+
+## 6.2  Python als Core Engine
+
+Python besitzt das stärkste verfügbare Ökosystem für die Kernaufgaben dieses Projekts:
+
+- PyMuPDF: Schnelle, koordinatengenaue PDF-Textextraktion; Basis für Spalten- und Tabellenerkennung
+
+- diff-match-patch (Google): Semantischer Textdiff mit Toleranz für Whitespace und konfigurierbare Normalisierung
+
+- Tesseract 5: State-of-the-art OCR, vollständig lokal, DE/EN inklusive
+
+- Python multiprocessing: Parallele Batch-Verarbeitung ohne externen Queue-Dienst
+
+## 6.3  SQLite statt Datenbankserver
+
+SQLite ist in Python's Standardbibliothek enthalten (keine Installation), wird als einzelne Datei im Benutzerverzeichnis angelegt und erfordert keine Konfiguration. Es speichert Job-History, Status und Fortschritt der Batch-Queue — ausreichend für die erwarteten Datenmengen.
+
+## 6.4  JSON-Konfigurationsprofile
+
+Vergleichsprofile werden als JSON-Dateien gespeichert. Sie sind menschenlesbar, versionierbar (Git), einfach per GUI zu bearbeiten und werden durch den profile_loader validiert. CLI-Parameter können Profilwerte überschreiben (TC-P-003).
+
+# 7  Getroffene Architekturentscheidungen
+
+Alle sieben initial offenen Architekturentscheidungen wurden getroffen und sind nachfolgend verbindlich dokumentiert.
+
+| **#** | **Thema** | **Entscheidung** | **Konsequenz** |
+| --- | --- | --- | --- |
+| 1 | Tauri IPC-Protokoll | Tauri Sidecar-Prozess | Python wird von Tauri als Kind-Prozess gestartet; kein offener Netzwerk-Port; sicherste und einfachste Integration |
+| 2 | Python-Distribution | PyInstaller (kleinste Installer-Größe) | Python-Runtime wird in die .exe/.app eingebettet (~50 MB); kein separater Python-Installer beim Kunden nötig |
+| 3 | OCR-Sprachmodelle | Nur Deutsch (deu) | Kleineres Auslieferungspaket; Tesseract deu-Modell (~10 MB) wird gebündelt; andere Sprachen entfallen |
+| 4 | Report-Format | PDF als primäres Format | Delta-Markierungen direkt im PDF sichtbar; PyMuPDF + ReportLab als Report-Engine; HTML entfällt als Default |
+| 5 | Lizenzmodell | Offline-Lizenzschlüssel (Datei-basiert) | Lizenzprüfung vollständig lokal; keine Cloud-Aktivierung; Lizenzschlüssel-Datei wird beim Start gelesen |
+| 6 | Betriebssystem | Cross-Platform von Anfang an (macOS + Windows) | Entwicklung auf macOS (Entwickler); Auslieferung für Windows (Kunden); Tauri unterstützt beide nativ; CI/CD baut beide Targets |
+| 7 | Update-Mechanismus | Manueller Installer-Download | Kein Update-Server beim Hersteller nötig; Kunden laden neuen Installer manuell; kein Telemetrie-Risiko |
+
+**💡 Hinweis: **Cross-Platform-Hinweis: Tauri baut für macOS (.dmg / .app) und Windows (.msi / .exe) aus demselben Codebase. Empfohlen: GitHub Actions CI/CD mit macOS-Runner für .dmg und Windows-Runner für .msi.
+
+# 8  Datenschutz & Compliance
+
+| **Anforderung** | **Maßnahme** |
+| --- | --- |
+| Keine Daten verlassen den Kundenrechner | Keine externen API-Aufrufe; OCR lokal via Tesseract; kein Telemetrie-Framework eingebunden |
+| Keine Server-Installation | Tauri-Installer als Standalone; SQLite statt Datenbankserver; Python als gebündelter Prozess |
+| Temporäre Dateien werden bereinigt | Explizite Cleanup-Routine nach jedem Vergleich; Testfall TC-S-002 verifiziert |
+| Netzwerkfreiheit verifizierbar | Systemtest TC-S-001: Netzwerk-Monitor während Verarbeitung; kein ausgehender Traffic erwartet |
+
+# 9  Testabdeckung
+
+Die Testspezifikation v1.0 definiert 32 Testfälle (18× P1, 13× P2, 1× P3). Für die Architektur relevante Festlegungen:
+
+- Alle Fixture-PDFs werden synthetisch via reportlab erzeugt — keine echten Kundendokumente als Testdaten
+
+- Schicht 1 wird ausschließlich mit Unit-Tests abgedeckt (pytest.mark.parametrize)
+
+- Schicht 3 wird mit Integrationstests abgedeckt
+
+- GUI-Tests erfolgen manuell
+
+- Datenschutz-Tests (TC-S-001 bis TC-S-003) sind Systemtests auf frischer Maschine ohne Internetverbindung
+
+# 10  Empfohlene Verzeichnisstruktur
+
+papertrail-compare/
+├── src-tauri/          # Tauri/Rust Shell
+├── src/                # React/TypeScript GUI
+├── engine/             # Python Core Engine
+│   ├── text_comparator.py
+│   ├── pdf_extractor.py
+│   ├── region_filter.py
+│   ├── page_group_detector.py
+│   ├── profile_loader.py
+│   ├── batch_processor.py
+│   └── report_generator.py
+├── tests/
+│   ├── fixtures/       # Synthetische PDFs (reportlab)
+│   └── test_*.py
+└── profiles/           # JSON-Vergleichsprofile
+
+PaperTrail Compare  ·  Architektur- & Technologie-Spezifikation  ·  Version 1.0  ·  Juli 2026

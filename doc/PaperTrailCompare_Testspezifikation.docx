@@ -1,0 +1,183 @@
+**PaperTrail Compare  |  Testspezifikation**   —   TDD Basis-Dokument
+
+**PaperTrail Compare**
+
+Testspezifikation
+
+*Test-Driven Development  ·  Version 1.0*
+
+**Projekt: **PDF-Vergleichssystem für Output-Management-Migrationen
+
+**Zielgruppe: **Unternehmen mit zentralen Drucksystemen
+
+**Datenschutz: **Alle Vergleiche ausschließlich lokal (kein Cloud-Zugriff)
+
+**Stand: **Juli 2026
+
+**Prioritätslegende**
+
+| **P1 – Muss** | Kernfunktionalität; TDD-Einstieg; blockiert andere Tests wenn fehlerhaft |
+| --- | --- |
+| **P2 – Soll** | Wichtige Funktion für Produktionsreife; nach P1 umzusetzen |
+| **P3 – Kann** | Nice-to-have; optionale Erweiterung |
+
+# 1  Überblick & TDD-Strategie
+
+Dieses Dokument beschreibt alle Testfälle für PaperTrail Compare. Die Struktur folgt dem Schichten-Modell des TDD-Einstiegs: von der innersten Vergleichslogik (Schicht 1) bis zur Batch-Verarbeitung und Reporting (Schicht 3). Die GUI wird manuell getestet.
+
+## 1.1  Teststrategie – Schichten
+
+| **Schicht** | **Modul** | **Schwerpunkt** | **Testtyp** |
+| --- | --- | --- | --- |
+| 1 | text_comparator | Textvergleich, Normalisierung, Silbentrennung, Seitenumbruch | Unit-Tests |
+| 1 | pdf_extractor | PDF-Textextraktion, Mehrspaltigkeit, Tabellen, OCR | Unit-Tests |
+| 2 | profile_loader | JSON-Profilvalidierung, Region-Ausschluss, Seitengruppen | Unit-Tests |
+| 3 | batch_processor | Massenvergleich, XMP-Zuordnung, Fehlerbehandlung | Integrationstests |
+| 3 | report_generator | Delta-Markierung, Batch-Report, Formate | Integrationstests |
+| Q | privacy / compliance | Datenschutz, Standalone-Betrieb, Temp-Dateien | Systemtests |
+
+## 1.2  Fixture-PDFs
+
+Alle Tests verwenden synthetisch erzeugte Fixture-PDFs (via reportlab). Es werden niemals echte Kundendokumente als Testdaten verwendet. Die Fixtures werden im Verzeichnis tests/fixtures/ versioniert und dokumentieren gleichzeitig die Anforderungen.
+
+## 1.3  Testumgebung
+
+| **Komponente** | **Technologie** |
+| --- | --- |
+| Test-Framework | pytest ≥ 8 |
+| PDF-Erstellung (Fixtures) | reportlab |
+| PDF-Extraktion | pdfplumber / pymupdf |
+| OCR | tesseract via pytesseract |
+| Parametrisierung | pytest.mark.parametrize |
+| Coverage | pytest-cov (Ziel: ≥ 90 % für Schicht 1) |
+
+# 2  Modul: text_comparator
+
+Kernmodul des TDD-Einstiegs. Alle P1-Tests dieses Moduls müssen bestehen, bevor andere Module implementiert werden. Der Comparator nimmt zwei normalisierten Textstränge entgegen und liefert ein CompareResult-Objekt zurück.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-T-001 | Identische Texte – kein Delta | Zwei PDF-Dateien mit identischem Textinhalt | compare(ref.pdf, cnd.pdf) | Result.has_delta == False; Delta-Liste ist leer | P1 |
+| TC-T-002 | Silbentrennung am Zeilenende normalisieren | ref.pdf: "Silben-\ntrennung"; cnd.pdf: "Silbentrennung" | compare(ref.pdf, cnd.pdf) | Kein Delta; Wörter werden vor Vergleich zusammengeführt | P1 |
+| TC-T-003 | Unterschiedlicher Seitenumbruch – gleicher Text | Gleicher Absatz liegt in ref auf S.1, in cnd auf S.2 | compare(ref.pdf, cnd.pdf) | Kein Delta; Seitenumbruch wird ignoriert | P1 |
+| TC-T-004 | Echter Textunterschied ergibt Delta | ref: "Betrag: 100 EUR"; cnd: "Betrag: 200 EUR" | compare(ref.pdf, cnd.pdf) | has_delta == True; Delta enthält Seiten- und Positionsangabe | P1 |
+| TC-T-005 | Leerzeichennormalisierung | ref: doppelte Leerzeichen; cnd: einfache Leerzeichen | compare(ref.pdf, cnd.pdf) | Kein Delta; Whitespace wird normalisiert | P2 |
+| TC-T-006 | Groß-/Kleinschreibung (konfigurierbar) | Profil mit case_sensitive=false; ref: "MUSTER"; cnd: "muster" | compare(ref.pdf, cnd.pdf, profile) | Kein Delta bei case_sensitive=false; Delta bei true | P2 |
+| TC-T-007 | Mehrspaltiger Text – korrekte Lesereihenfolge | 2-spaltiges PDF; Spalte 1 "A B C", Spalte 2 "D E F" | compare(ref.pdf, cnd.pdf) | Text wird spaltenweise korrekt extrahiert; kein Mischtext | P2 |
+| TC-T-008 | Tabellenerkennung | PDF mit Tabelle; gleicher Inhalt, unterschiedliches Layout | compare(ref.pdf, cnd.pdf) | Tabelleninhalt wird korrekt verglichen; kein falsches Delta | P2 |
+
+# 3  Modul: region_filter (Ausschluss-Regionen)
+
+Bestimmte Bereiche einer Seite (z.B. Druckdatum, Logos, Stempel) können vom Vergleich ausgeschlossen werden. Die Konfiguration erfolgt über das JSON-Profil.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-E-001 | Region vom Vergleich ausschließen | Profil: exclude_region {x:0,y:0,w:200,h:50} auf S.1 (z.B. Datum) | compare(ref.pdf, cnd.pdf, profile) | Unterschied in der Region wird nicht als Delta gemeldet | P1 |
+| TC-E-002 | Region-Ausschluss gilt nur für definierte Seite | Ausschluss nur für Seite 1 konfiguriert | compare(ref.pdf, cnd.pdf, profile) | Delta auf Seite 2 in gleicher Region wird korrekt erkannt | P1 |
+| TC-E-003 | Mehrere Ausschluss-Regionen | Profil mit 3 Ausschluss-Regionen auf verschiedenen Seiten | compare(ref.pdf, cnd.pdf, profile) | Alle definierten Regionen werden ignoriert | P2 |
+
+# 4  Modul: page_group_detector
+
+Batch-PDFs enthalten oft mehrere Dokumente. Seitengruppen werden über Such-Patterns identifiziert und können gezielt für den Vergleich selektiert werden.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-G-001 | Seitengruppe per Such-Pattern identifizieren | Profil: page_group pattern="Rechnung Nr.*" ab Seite 1 jedes Docs | extract_page_groups(batch.pdf, profile) | Jede Seite mit "Rechnung Nr." startet eine neue Gruppe | P1 |
+| TC-G-002 | Nur bestimmte Seitengruppen vergleichen | Profil mit group_filter=["Rechnung"]; Batch enthält auch "Mahnung" | compare(ref.pdf, cnd.pdf, profile) | Nur "Rechnung"-Gruppen werden verglichen; "Mahnung" ignoriert | P1 |
+| TC-G-003 | Seitengruppen mit unterschiedlichem Seitenumfang | ref-Gruppe hat 3 Seiten, cnd-Gruppe hat 4 Seiten (neuer Umbruch) | compare(ref.pdf, cnd.pdf, profile) | Kein Delta wenn Textinhalt gleich; nur Seitenanzahl unterschiedlich | P2 |
+
+# 5  Modul: ocr_extractor
+
+Eingescannte PDFs ohne nativen Text werden über OCR (Tesseract) verarbeitet. Das Modul erkennt automatisch, ob eine Seite OCR-Verarbeitung benötigt.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-O-001 | Gescannten Text via OCR erkennen | PDF enthält eingebettete Bitmaps (kein nativer Text) | compare(ref.pdf, cnd.pdf) mit OCR-Profil | Text wird via OCR extrahiert und korrekt verglichen | P1 |
+| TC-O-002 | Gemischtes PDF: nativer + gescannter Text | Seite 1 nativ, Seite 2 als Bild | compare(ref.pdf, cnd.pdf) mit OCR-Profil | Beide Seiten korrekt verarbeitet; Vergleich liefert korrektes Ergebnis | P2 |
+| TC-O-003 | OCR-Fehlertoleranz (konfigurierbar) | Profil mit ocr_confidence_threshold=0.85 | compare(ref.pdf, cnd.pdf) | Zeichen unterhalb Schwellwert werden geflaggt, nicht als Delta gezählt | P3 |
+
+# 6  Modul: profile_loader
+
+Vergleichsprofile werden als JSON-Dateien konfiguriert. Das Modul validiert die Struktur und stellt typsichere Konfigurationsobjekte bereit.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-P-001 | Valides JSON-Profil laden | profile.json mit korrekter Struktur vorhanden | load_profile("profile.json") | Profil wird ohne Fehler geladen; alle Felder korrekt befüllt | P1 |
+| TC-P-002 | Invalides JSON-Profil – Fehlerbehandlung | profile.json mit Syntaxfehler | load_profile("profile.json") | ValidationError wird geworfen mit sprechendem Fehlertext | P1 |
+| TC-P-003 | Profil-Überschreibung durch CLI-Parameter | Profil mit case_sensitive=true | compare(..., --case-sensitive=false) | CLI-Parameter überschreibt Profilwert | P2 |
+
+# 7  Modul: batch_processor
+
+Massenvergleich von Dokumentenpaaren. Die Zuordnung erfolgt per Dateiliste, XMP-Metadaten (Document-ID) oder Pattern-basiertem Splitting großer Batch-PDFs.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-B-001 | Batch per Dateiliste – alle Paare verarbeitet | filelist.csv mit 10 Dateipaaren (alle vorhanden) | batch_compare(filelist.csv) | 10 Vergleiche durchgeführt; Gesamtstatus-Report erzeugt | P1 |
+| TC-B-002 | Batch – fehlende Datei wird protokolliert | filelist.csv enthält ein Paar mit nicht existierender Datei | batch_compare(filelist.csv) | Fehler im Report vermerkt; restliche Paare werden weiter verarbeitet | P1 |
+| TC-B-003 | Batch per XMP-Metadaten (Document-ID) | Verzeichnis mit 20 PDFs; je 2 teilen gleiche XMP Document-ID | batch_compare_by_xmp(dir_ref, dir_cnd) | 10 Paare korrekt zugeordnet und verglichen | P1 |
+| TC-B-004 | Batch-PDF-Splitting per Seitengruppen-Pattern | Großes batch.pdf mit 30 Dokumenten; Trenner-Pattern definiert | split_batch_pdf(batch.pdf, profile) | 30 Einzeldokumente korrekt extrahiert | P2 |
+| TC-B-005 | Parallelverarbeitung im Batch | 100 Dateipaare, multi-threading aktiviert (workers=4) | batch_compare(filelist.csv, workers=4) | Alle 100 Paare korrekt verarbeitet; keine Race Conditions | P2 |
+
+# 8  Modul: report_generator
+
+Erzeugt Delta-markierte Einzel-Reports und Batch-Übersichts-Reports. Deltas werden im Reference- und Candidate-Dokument visuell hervorgehoben.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-R-001 | Delta-Markierung im Einzel-Report | Vergleich mit 3 Deltas auf 2 Seiten | generate_report(result) | Report-PDF markiert alle 3 Stellen; Seiten- und Dateiangabe korrekt | P1 |
+| TC-R-002 | Batch-Report – Übersicht aller Vergleiche | Batch-Job mit 10 Paaren abgeschlossen | generate_batch_report(batch_result) | Report enthält Zeile pro Paar: Dateiname, Delta-Anzahl, Status | P1 |
+| TC-R-003 | Detaillierter Report – kein Delta | Vergleich ohne Delta | generate_report(result) | Report zeigt "Keine Unterschiede gefunden"; keine leeren Delta-Sektionen | P2 |
+| TC-R-004 | Report-Format konfigurierbar (PDF / HTML) | Profil mit report_format="html" | generate_report(result, profile) | HTML-Datei wird erzeugt statt PDF | P2 |
+
+# 9  Datenschutz & Compliance
+
+Rechtliche Anforderung: Alle Daten verbleiben ausschließlich auf den Rechnern des Kunden. Keine Cloud-Dienste, kein Telemetrie, keine externen API-Aufrufe.
+
+| **ID** | **Testfall** | **Vorbedingung** | **Eingabe / Aktion** | **Erwartetes Ergebnis** | **Prio** |
+| --- | --- | --- | --- | --- | --- |
+| TC-S-001 | Keine Netzwerkverbindung während Verarbeitung | Netzwerk-Monitor aktiv; lokales System ohne Internet | compare(ref.pdf, cnd.pdf) | Kein ausgehender Netzwerkverkehr; Verarbeitung vollständig lokal | P1 |
+| TC-S-002 | Temporäre Dateien werden bereinigt | Verzeichnis /tmp vor Start leer | compare(ref.pdf, cnd.pdf) | Nach Abschluss keine temporären Dateien mit Dokumenteninhalt übrig | P1 |
+| TC-S-003 | Betrieb ohne Serverinstallation (Standalone) | Frische Maschine ohne Admin-Rechte; nur lokale Installation | papertrail-compare --version | Anwendung startet; kein Serverdienst erforderlich | P2 |
+
+# 10  Testfall-Übersicht
+
+Konsolidierte Übersicht aller Testfälle mit Modul, Priorität und Implementierungsstatus.
+
+| **ID** | **Modul** | **Testfall** | **Prio** | **Status** |
+| --- | --- | --- | --- | --- |
+| TC-T-001 | text_comparator | Identische Texte – kein Delta | P1 | Offen |
+| TC-T-002 | text_comparator | Silbentrennung am Zeilenende normalisieren | P1 | Offen |
+| TC-T-003 | text_comparator | Unterschiedlicher Seitenumbruch – gleicher Text | P1 | Offen |
+| TC-T-004 | text_comparator | Echter Textunterschied ergibt Delta | P1 | Offen |
+| TC-T-005 | text_comparator | Leerzeichennormalisierung | P2 | Offen |
+| TC-T-006 | text_comparator | Groß-/Kleinschreibung (konfigurierbar) | P2 | Offen |
+| TC-T-007 | text_comparator | Mehrspaltiger Text – korrekte Lesereihenfolge | P2 | Offen |
+| TC-T-008 | text_comparator | Tabellenerkennung | P2 | Offen |
+| TC-E-001 | region_filter | Region vom Vergleich ausschließen | P1 | Offen |
+| TC-E-002 | region_filter | Region-Ausschluss gilt nur für definierte Seite | P1 | Offen |
+| TC-E-003 | region_filter | Mehrere Ausschluss-Regionen | P2 | Offen |
+| TC-G-001 | page_group_detector | Seitengruppe per Such-Pattern identifizieren | P1 | Offen |
+| TC-G-002 | page_group_detector | Nur bestimmte Seitengruppen vergleichen | P1 | Offen |
+| TC-G-003 | page_group_detector | Seitengruppen mit unterschiedlichem Seitenumfang | P2 | Offen |
+| TC-O-001 | ocr_extractor | Gescannten Text via OCR erkennen | P1 | Offen |
+| TC-O-002 | ocr_extractor | Gemischtes PDF: nativer + gescannter Text | P2 | Offen |
+| TC-O-003 | ocr_extractor | OCR-Fehlertoleranz (konfigurierbar) | P3 | Offen |
+| TC-P-001 | profile_loader | Valides JSON-Profil laden | P1 | Offen |
+| TC-P-002 | profile_loader | Invalides JSON-Profil – Fehlerbehandlung | P1 | Offen |
+| TC-P-003 | profile_loader | Profil-Überschreibung durch CLI-Parameter | P2 | Offen |
+| TC-B-001 | batch_processor | Batch per Dateiliste – alle Paare verarbeitet | P1 | Offen |
+| TC-B-002 | batch_processor | Batch – fehlende Datei wird protokolliert | P1 | Offen |
+| TC-B-003 | batch_processor | Batch per XMP-Metadaten (Document-ID) | P1 | Offen |
+| TC-B-004 | batch_processor | Batch-PDF-Splitting per Seitengruppen-Pattern | P2 | Offen |
+| TC-B-005 | batch_processor | Parallelverarbeitung im Batch | P2 | Offen |
+| TC-R-001 | report_generator | Delta-Markierung im Einzel-Report | P1 | Offen |
+| TC-R-002 | report_generator | Batch-Report – Übersicht aller Vergleiche | P1 | Offen |
+| TC-R-003 | report_generator | Detaillierter Report – kein Delta | P2 | Offen |
+| TC-R-004 | report_generator | Report-Format konfigurierbar (PDF / HTML) | P2 | Offen |
+| TC-S-001 | privacy / compliance | Keine Netzwerkverbindung während Verarbeitung | P1 | Offen |
+| TC-S-002 | privacy / compliance | Temporäre Dateien werden bereinigt | P1 | Offen |
+| TC-S-003 | privacy / compliance | Betrieb ohne Serverinstallation (Standalone) | P2 | Offen |
+
+**Gesamt: **32 Testfälle**   |   P1: 18****   P2: 13****   P3: 1**
+
+Version 1.0  |  Seite

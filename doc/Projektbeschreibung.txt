@@ -1,0 +1,30 @@
+Management Summary
+
+PaperTrail Compare ist eine Anwendung, die den textlichen Vergleich von PDF Dateien ermöglicht. Eine der wesentlichen Anforderungen an viele Migrationen zwischen unterschiedlichen Output-Management-Systemen ist, dass die Dokumente der neuen Anwendung inhaltlich dieselben Dokumente erzeugen wie das alte. Fast immer rendern die verschiedenen Formatierer trotz gleicher Fonts die Texte unterschiedlich, sodass ein reiner Pixelvergleich dann zu einem Unterschied (Delta) führen würde. Nicht selten werden durch den neuen Dokumenten-Generierer Seitenumbrüche erzeugt, die es im alten System so nicht gab. Inhaltlich muss der Text dabei aber derselbe sein.
+Auf Basis dieser Anforderung bietet PaperTrail Compare folgende Funktionen:
+Vergleich:
+- Gleiche Texte, die durch Silbentrennung unterschiedlich ausgegeben wurden, werden nicht als Delta ausgeworfen
+- Unterschiedliche Seitenumbrüche führen nicht zu einem Delta, sofern die Texte gleich sind
+- Bestimmte Bereiche auf einer Seite können vom Vergleich ausgegrenzt werden
+- Seitengruppen spezifizieren, die anhand von Such-Patterns festgelegt werden können.
+- Vergleich von nur bestimmten Seiten-Gruppen
+- Konfiguration verschiedener Vergleichsprofile über JSON Dateien
+- Automatisches Erkennen von mehrspaltigem Text
+- Automatisches Erkennen von Tabellen
+- OCR-Erkennung und anschließendem Textvergleich von eingescanntem / als Grafik hinterlegten Text innerhalb eines PDFs.
+
+Batchprocessing:
+- Massenvergleich von Datei Pärchen, die anhand einer Dateiliste spezifiziert werden
+- Massenvergleich von Datei Pärchen, die anhand von Metadaten (XMP) ermittelt werden, z.B. über gleiche Document-ID
+- Massenvergleich von Dokumenten in großen Batch PDFs, bei denen man die Dokumentenpaare über bestimmte Texte in definierten Seitengruppen ermittelt.
+
+Report:
+- Markierung der Deltas im Reference- und Candidate-Dokument
+- Batch Report über alle Dateivergleiche
+- Detaillierter Report über Deltas mit Seiten- und Dateiangabe
+
+Grafische Admin- und Benutzeroberfläche:
+- Einzelvergleich von Dateipaaren
+- Massenvergleich von Dateien mit Administration von Job-Queues
+
+
