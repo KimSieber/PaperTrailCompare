@@ -583,38 +583,51 @@ def generate_tc_e_001_002() -> None:
 # ---------------------------------------------------------------------------
 
 def generate_tc_e_003() -> None:
+    """3 Ausschluss-Regionen auf verschiedenen Seiten: Logo auf Seite 1,
+    Stempel + Footer auf Seite 2. Body-Text ist auf beiden Seiten identisch."""
     tc = "TC-E-003"
     d = fixture_dir(tc)
 
-    def draw(path: Path, stamp: str, logo_text: str, footer: str, body: str) -> None:
+    def draw(path: Path, stamp: str, logo_text: str, footer: str,
+             body_p1: str, body_p2: str) -> None:
         c = rl_canvas.Canvas(str(path), pagesize=A4)
-        # Region 1: Logo oben rechts
+
+        # Seite 1 – Region 1: Logo oben rechts
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(colors.darkblue)
         c.drawRightString(W - 15 * mm, H - 15 * mm, logo_text)
 
-        # Region 2: Stempel Mitte-Rechts
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 10)
+        y = H - 45 * mm
+        for line in body_p1.split("\n"):
+            c.drawString(25 * mm, y, line)
+            y -= 14
+        c.showPage()
+
+        # Seite 2 – Region 2: Stempel Mitte-Rechts, Region 3: Footer mit Datum
         c.setFont("Helvetica-Oblique", 8)
         c.setFillColor(colors.red)
         c.drawString(W - 55 * mm, H / 2, stamp)
 
-        # Region 3: Footer mit Datum
         c.setFont("Helvetica", 7)
         c.setFillColor(colors.grey)
         c.drawString(15 * mm, 12 * mm, footer)
 
-        # Körpertext (wird verglichen)
         c.setFillColor(colors.black)
         c.setFont("Helvetica", 10)
         y = H - 45 * mm
-        for line in body.split("\n"):
+        for line in body_p2.split("\n"):
             c.drawString(25 * mm, y, line)
             y -= 14
+        c.showPage()
         c.save()
 
-    body = (
+    body_p1 = (
         "Vertragsbestätigung Nr. VB-2026-00099\n"
-        "Vertragspartner: Muster AG, Frankfurt\n"
+        "Vertragspartner: Muster AG, Frankfurt"
+    )
+    body_p2 = (
         "Leistungszeitraum: 01.08.2026 – 31.07.2027\n"
         "Monatliche Rate: 850,00 EUR\n"
         "Gesamtvolumen: 10.200,00 EUR"
@@ -624,22 +637,24 @@ def generate_tc_e_003() -> None:
          stamp="ORIGINAL",
          logo_text="Muster GmbH © 2025",
          footer="Gedruckt: 01.07.2026 | System: PrintServer-A",
-         body=body)
+         body_p1=body_p1, body_p2=body_p2)
 
     draw(d / "cnd.pdf",
-         stamp="KOPIE",                            # Region 2 – anders
-         logo_text="Muster GmbH © 2026",           # Region 1 – anders
-         footer="Gedruckt: 20.07.2026 | System: PrintServer-B",  # Region 3 – anders
-         body=body)                                # Inhalt identisch
+         stamp="KOPIE",                            # Region 2 (Seite 2) – anders
+         logo_text="Muster GmbH © 2026",           # Region 1 (Seite 1) – anders
+         footer="Gedruckt: 20.07.2026 | System: PrintServer-B",  # Region 3 (Seite 2) – anders
+         body_p1=body_p1, body_p2=body_p2)         # Inhalt identisch
 
     write_readme(
         tc,
         "Mehrere Ausschluss-Regionen",
-        "Drei unterschiedliche Regionen (Logo, Stempel, Footer) haben abweichenden "
+        "2 Seiten, 3 Ausschluss-Regionen auf verschiedenen Seiten: Logo auf "
+        "Seite 1, Stempel und Footer auf Seite 2 – alle mit abweichendem "
         "Inhalt. Mit drei konfigurierten exclude_regions → kein Delta. "
-        "Der Körpertext ist identisch.",
-        "Logo '2025', Stempel 'ORIGINAL', Footer mit Datum 01.07.2026.",
-        "Logo '2026', Stempel 'KOPIE', Footer mit Datum 20.07.2026 – gleicher Körpertext.",
+        "Der Körpertext (beide Seiten) ist identisch.",
+        "Seite 1: Logo '2025'. Seite 2: Stempel 'ORIGINAL', Footer 01.07.2026.",
+        "Seite 1: Logo '2026'. Seite 2: Stempel 'KOPIE', Footer 20.07.2026 – "
+        "gleicher Körpertext.",
     )
 
 
