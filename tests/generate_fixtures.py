@@ -36,6 +36,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
+import fitz
+
 # ---------------------------------------------------------------------------
 # Konfiguration
 # ---------------------------------------------------------------------------
@@ -754,110 +756,101 @@ def generate_tc_g_001_003() -> None:
 # TC-O-001 / TC-O-002  OCR-Fixtures
 # ---------------------------------------------------------------------------
 
-def generate_tc_o_001_002() -> None:
-    """
-    Erzeugt Fixtures für OCR-Tests.
-    TC-O-001: reines Scan-PDF (Text als eingebettetes JPEG)
-    TC-O-002: gemischtes PDF (Seite 1 nativ, Seite 2 als Bild)
+def _render_text_as_scanned_page(path: Path, lines: list[str]) -> None:
+    """Rendert Text via Pillow auf ein Bild und bettet dieses Bild ohne
+    Textlayer in ein einseitiges PDF ein – echte "gescannte" Seite, kein
+    nativer Text, damit OCR (Tesseract) tatsächlich erforderlich ist."""
+    from PIL import Image, ImageDraw, ImageFont
 
-    Echte Bitmaps würden Pillow/tesseract in der Fixture-Erzeugung erfordern.
-    Stattdessen: Canvas-Simulation mit schriftartenloser Textdarstellung als
-    Platzhaltergrafik + README-Hinweis für manuelle Bitmap-Ergänzung.
-    """
-    for tc, label in [("TC-O-001", "OCR-only"), ("TC-O-002", "Mixed-Native+OCR")]:
-        d = fixture_dir(tc)
+    px_w, px_h = 1600, 2262  # ~ A4 bei 200dpi
+    img = Image.new("RGB", (px_w, px_h), color="white")
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 42)
+    except OSError:
+        font = ImageFont.load_default()
 
-        def draw_ocr_simulation(path: Path, variant: str, tc_id: str) -> None:
-            c = rl_canvas.Canvas(str(path), pagesize=A4)
+    y = 150
+    for line in lines:
+        draw.text((120, y), line, fill="black", font=font)
+        y += 70
 
-            if tc_id == "TC-O-001" or (tc_id == "TC-O-002" and variant == "page2"):
-                # Simuliere gescannte Seite: grauer Hintergrund, Text wie Stempel
-                c.setFillColor(colors.HexColor("#F5F5F0"))
-                c.rect(15 * mm, 15 * mm, W - 30 * mm, H - 30 * mm, fill=1, stroke=0)
+    img_path = path.with_suffix(".png")
+    img.save(img_path)
 
-                c.setFillColor(colors.HexColor("#222222"))
-                c.setFont("Courier", 11)
-                lines = [
-                    "*** GESCANNTE SEITE – OCR ERFORDERLICH ***",
-                    "",
-                    "Auftragsbestaetigung Nr. AB-2026-00099",
-                    "Kundenname: Mustermann, Max",
-                    "Lieferdatum: 25.07.2026",
-                    "Gesamtbetrag: 1.234,56 EUR",
-                    "",
-                    "[Dieses PDF simuliert eine gescannte Seite.]",
-                    "[In Produktion: echte JPEG-Bitmap einbetten.]",
-                ]
-                y = H - 50 * mm
-                for line in lines:
-                    c.drawString(25 * mm, y, line)
-                    y -= 16
-            else:
-                # Seite 1 von TC-O-002: nativer Text
-                c.setFont("Helvetica-Bold", 12)
-                c.drawString(25 * mm, H - 30 * mm, "Seite 1 – nativer Text (kein OCR)")
-                c.setFont("Helvetica", 10)
-                for i, line in enumerate([
-                    "Auftragsbestätigung Nr. AB-2026-00099",
-                    "Kundenname: Mustermann, Max",
-                    "Dieses Seite wird direkt extrahiert.",
-                ]):
-                    c.drawString(25 * mm, H - 50 * mm - i * 14, line)
+    c = rl_canvas.Canvas(str(path), pagesize=A4)
+    c.drawImage(str(img_path), 0, 0, width=W, height=H)
+    c.showPage()
+    c.save()
+    img_path.unlink()
 
-            c.setFont("Helvetica", 7)
-            c.setFillColor(colors.grey)
-            c.drawString(25 * mm, 12 * mm, f"Fixture {tc_id} | {variant} | {label}")
-            c.showPage()
 
-        if tc == "TC-O-001":
-            draw_ocr_simulation(d / "ref.pdf", "ref", tc)
-            draw_ocr_simulation(d / "cnd.pdf", "cnd", tc)
+def generate_tc_o_001() -> None:
+    """TC-O-001: reines Scan-PDF (Text als eingebettetes Bild, kein
+    nativer Textlayer) – erfordert echtes OCR zur Extraktion."""
+    tc = "TC-O-001"
+    d = fixture_dir(tc)
 
-            write_readme(
-                tc,
-                "Gescannten Text via OCR erkennen",
-                "Beide PDFs simulieren gescannte Dokumente (Bitmap-Seiten ohne nativen Text). "
-                "In Produktion: Seiten als JPEG einbetten (reportlab Image-Objekt). "
-                "OCR via Tesseract muss den Text extrahieren.",
-                "Simulierte Scan-Seite mit Courier-Schrift (Bitmap-Platzhalter).",
-                "Identische simulierte Scan-Seite.",
-            )
-        else:
-            draw_ocr_simulation(d / "ref.pdf", "page1", tc)
-            draw_ocr_simulation(d / "ref.pdf", "page2", tc)  # wird überschrieben durch eigene Canvas-Logik
+    lines = [
+        "Auftragsbestaetigung Nr. AB-2026-00099",
+        "Kundenname: Mustermann, Max",
+        "Lieferdatum: 25.07.2026",
+        "Gesamtbetrag: 1234,56 EUR",
+    ]
+    _render_text_as_scanned_page(d / "ref.pdf", lines)
+    _render_text_as_scanned_page(d / "cnd.pdf", lines)
 
-            # Korrekte Zwei-Seiten-Version
-            c = rl_canvas.Canvas(str(d / "ref.pdf"), pagesize=A4)
-            # Seite 1: nativ
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(25*mm, H-30*mm, "Seite 1 – nativer Text (kein OCR)")
-            c.setFont("Helvetica", 10)
-            for i, line in enumerate(["Auftragsbestätigung Nr. AB-2026-00099", "Kundenname: Mustermann, Max"]):
-                c.drawString(25*mm, H-50*mm - i*14, line)
-            c.showPage()
-            # Seite 2: OCR-Simulation
-            c.setFillColor(colors.HexColor("#F5F5F0"))
-            c.rect(15*mm, 15*mm, W-30*mm, H-30*mm, fill=1, stroke=0)
-            c.setFillColor(colors.black)
-            c.setFont("Courier", 11)
-            for i, line in enumerate(["*** SCAN-SEITE 2 ***", "Lieferdatum: 25.07.2026", "Gesamtbetrag: 1.234,56 EUR"]):
-                c.drawString(25*mm, H-50*mm - i*16, line)
-            c.showPage()
-            c.save()
+    write_readme(
+        tc,
+        "Gescannten Text via OCR erkennen",
+        "Beide PDFs bestehen aus einer eingebetteten Bitmap (Pillow-Rendering) "
+        "ohne Textlayer. PyMuPDF liefert für diese Seite leeren Text; "
+        "engine.ocr_extractor muss den Inhalt via Tesseract (deu) erkennen.",
+        "Gerenderte Scan-Seite mit Auftragsdaten.",
+        "Identische gerenderte Scan-Seite.",
+    )
 
-            # cnd.pdf identisch
-            import shutil
-            shutil.copy(d / "ref.pdf", d / "cnd.pdf")
 
-            write_readme(
-                tc,
-                "Gemischtes PDF: nativer + gescannter Text",
-                "Seite 1 enthält nativen Text (direkt extrahierbar). "
-                "Seite 2 simuliert eine gescannte Seite. Beide Verfahren müssen "
-                "kombiniert funktionieren.",
-                "Seite 1 nativ, Seite 2 als Scan-Simulation.",
-                "Identisch mit ref.pdf.",
-            )
+def generate_tc_o_002() -> None:
+    """TC-O-002: gemischtes PDF – Seite 1 nativ, Seite 2 als echtes
+    Bild ohne Textlayer (P2, hier nur zur Vollständigkeit vorbereitet)."""
+    tc = "TC-O-002"
+    d = fixture_dir(tc)
+
+    c = rl_canvas.Canvas(str(d / "ref.pdf"), pagesize=A4)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(25 * mm, H - 30 * mm, "Seite 1 – nativer Text (kein OCR)")
+    c.setFont("Helvetica", 10)
+    for i, line in enumerate(["Auftragsbestätigung Nr. AB-2026-00099", "Kundenname: Mustermann, Max"]):
+        c.drawString(25 * mm, H - 50 * mm - i * 14, line)
+    c.showPage()
+    c.save()
+
+    _render_text_as_scanned_page(
+        d / "_page2_only.pdf",
+        ["SCAN-SEITE 2", "Lieferdatum: 25.07.2026", "Gesamtbetrag: 1234,56 EUR"],
+    )
+
+    doc = fitz.open(str(d / "ref.pdf"))
+    page2_doc = fitz.open(str(d / "_page2_only.pdf"))
+    doc.insert_pdf(page2_doc)
+    doc.saveIncr()
+    doc.close()
+    page2_doc.close()
+    (d / "_page2_only.pdf").unlink()
+
+    import shutil
+    shutil.copy(d / "ref.pdf", d / "cnd.pdf")
+
+    write_readme(
+        tc,
+        "Gemischtes PDF: nativer + gescannter Text",
+        "Seite 1 enthält nativen Text (direkt extrahierbar). Seite 2 ist eine "
+        "echte Bitmap ohne Textlayer. Beide Verfahren müssen kombiniert "
+        "funktionieren.",
+        "Seite 1 nativ, Seite 2 als echter Scan.",
+        "Identisch mit ref.pdf.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1080,7 +1073,8 @@ GENERATORS = [
     ("TC-E-001 + TC-E-002", generate_tc_e_001_002),
     ("TC-E-003", generate_tc_e_003),
     ("TC-G-001 – TC-G-003", generate_tc_g_001_003),
-    ("TC-O-001 + TC-O-002", generate_tc_o_001_002),
+    ("TC-O-001", generate_tc_o_001),
+    ("TC-O-002", generate_tc_o_002),
     ("TC-P-001 + TC-P-002", generate_tc_p_001_002),
     ("TC-B-001 – TC-B-003", generate_tc_b_001_003),
     ("TC-S-001 + TC-S-002", generate_tc_s_001_002),
