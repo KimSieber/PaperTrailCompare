@@ -7,7 +7,6 @@ dependencies = [
     "pymupdf",
     "pdfplumber",
     "pytesseract",
-    "diff-match-patch",
     "reportlab",
 ]
 
