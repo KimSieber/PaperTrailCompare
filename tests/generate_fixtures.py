@@ -1026,15 +1026,30 @@ def generate_tc_b_001_003() -> None:
     d = fixture_dir(tc)
 
     def make_pdf_with_xmp(path: Path, doc_id: str, variant: str) -> None:
-        """PDF mit eingebetteter XMP-Document-ID."""
+        """PDF mit echtem eingebettetem XMP-Metadatenpaket (dc:identifier
+        als Document-ID) – reportlab kann selbst kein XMP schreiben, daher
+        wird das fertige PDF per PyMuPDF nachträglich um ein XMP-Paket
+        ergänzt (doc.set_xml_metadata)."""
         c = rl_canvas.Canvas(str(path), pagesize=A4)
         c.setAuthor("PaperTrail-Fixture-Generator")
-        c.setSubject(f"XMP-Test | doc_id={doc_id}")
-        c.setKeywords(f"document_id:{doc_id}")  # Simuliert XMP Document-ID
         c.setFont("Helvetica", 10)
         c.drawString(25*mm, H-30*mm, f"Document-ID: {doc_id}")
         c.drawString(25*mm, H-44*mm, f"Variante: {variant}")
         c.save()
+
+        xmp_packet = f"""<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+   <dc:identifier>{doc_id}</dc:identifier>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>"""
+        xmp_doc = fitz.open(str(path))
+        xmp_doc.set_xml_metadata(xmp_packet)
+        xmp_doc.saveIncr()
+        xmp_doc.close()
 
     for i in range(1, 11):
         doc_id = f"DOC-2026-{i:04d}"
@@ -1044,8 +1059,9 @@ def generate_tc_b_001_003() -> None:
     write_readme(
         tc,
         "Batch per XMP-Metadaten (Document-ID)",
-        "20 PDFs (10 ref + 10 cnd). Jedes Pärchen teilt dieselbe XMP Document-ID "
-        "(im Keywords-Feld als 'document_id:<id>' hinterlegt). "
+        "20 PDFs (10 ref + 10 cnd). Jedes Pärchen teilt dieselbe Document-ID, "
+        "eingebettet als echtes XMP-Metadatenpaket (dc:identifier) via "
+        "PyMuPDF (doc.set_xml_metadata). "
         "batch_compare_by_xmp() muss die 10 Paare korrekt zuordnen.",
         "ref_01.pdf … ref_10.pdf, je mit Document-ID DOC-2026-0001 … 0010.",
         "cnd_01.pdf … cnd_10.pdf, gleiche Document-IDs.",
