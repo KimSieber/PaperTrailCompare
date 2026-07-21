@@ -1,6 +1,25 @@
 # Indivduell
 .DS_Store
 
+# Node / Vite / Tauri Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Tauri / Rust
+# Cargo.lock wird für die Anwendung (kein Library-Crate) versioniert.
+src-tauri/target/
+
+# Sidecar-Binary (Build-Artefakt/lokaler Dev-Wrapper, siehe
+# src-tauri/binaries/README.md) - nicht versionieren.
+src-tauri/binaries/papertrail-engine-*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
