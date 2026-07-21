@@ -1,4 +1,5 @@
-"""P1-Testfälle TC-R-001 und TC-R-002 für engine.report_generator.
+"""Testfälle TC-R-001, TC-R-002 (P1) und TC-R-003, TC-R-004 (P2) für
+engine.report_generator.
 
 Integrationstest (Schicht 3, siehe CLAUDE.md) – kombiniert
 text_comparator/pdf_extractor-Ergebnisse mit PyMuPDF (Markierung) und
@@ -6,7 +7,8 @@ ReportLab (Übersichtsseiten) zu einem PDF-Report.
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 8.
 Fixture: tests/fixtures/TC-R-001/{ref,cnd}.pdf (3 Deltas auf 2 Seiten),
-siehe tests/generate_fixtures.py::generate_tc_r_001.
+tests/fixtures/TC-T-001/{ref,cnd}.pdf (identischer Text, kein Delta),
+siehe tests/generate_fixtures.py::generate_tc_r_001 / generate_tc_t_001.
 """
 from pathlib import Path
 
@@ -14,6 +16,7 @@ import fitz
 
 from engine.batch_processor import BatchResult, PairResult
 from engine.pdf_extractor import extract_pages
+from engine.profile_loader import Profile
 from engine.report_generator import generate_batch_report, generate_report
 from engine.text_comparator import CompareResult, Delta, compare
 
@@ -120,6 +123,84 @@ def test_generate_report_ignoriert_leeren_text_und_seite_ausserhalb_dokument(tmp
     generate_report(edge_result, ref_path, cnd_path, output_path)
 
     assert output_path.is_file()
+
+
+def test_tc_r_003_detaillierter_report_kein_delta(tmp_path):
+    """Vergleich ohne Delta: Report zeigt 'Keine Unterschiede gefunden' und
+    enthält keine leere Delta-Tabelle/-Sektion, keine Markierungen."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    assert result.has_delta is False
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path)
+
+    with fitz.open(str(ref_path)) as d:
+        ref_page_count = len(d)
+    with fitz.open(str(cnd_path)) as d:
+        cnd_page_count = len(d)
+
+    report = fitz.open(str(output_path))
+    summary_page_count = len(report) - ref_page_count - cnd_page_count
+    summary_text = "".join(report[i].get_text() for i in range(summary_page_count))
+
+    assert "Keine Unterschiede gefunden" in summary_text
+    # Keine Delta-Tabelle wurde gerendert (Zeilen enthielten "Seite <n>").
+    assert "Seite" not in summary_text
+
+    total_annots = sum(len(list(page.annots() or [])) for page in report)
+    assert total_annots == 0
+
+    report.close()
+
+
+def test_tc_r_004_report_format_konfigurierbar_html(tmp_path):
+    """Profil mit report_format='html' -> HTML-Datei statt PDF, mit Datei-
+    und Delta-Angaben."""
+    ref_path = FIXTURES / "TC-R-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-R-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    assert result.has_delta is True
+
+    profile = Profile(version="1.0", report_format="html")
+    output_path = tmp_path / "report.html"
+
+    returned_path = generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    assert returned_path == output_path
+    assert output_path.is_file()
+
+    content = output_path.read_text(encoding="utf-8")
+    assert "<html" in content.lower()
+    assert "ref.pdf" in content
+    assert "cnd.pdf" in content
+    assert "Mustermann" in content
+    assert "Musterfrau" in content
+
+    # Es wurde kein (marker-fähiges) PDF erzeugt.
+    with open(output_path, "rb") as f:
+        assert not f.read(5).startswith(b"%PDF")
+
+
+def test_generate_report_html_ohne_delta(tmp_path):
+    """HTML-Report ohne Delta zeigt ebenfalls 'Keine Unterschiede gefunden'
+    statt einer leeren Delta-Tabelle."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    assert result.has_delta is False
+
+    profile = Profile(version="1.0", report_format="html")
+    output_path = tmp_path / "report.html"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    content = output_path.read_text(encoding="utf-8")
+    assert "Keine Unterschiede gefunden" in content
+    assert "<table" not in content
 
 
 def test_tc_r_002_batch_report_uebersicht_aller_vergleiche(tmp_path):

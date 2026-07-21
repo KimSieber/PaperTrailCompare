@@ -6,9 +6,10 @@ Annotationen), Übersichtsseiten via ReportLab.
 """
 from __future__ import annotations
 
+import html
 import io
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import fitz
 from reportlab.lib import colors
@@ -18,6 +19,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from engine.batch_processor import BatchResult
+from engine.profile_loader import Profile
 from engine.text_comparator import CompareResult
 
 _STYLES = getSampleStyleSheet()
@@ -90,11 +92,52 @@ def _mark_deltas_in_document(
     return doc
 
 
+def _generate_report_html(
+    compare_result: CompareResult,
+    ref_pdf_path: Path,
+    cnd_pdf_path: Path,
+    output_path: Path,
+) -> Path:
+    """Alternatives Report-Format (TC-R-004): reiner Textbericht ohne
+    Delta-Markierung im Dokument selbst – HTML ist laut Architektur-
+    entscheidung #4 die konfigurierbare Alternative zum PDF-Default."""
+    if compare_result.has_delta:
+        rows = "".join(
+            f"<tr><td>{i}</td><td>Seite {d.page}</td>"
+            f"<td>{html.escape(d.ref_text)}</td><td>{html.escape(d.cnd_text)}</td></tr>"
+            for i, d in enumerate(compare_result.deltas, start=1)
+        )
+        body_html = (
+            f"<p>Anzahl Deltas: {len(compare_result.deltas)}</p>"
+            "<table border=\"1\" cellpadding=\"4\">"
+            "<tr><th>#</th><th>Seite</th><th>Referenz</th><th>Kandidat</th></tr>"
+            f"{rows}</table>"
+        )
+    else:
+        body_html = "<p>Keine Unterschiede gefunden.</p>"
+
+    content = f"""<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><title>PaperTrail Compare – Einzel-Report</title></head>
+<body>
+<h1>PaperTrail Compare – Einzel-Report</h1>
+<p>Referenzdatei: {html.escape(ref_pdf_path.name)}</p>
+<p>Kandidatdatei: {html.escape(cnd_pdf_path.name)}</p>
+{body_html}
+</body>
+</html>
+"""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(content, encoding="utf-8")
+    return output_path
+
+
 def generate_report(
     compare_result: CompareResult,
     ref_pdf_path: Union[str, Path],
     cnd_pdf_path: Union[str, Path],
     output_path: Union[str, Path],
+    profile: Optional[Profile] = None,
 ) -> Path:
     """Erzeugt einen Einzel-Report (TC-R-001): Übersichtsseite mit Datei-
     und Seitenangabe je Delta, gefolgt vom Referenz- und Kandidat-Dokument
@@ -106,10 +149,17 @@ def generate_report(
     Referenz und Kandidat (Kernprinzip des Vergleichs, siehe TC-T-003) und
     fehlendem Treffer wird über das gesamte Referenz-Dokument gesucht
     (TC-R-001-seitenumbruch).
+
+    profile.report_format="html" erzeugt statt des PDF-Reports einen
+    einfachen HTML-Bericht ohne Delta-Markierung im Dokument (TC-R-004) –
+    PDF bleibt das primäre Format (Architekturentscheidung #4).
     """
     ref_pdf_path = Path(ref_pdf_path)
     cnd_pdf_path = Path(cnd_pdf_path)
     output_path = Path(output_path)
+
+    if profile is not None and profile.report_format == "html":
+        return _generate_report_html(compare_result, ref_pdf_path, cnd_pdf_path, output_path)
 
     ref_texts_by_page: Dict[int, List[str]] = {}
     cnd_texts_by_page: Dict[int, List[str]] = {}
