@@ -7,7 +7,7 @@ case_sensitive-Flag und Report-Format.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import List, Union
 
@@ -123,3 +123,15 @@ def load_profile(path: Union[str, Path]) -> Profile:
         report_format=report_format,
         ocr=ocr,
     )
+
+
+def apply_overrides(profile: Profile, **overrides) -> Profile:
+    """Überschreibt einzelne Profilwerte, z.B. durch CLI-Parameter (TC-P-003).
+
+    Nur explizit übergebene, nicht-None Werte überschreiben das Profil;
+    das übergebene Profile-Objekt selbst bleibt unverändert (dataclasses
+    sind hier nicht frozen, aber apply_overrides gibt bewusst eine neue
+    Instanz zurück statt in-place zu mutieren).
+    """
+    active_overrides = {k: v for k, v in overrides.items() if v is not None}
+    return replace(profile, **active_overrides)

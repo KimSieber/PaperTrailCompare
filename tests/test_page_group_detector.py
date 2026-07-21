@@ -1,19 +1,23 @@
-"""P1-Testfälle TC-G-001 und TC-G-002 für engine.page_group_detector.
+"""Testfälle TC-G-001, TC-G-002 (P1) und TC-G-003 (P2) für
+engine.page_group_detector.
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 4.
-Fixture: tests/fixtures/TC-G-001/ref.pdf (== TC-G-002/ref.pdf), ein
-Batch-PDF mit 5 Dokumenten (3 Rechnungen, 2 Mahnungen), RE-2026-0002 über
-2 Seiten.
 
-Die Muster verwenden einen End-Anker ($), damit Folgeseiten eines
-mehrseitigen Dokuments (Titel + " – Seite N") nicht fälschlich als neue
-Gruppe erkannt werden – das lose Beispiel-Pattern aus profile_loader/
-TC-P-001 ("Rechnung Nr\\..*") würde das nicht leisten.
+Fixture TC-G-001/002: Batch-PDF mit 5 Dokumenten (3 Rechnungen, 2
+Mahnungen), RE-2026-0002 über 2 Seiten. Die Muster verwenden einen
+End-Anker ($), damit Folgeseiten eines mehrseitigen Dokuments (Titel +
+" – Seite N") nicht fälschlich als neue Gruppe erkannt werden.
+
+Fixture TC-G-003: 2 Dokumente mit identischem Fließtext, der bei cnd.pdf
+(größere Schrift) auf mehr Seiten umbricht als bei ref.pdf. Fortsetzungs-
+seiten tragen dort keinen Titel, daher reicht ein einfaches Pattern ohne
+End-Anker-Sonderfall.
 """
 from pathlib import Path
 
 from engine.page_group_detector import extract_page_groups
 from engine.profile_loader import PageGroupPattern
+from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -44,3 +48,23 @@ def test_tc_g_002_nur_bestimmte_seitengruppen_vergleichen():
     assert len(groups) == 3
     assert all(g.name == "Rechnung" for g in groups)
     assert [len(g.pages) for g in groups] == [1, 2, 1]
+
+
+def test_tc_g_003_seitengruppen_mit_unterschiedlichem_seitenumfang():
+    ref_path = str(FIXTURES / "TC-G-003" / "ref.pdf")
+    cnd_path = str(FIXTURES / "TC-G-003" / "cnd.pdf")
+    rechnung_pattern = [PageGroupPattern(pattern=r"^Rechnung Nr\. \S+$", name="Rechnung")]
+
+    ref_groups = extract_page_groups(ref_path, rechnung_pattern)
+    cnd_groups = extract_page_groups(cnd_path, rechnung_pattern)
+
+    assert len(ref_groups) == len(cnd_groups) == 2
+    # ref: 2 Seiten pro Dokument, cnd: 4 Seiten pro Dokument – unterschiedlicher
+    # Seitenumfang bei identischem Fließtext (größere Schrift in cnd.pdf).
+    assert [len(g.pages) for g in ref_groups] == [2, 2]
+    assert [len(g.pages) for g in cnd_groups] == [4, 4]
+
+    for ref_group, cnd_group in zip(ref_groups, cnd_groups):
+        result = compare(ref_group.pages, cnd_group.pages)
+        assert result.has_delta is False
+        assert result.deltas == []

@@ -2,10 +2,10 @@
 
 **Seitengruppen mit unterschiedlichem Seitenumfang**
 
-Beide Batch-PDFs enthalten 2 Rechnungen mit identischem Inhalt, aber das cnd.pdf hat je eine Seite mehr (neuer Seitenumbruch). Kein inhaltliches Delta erwartet.
+Beide PDFs enthalten 2 Rechnungen mit identischem Fließtext. cnd.pdf nutzt eine größere Schriftgröße, wodurch derselbe Text auf mehr Seiten umbricht. Kein inhaltliches Delta erwartet.
 
 ## ref.pdf
-RE-0010: 2 Seiten, RE-0011: 3 Seiten.
+RE-0010, RE-0011: Fließtext bei Schriftgröße 10pt.
 
 ## cnd.pdf
-RE-0010: 3 Seiten, RE-0011: 4 Seiten – gleicher Inhalt.
+RE-0010, RE-0011: identischer Fließtext bei Schriftgröße 14pt (mehr Seiten pro Dokument).

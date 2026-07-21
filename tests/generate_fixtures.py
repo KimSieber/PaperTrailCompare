@@ -647,7 +647,7 @@ def generate_tc_e_003() -> None:
 # TC-G-001 / TC-G-002 / TC-G-003  Seitengruppen
 # ---------------------------------------------------------------------------
 
-def generate_tc_g_001_003() -> None:
+def generate_tc_g_001_002() -> None:
     """Erzeugt ein Batch-PDF mit mehreren Dokumenten pro Datei."""
 
     def make_batch_pdf(path: Path, docs: list[dict]) -> None:
@@ -678,7 +678,7 @@ def generate_tc_g_001_003() -> None:
                 c.setFont("Helvetica", 7)
                 c.setFillColor(colors.grey)
                 c.drawString(25 * mm, 12 * mm,
-                             f"Batch-Dokument | Seite {page + 1}/{doc['pages']}")
+                             f"Batch-Dokument | Seite {page + 1}")
                 c.setFillColor(colors.black)
                 c.showPage()
         c.save()
@@ -725,30 +725,64 @@ def generate_tc_g_001_003() -> None:
                 "Identische Batch-Struktur.",
             )
 
-    # TC-G-003: Seitengruppen mit unterschiedlichem Seitenumfang
+# ---------------------------------------------------------------------------
+# TC-G-003  Seitengruppen mit unterschiedlichem Seitenumfang
+# ---------------------------------------------------------------------------
+
+def generate_tc_g_003() -> None:
+    """Zwei Dokumente mit identischem Fließtext, aber unterschiedlicher
+    Schriftgröße – dadurch reflowt derselbe Text auf unterschiedlich viele
+    Seiten (echter Seitenumbruch-Unterschied, kein künstlich verdoppelter
+    Füll-Text). Fortsetzungsseiten tragen keinen Titel, daher ist die
+    Gruppenerkennung eindeutig: nur die erste Seite jedes Dokuments matcht
+    das Pattern."""
     tc = "TC-G-003"
     d = fixture_dir(tc)
 
-    docs_ref = [
-        {"type": "Rechnung", "number": "RE-2026-0010", "amount": "350,00 EUR", "pages": 2},
-        {"type": "Rechnung", "number": "RE-2026-0011", "amount": "780,00 EUR", "pages": 3},
+    body_sentences = [
+        f"Position {i}: Lieferung von Artikel {chr(65 + i % 5)} zum "
+        f"Stückpreis von {10 + i},00 EUR gemäß Rahmenvertrag Nr. RV-{2000 + i}."
+        for i in range(80)
     ]
-    docs_cnd = [
-        {"type": "Rechnung", "number": "RE-2026-0010", "amount": "350,00 EUR", "pages": 3},  # 1 Seite mehr
-        {"type": "Rechnung", "number": "RE-2026-0011", "amount": "780,00 EUR", "pages": 4},  # 1 Seite mehr
+    body_text = " ".join(body_sentences)
+
+    docs = [
+        ("Rechnung Nr. RE-2026-0010", "350,00 EUR"),
+        ("Rechnung Nr. RE-2026-0011", "780,00 EUR"),
     ]
 
-    make_batch_pdf(d / "ref.pdf", docs_ref)
-    make_batch_pdf(d / "cnd.pdf", docs_cnd)
+    def build(path: Path, font_size: int) -> None:
+        doc = SimpleDocTemplate(
+            str(path), pagesize=A4,
+            leftMargin=25 * mm, rightMargin=25 * mm,
+            topMargin=25 * mm, bottomMargin=25 * mm,
+        )
+        body_style = ParagraphStyle(
+            "tc_g_003_body", parent=NORMAL, fontSize=font_size, leading=font_size * 1.4,
+        )
+        story = []
+        for i, (title, amount) in enumerate(docs):
+            if i > 0:
+                story.append(PageBreak())
+            story.append(Paragraph(title, HEADING))
+            story.append(Paragraph(f"Betrag: {amount}", body_style))
+            story.append(Paragraph("Datum: 15.07.2026", body_style))
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(body_text, body_style))
+        doc.build(story)
+
+    build(d / "ref.pdf", font_size=10)
+    build(d / "cnd.pdf", font_size=14)  # größere Schrift -> mehr Seiten, gleicher Text
 
     write_readme(
         tc,
         "Seitengruppen mit unterschiedlichem Seitenumfang",
-        "Beide Batch-PDFs enthalten 2 Rechnungen mit identischem Inhalt, "
-        "aber das cnd.pdf hat je eine Seite mehr (neuer Seitenumbruch). "
-        "Kein inhaltliches Delta erwartet.",
-        "RE-0010: 2 Seiten, RE-0011: 3 Seiten.",
-        "RE-0010: 3 Seiten, RE-0011: 4 Seiten – gleicher Inhalt.",
+        "Beide PDFs enthalten 2 Rechnungen mit identischem Fließtext. "
+        "cnd.pdf nutzt eine größere Schriftgröße, wodurch derselbe Text auf "
+        "mehr Seiten umbricht. Kein inhaltliches Delta erwartet.",
+        "RE-0010, RE-0011: Fließtext bei Schriftgröße 10pt.",
+        "RE-0010, RE-0011: identischer Fließtext bei Schriftgröße 14pt "
+        "(mehr Seiten pro Dokument).",
     )
 
 
@@ -1072,7 +1106,8 @@ GENERATORS = [
     ("TC-T-008", generate_tc_t_008),
     ("TC-E-001 + TC-E-002", generate_tc_e_001_002),
     ("TC-E-003", generate_tc_e_003),
-    ("TC-G-001 – TC-G-003", generate_tc_g_001_003),
+    ("TC-G-001 + TC-G-002", generate_tc_g_001_002),
+    ("TC-G-003", generate_tc_g_003),
     ("TC-O-001", generate_tc_o_001),
     ("TC-O-002", generate_tc_o_002),
     ("TC-P-001 + TC-P-002", generate_tc_p_001_002),
