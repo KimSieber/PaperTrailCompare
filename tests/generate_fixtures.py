@@ -1106,6 +1106,67 @@ def generate_tc_s_001_002() -> None:
 
 
 # ---------------------------------------------------------------------------
+# TC-R-001  Delta-Markierung im Einzel-Report
+# ---------------------------------------------------------------------------
+
+def generate_tc_r_001() -> None:
+    """2 Seiten, 3 Deltas (2 auf Seite 1, 1 auf Seite 2) für den
+    Einzel-Report-Test von report_generator."""
+    tc = "TC-R-001"
+    d = fixture_dir(tc)
+
+    simple_pdf(d / "ref.pdf", [
+        ["Kunde: Mustermann", "Betrag: 100 EUR"],
+        ["Status: offen"],
+    ], title="TC-R-001 ref")
+    simple_pdf(d / "cnd.pdf", [
+        ["Kunde: Musterfrau", "Betrag: 200 EUR"],
+        ["Status: bezahlt"],
+    ], title="TC-R-001 cnd")
+
+    write_readme(
+        tc,
+        "Delta-Markierung im Einzel-Report",
+        "3 Deltas über 2 Seiten verteilt: Seite 1 'Mustermann'->'Musterfrau' "
+        "und '100'->'200', Seite 2 'offen'->'bezahlt'. generate_report() muss "
+        "alle 3 Stellen markieren und Seiten-/Dateiangaben korrekt ausweisen.",
+        "Seite 1: Kunde Mustermann, Betrag 100 EUR. Seite 2: Status offen.",
+        "Seite 1: Kunde Musterfrau, Betrag 200 EUR. Seite 2: Status bezahlt.",
+    )
+
+
+def generate_tc_r_001_seitenumbruch() -> None:
+    """Variante von TC-R-001 mit unterschiedlichem Seitenumbruch zwischen
+    ref und cnd: ref verteilt den Inhalt auf 2 Seiten, cnd auf 1 Seite.
+    Delta.page bezieht sich nur auf die Kandidat-Seite (siehe
+    text_comparator.Delta) – der Referenz-Treffer für '100' liegt hier auf
+    ref-Seite 2, obwohl die gemeldete Delta-Seite 1 ist (cnd-Seite von
+    '200'). Prüft den Seiten-Fallback in report_generator._mark_deltas_in_document."""
+    tc = "TC-R-001-seitenumbruch"
+    d = fixture_dir(tc)
+
+    simple_pdf(d / "ref.pdf", [
+        ["Einleitungstext zum Vertrag."],
+        ["Betrag: 100 EUR"],
+    ], title=f"{tc} ref")
+    simple_pdf(d / "cnd.pdf", [
+        ["Einleitungstext zum Vertrag.", "Betrag: 200 EUR"],
+    ], title=f"{tc} cnd")
+
+    write_readme(
+        tc,
+        "Delta-Markierung bei unterschiedlichem Seitenumbruch",
+        "ref.pdf verteilt den Text auf 2 Seiten, cnd.pdf hat denselben Text "
+        "(mit einem Delta '100'->'200') auf nur 1 Seite. Die gemeldete "
+        "Delta-Seite (Kandidat-Seite 1) stimmt nicht mit der tatsächlichen "
+        "Fundstelle im Referenz-Dokument (Seite 2) überein – "
+        "report_generator muss trotzdem korrekt markieren.",
+        "Seite 1: Einleitungstext. Seite 2: Betrag 100 EUR.",
+        "Seite 1: Einleitungstext + Betrag 200 EUR (beides auf einer Seite).",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Hauptprogramm
 # ---------------------------------------------------------------------------
 
@@ -1128,6 +1189,8 @@ GENERATORS = [
     ("TC-O-002", generate_tc_o_002),
     ("TC-P-001 + TC-P-002", generate_tc_p_001_002),
     ("TC-B-001 – TC-B-003", generate_tc_b_001_003),
+    ("TC-R-001", generate_tc_r_001),
+    ("TC-R-001-seitenumbruch", generate_tc_r_001_seitenumbruch),
     ("TC-S-001 + TC-S-002", generate_tc_s_001_002),
 ]
 
