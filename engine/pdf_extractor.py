@@ -7,7 +7,7 @@ doc/PaperTrailCompare_Architekturspezifikation.docx Abschnitt 4/6.2.
 """
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 import fitz
 import pdfplumber
@@ -27,7 +27,7 @@ def _extract_page_text_columns(page: "fitz.Page") -> str:
     return "\n".join(b[4].strip() for b in blocks)
 
 
-def _linearize_tables(tables: List[List[List[str]]]) -> str:
+def _linearize_tables(tables: List[List[List[Optional[str]]]]) -> str:
     """Wandelt erkannte Tabellen (Zeilen aus Zellen) in Text um, zeilenweise,
     layoutunabhängig von Spaltenbreiten/Farbschema (TC-T-008)."""
     lines: List[str] = []
