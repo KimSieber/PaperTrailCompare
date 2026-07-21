@@ -10,11 +10,13 @@ from __future__ import annotations
 import csv
 import re
 from dataclasses import dataclass, field
+from multiprocessing import Pool
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import fitz
 
+from engine.page_group_detector import extract_page_groups
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import Profile
 from engine.text_comparator import CompareResult, compare
@@ -72,17 +74,80 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
     return PairResult(ref_path=ref_path, cnd_path=cnd_path, status="ok", compare_result=result)
 
 
+def _compare_pair_worker(args: Tuple[str, str, Optional[Profile]]) -> PairResult:
+    """Modul-Top-Level-Wrapper für multiprocessing.Pool.map – Pool benötigt
+    eine picklebare, importierbare Funktion (keine Closure/Lambda)."""
+    ref_path, cnd_path, profile = args
+    return _compare_pair(ref_path, cnd_path, profile)
+
+
 def batch_compare(
-    filelist_path: Union[str, Path], profile: Optional[Profile] = None
+    filelist_path: Union[str, Path],
+    profile: Optional[Profile] = None,
+    workers: int = 1,
 ) -> BatchResult:
     """Vergleicht alle Dateipaare aus einer CSV-Dateiliste.
 
     Fehlende Dateien werden pro Paar protokolliert (status='error'); die
     übrigen Paare werden trotzdem weiterverarbeitet (TC-B-002).
+
+    workers>1 verarbeitet die Paare parallel über multiprocessing.Pool
+    (TC-B-005) – siehe Architekturspezifikation: "Python multiprocessing /
+    parallele Verarbeitung ohne externen Queue-Server". Die Ergebnisreihenfolge
+    entspricht dabei stets der Reihenfolge in der Dateiliste (Pool.map
+    erhält die Eingabereihenfolge).
     """
     pairs = read_filelist(filelist_path)
-    results = [_compare_pair(ref, cnd, profile) for ref, cnd in pairs]
+
+    if workers > 1:
+        with Pool(processes=workers) as pool:
+            results = pool.map(
+                _compare_pair_worker, [(ref, cnd, profile) for ref, cnd in pairs]
+            )
+    else:
+        results = [_compare_pair(ref, cnd, profile) for ref, cnd in pairs]
+
     return BatchResult(pairs=results)
+
+
+def split_batch_pdf(
+    pdf_path: Union[str, Path],
+    profile: Profile,
+    output_dir: Union[str, Path],
+    group_filter: Optional[Sequence[str]] = None,
+) -> List[Path]:
+    """Zerlegt ein großes Batch-PDF in Einzeldokumente anhand der
+    Seitengruppen-Patterns aus dem Profil (TC-B-004).
+
+    Nutzt page_group_detector.extract_page_groups, um die Seitenbereiche
+    der einzelnen Dokumente zu bestimmen, und schreibt jeden Bereich als
+    eigenständiges PDF in output_dir.
+    """
+    groups = extract_page_groups(
+        str(pdf_path), profile.page_groups, group_filter=group_filter
+    )
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_paths: List[Path] = []
+    src_doc = fitz.open(str(pdf_path))
+    try:
+        for index, group in enumerate(groups, start=1):
+            first_page_index = group.start_page - 1
+            last_page_index = first_page_index + len(group.pages) - 1
+
+            single_doc = fitz.open()
+            single_doc.insert_pdf(src_doc, from_page=first_page_index, to_page=last_page_index)
+
+            out_path = output_dir / f"{index:03d}_{group.name}.pdf"
+            single_doc.save(str(out_path))
+            single_doc.close()
+            output_paths.append(out_path)
+    finally:
+        src_doc.close()
+
+    return output_paths
 
 
 def _read_document_id(pdf_path: Path) -> Optional[str]:

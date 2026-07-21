@@ -1084,6 +1084,75 @@ def generate_tc_b_001_003() -> None:
 
 
 # ---------------------------------------------------------------------------
+# TC-B-004  Batch-PDF-Splitting per Seitengruppen-Pattern
+# ---------------------------------------------------------------------------
+
+def generate_tc_b_004() -> None:
+    """Ein großes batch.pdf mit 30 einseitigen Rechnungen, jede mit
+    eindeutiger Nummer, beginnend mit 'Rechnung Nr. <ID>' als Trenner-Pattern."""
+    tc = "TC-B-004"
+    d = fixture_dir(tc)
+
+    c = rl_canvas.Canvas(str(d / "batch.pdf"), pagesize=A4)
+    for i in range(1, 31):
+        doc_id = f"RE-2026-{i:04d}"
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(25 * mm, H - 30 * mm, f"Rechnung Nr. {doc_id}")
+        c.setFont("Helvetica", 10)
+        c.drawString(25 * mm, H - 45 * mm, f"Betrag: {i * 10},00 EUR")
+        c.showPage()
+    c.save()
+
+    write_readme(
+        tc,
+        "Batch-PDF-Splitting per Seitengruppen-Pattern",
+        "batch.pdf mit 30 einseitigen Rechnungen (RE-2026-0001 … RE-2026-0030), "
+        "jede beginnt mit 'Rechnung Nr. <ID>' als Trenner-Pattern für "
+        "split_batch_pdf().",
+        "(kein Vergleich – reiner Splitting-Test)",
+        "(kein Vergleich – reiner Splitting-Test)",
+    )
+
+
+# ---------------------------------------------------------------------------
+# TC-B-005  Parallelverarbeitung im Batch
+# ---------------------------------------------------------------------------
+
+def generate_tc_b_005() -> None:
+    """filelist.csv mit 100 identischen (kleinen) Dateipaaren – für den
+    Multiprocessing-Test reicht minimaler, schnell erzeugbarer Inhalt."""
+    import csv
+
+    tc = "TC-B-005"
+    d = fixture_dir(tc)
+    pairs_dir = d / "pairs"
+    pairs_dir.mkdir(exist_ok=True)
+
+    filelist_rows = []
+    for i in range(1, 101):
+        ref_path = pairs_dir / f"doc_{i:03d}_ref.pdf"
+        cnd_path = pairs_dir / f"doc_{i:03d}_cnd.pdf"
+        text = [f"Dokument {i:03d}: Auftragsnummer AU-2026-{i:05d}"]
+        simple_pdf(ref_path, [text])
+        simple_pdf(cnd_path, [text])
+        filelist_rows.append([str(ref_path), str(cnd_path)])
+
+    with open(d / "filelist.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["ref", "cnd"])
+        writer.writerows(filelist_rows)
+
+    write_readme(
+        tc,
+        "Parallelverarbeitung im Batch",
+        "filelist.csv mit 100 identischen Dateipaaren, für den "
+        "Multiprocessing-Test von batch_compare(workers=4).",
+        "100 ref-PDFs (pairs/doc_001_ref.pdf … doc_100_ref.pdf).",
+        "100 cnd-PDFs, inhaltlich identisch zu ref.",
+    )
+
+
+# ---------------------------------------------------------------------------
 # TC-S-001 / TC-S-002  Privacy-Fixtures (einfache PDFs)
 # ---------------------------------------------------------------------------
 
@@ -1204,6 +1273,8 @@ GENERATORS = [
     ("TC-O-002", generate_tc_o_002),
     ("TC-P-001 + TC-P-002", generate_tc_p_001_002),
     ("TC-B-001 – TC-B-003", generate_tc_b_001_003),
+    ("TC-B-004", generate_tc_b_004),
+    ("TC-B-005", generate_tc_b_005),
     ("TC-R-001", generate_tc_r_001),
     ("TC-R-001-seitenumbruch", generate_tc_r_001_seitenumbruch),
     ("TC-S-001 + TC-S-002", generate_tc_s_001_002),

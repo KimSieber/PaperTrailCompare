@@ -1,15 +1,20 @@
-"""P1-Testfälle TC-B-001 bis TC-B-003 für engine.batch_processor.
+"""Testfälle TC-B-001 bis TC-B-003 (P1) und TC-B-004, TC-B-005 (P2) für
+engine.batch_processor.
 
 Integrationstests (Schicht 3, siehe CLAUDE.md) – laufen bewusst über
-mehrere Module (pdf_extractor, text_comparator, profile_loader) hinweg.
+mehrere Module (pdf_extractor, text_comparator, profile_loader,
+page_group_detector) hinweg.
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 7.
-Fixtures: tests/fixtures/TC-B-001/, TC-B-002/, TC-B-003/
-(tests/generate_fixtures.py::generate_tc_b_001_003).
+Fixtures: tests/fixtures/TC-B-001/ … TC-B-005/
+(tests/generate_fixtures.py::generate_tc_b_001_003/generate_tc_b_004/
+generate_tc_b_005).
 """
 from pathlib import Path
 
-from engine.batch_processor import batch_compare, batch_compare_by_xmp
+from engine.batch_processor import batch_compare, batch_compare_by_xmp, split_batch_pdf
+from engine.pdf_extractor import extract_pages
+from engine.profile_loader import PageGroupPattern, Profile
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -65,3 +70,54 @@ def test_tc_b_003_batch_per_xmp_metadaten_document_id():
     # die Zuordnung ist korrekt, wenn jedes Paar (erwartungsgemäß) ein Delta liefert.
     for pair in result.pairs:
         assert pair.compare_result.has_delta is True
+
+
+def test_tc_b_004_batch_pdf_splitting_per_seitengruppen_pattern(tmp_path):
+    profile = Profile(
+        version="1.0",
+        page_groups=[PageGroupPattern(pattern=r"^Rechnung Nr\. \S+$", name="Rechnung")],
+    )
+
+    output_paths = split_batch_pdf(
+        FIXTURES / "TC-B-004" / "batch.pdf", profile, tmp_path / "split"
+    )
+
+    assert len(output_paths) == 30
+    for path in output_paths:
+        assert path.is_file()
+
+    # Jedes Einzeldokument enthält genau eine Seite mit seiner eigenen
+    # Rechnungsnummer und keinen Inhalt eines anderen Dokuments.
+    for i, path in enumerate(output_paths, start=1):
+        pages = extract_pages(str(path))
+        assert len(pages) == 1
+        expected_id = f"RE-2026-{i:04d}"
+        assert expected_id in pages[0]
+        assert f"Betrag: {i * 10},00 EUR" in pages[0]
+
+
+def test_tc_b_005_parallelverarbeitung_im_batch():
+    result = batch_compare(FIXTURES / "TC-B-005" / "filelist.csv", workers=4)
+
+    assert len(result.pairs) == 100
+    assert result.ok_count == 100
+    assert result.error_count == 0
+
+    # Reihenfolge muss trotz Parallelverarbeitung der Dateiliste entsprechen
+    # (keine Race Conditions/Vertauschungen zwischen den Paaren).
+    for i, pair in enumerate(result.pairs, start=1):
+        assert f"doc_{i:03d}_ref.pdf" in pair.ref_path
+        assert f"doc_{i:03d}_cnd.pdf" in pair.cnd_path
+        assert pair.compare_result.has_delta is False
+
+
+def test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis():
+    sequential = batch_compare(FIXTURES / "TC-B-005" / "filelist.csv", workers=1)
+    parallel = batch_compare(FIXTURES / "TC-B-005" / "filelist.csv", workers=4)
+
+    assert [p.status for p in sequential.pairs] == [p.status for p in parallel.pairs]
+    assert [p.ref_path for p in sequential.pairs] == [p.ref_path for p in parallel.pairs]
+    assert (
+        [p.compare_result.has_delta for p in sequential.pairs]
+        == [p.compare_result.has_delta for p in parallel.pairs]
+    )
