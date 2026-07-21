@@ -14,7 +14,7 @@ from pathlib import Path
 
 import fitz
 
-from engine.batch_processor import BatchResult, PairResult
+from engine.models import BatchResult, PairResult
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import Profile
 from engine.report_generator import generate_batch_report, generate_report

@@ -1,8 +1,9 @@
 """Koordinatenbasierter Ausschluss definierter Seitenbereiche vom Vergleich.
 
 Regionen werden in PyMuPDF-Koordinaten angegeben (Ursprung oben links, y
-wächst nach unten) – dieselbe Konvention wie engine.pdf_extractor, das
-ebenfalls auf fitz basiert.
+wächst nach unten) – dieselbe Konvention wie engine.pdf_extractor, dessen
+Block-Extraktions-/Spalten-Sortierlogik hier wiederverwendet wird (beide
+Schicht 1, siehe CLAUDE.md Modulübersicht).
 """
 from __future__ import annotations
 
@@ -11,8 +12,7 @@ from typing import List, Sequence
 
 import fitz
 
-_TEXT_BLOCK_TYPE = 0
-_COLUMN_BUCKET_PT = 50
+from engine.pdf_extractor import get_text_blocks, join_block_text, sort_blocks_columns
 
 
 @dataclass
@@ -46,16 +46,13 @@ def extract_pages_excluding_regions(
             page_num = page_index + 1
             page_regions = [r for r in regions if r.page == page_num]
 
-            blocks = [
-                b for b in page.get_text("blocks")
-                if b[6] == _TEXT_BLOCK_TYPE and b[4].strip()
-            ]
+            blocks = get_text_blocks(page)
             blocks = [
                 b for b in blocks
                 if not any(r.overlaps(b[:4]) for r in page_regions)
             ]
-            blocks.sort(key=lambda b: (round(b[0] / _COLUMN_BUCKET_PT), round(b[1])))
-            pages_text.append("\n".join(b[4].strip() for b in blocks))
+            blocks = sort_blocks_columns(blocks)
+            pages_text.append(join_block_text(blocks))
     finally:
         doc.close()
     return pages_text

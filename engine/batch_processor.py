@@ -9,41 +9,19 @@ from __future__ import annotations
 
 import csv
 import re
-from dataclasses import dataclass, field
 from multiprocessing import Pool
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple, Union
 
 import fitz
 
+from engine.models import BatchResult, PairResult
 from engine.page_group_detector import extract_page_groups
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import Profile
-from engine.text_comparator import CompareResult, compare
+from engine.text_comparator import compare
 
 _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
-
-
-@dataclass
-class PairResult:
-    ref_path: str
-    cnd_path: str
-    status: str  # "ok" oder "error"
-    compare_result: Optional[CompareResult] = None
-    error: Optional[str] = None
-
-
-@dataclass
-class BatchResult:
-    pairs: List[PairResult] = field(default_factory=list)
-
-    @property
-    def ok_count(self) -> int:
-        return sum(1 for p in self.pairs if p.status == "ok")
-
-    @property
-    def error_count(self) -> int:
-        return sum(1 for p in self.pairs if p.status == "error")
 
 
 def read_filelist(filelist_path: Union[str, Path]) -> List[Tuple[str, str]]:

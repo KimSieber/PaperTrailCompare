@@ -7,7 +7,7 @@ doc/PaperTrailCompare_Architekturspezifikation.docx Abschnitt 4/6.2.
 """
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Sequence, Tuple
 
 import fitz
 import pdfplumber
@@ -15,16 +15,37 @@ import pdfplumber
 _TEXT_BLOCK_TYPE = 0
 _COLUMN_BUCKET_PT = 50  # Blockbreite-Toleranz zur Spaltenerkennung
 
+# PyMuPDF-Textblock: (x0, y0, x1, y1, text, block_no, block_type)
+TextBlock = Tuple[float, float, float, float, str, int, int]
 
-def _extract_page_text_columns(page: "fitz.Page") -> str:
-    """Liest Textblöcke einer Seite spaltenweise (links vor rechts), statt
-    strikt zeilenweise – nötig für mehrspaltige Layouts (TC-T-007)."""
-    blocks = [
+
+def get_text_blocks(page: "fitz.Page") -> List[TextBlock]:
+    """Liefert die nicht-leeren Textblöcke einer Seite, unsortiert.
+
+    Wiederverwendbarer Baustein für andere Schicht-1-Module (z.B.
+    region_filter), die dieselbe Block-Extraktion benötigen, aber vor der
+    Sortierung noch Blöcke herausfiltern müssen (Regionen-Ausschluss)."""
+    return [
         b for b in page.get_text("blocks")
         if b[6] == _TEXT_BLOCK_TYPE and b[4].strip()
     ]
-    blocks.sort(key=lambda b: (round(b[0] / _COLUMN_BUCKET_PT), round(b[1])))
+
+
+def sort_blocks_columns(blocks: Sequence[TextBlock]) -> List[TextBlock]:
+    """Sortiert Textblöcke spaltenweise (links vor rechts), statt strikt
+    zeilenweise – nötig für mehrspaltige Layouts (TC-T-007)."""
+    return sorted(blocks, key=lambda b: (round(b[0] / _COLUMN_BUCKET_PT), round(b[1])))
+
+
+def join_block_text(blocks: Sequence[TextBlock]) -> str:
+    """Fügt die Texte bereits sortierter Blöcke zu einem Seitentext zusammen."""
     return "\n".join(b[4].strip() for b in blocks)
+
+
+def _extract_page_text_columns(page: "fitz.Page") -> str:
+    """Liest den Text einer Seite spaltenweise (links vor rechts), statt
+    strikt zeilenweise."""
+    return join_block_text(sort_blocks_columns(get_text_blocks(page)))
 
 
 def _linearize_tables(tables: List[List[List[Optional[str]]]]) -> str:

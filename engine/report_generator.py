@@ -18,7 +18,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from engine.batch_processor import BatchResult
+from engine.models import BatchResult
 from engine.profile_loader import Profile
 from engine.text_comparator import CompareResult
 
