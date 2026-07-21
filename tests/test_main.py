@@ -80,6 +80,65 @@ def test_compare_mit_fehlender_datei_liefert_fehler_und_exit_code(capsys):
     assert "does-not-exist.pdf" in captured.err
 
 
+def test_compare_mit_report_flag_erzeugt_pdf_und_json_feld(tmp_path, capsys):
+    ref_path = FIXTURES / "TC-R-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-R-001" / "cnd.pdf"
+    report_path = tmp_path / "report.pdf"
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--report", str(report_path), "--json"]
+    )
+
+    assert exit_code == 0
+    assert report_path.exists()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["report_path"] == str(report_path)
+
+
+def test_compare_mit_ungueltigem_report_pfad_liefert_fehler_und_exit_code(tmp_path, capsys):
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+    # Elternverzeichnis des Report-Pfads ist eine Datei statt eines Ordners
+    # -> generate_report() kann das Verzeichnis nicht anlegen und wirft.
+    blocker = tmp_path / "blocker.txt"
+    blocker.write_text("x")
+    report_path = blocker / "report.pdf"
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--report", str(report_path), "--json"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code != 0
+    assert captured.out == ""
+    assert captured.err != ""
+
+
+def test_compare_ohne_report_flag_kein_report_path_im_json(capsys):
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    exit_code = main(["compare", str(ref_path), str(cnd_path), "--json"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "report_path" not in payload
+
+
+def test_compare_mit_report_ohne_json_zeigt_pfad_in_zusammenfassung(tmp_path, capsys):
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+    report_path = tmp_path / "report.pdf"
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--report", str(report_path)]
+    )
+
+    assert exit_code == 0
+    assert report_path.exists()
+    assert str(report_path) in capsys.readouterr().out
+
+
 def test_version_flag(capsys):
     exit_code = main(["--version"])
 

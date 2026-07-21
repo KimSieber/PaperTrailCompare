@@ -7,11 +7,14 @@ PyInstaller zu einer eigenständigen Executable gebündelt
 (Architekturentscheidung #2).
 
 `--version` bestätigt, dass der Sidecar-Prozess startet und antwortet.
-`compare <ref.pdf> <cnd.pdf> [--json]` führt den Einzelvergleich aus
-(pdf_extractor + text_comparator) und gibt bei `--json` exakt die Felder
-von text_comparator.CompareResult/Delta als JSON aus. Weitere Befehle
-(Batch-Verarbeitung, Report-Erzeugung) werden hier ergänzt, sobald die
-Tauri-Commands dafür angebunden werden.
+`compare <ref.pdf> <cnd.pdf> [--json] [--report <output.pdf>]` führt den
+Einzelvergleich aus (pdf_extractor + text_comparator) und gibt bei `--json`
+exakt die Felder von text_comparator.CompareResult/Delta als JSON aus.
+`--report` erzeugt zusätzlich einen PDF-Report mit rot markierten
+Delta-Stellen (report_generator.generate_report, TC-R-001); der Pfad
+erscheint bei `--json` als zusätzliches Feld `report_path`. Weitere Befehle
+(Batch-Verarbeitung) werden hier ergänzt, sobald die Tauri-Commands dafür
+angebunden werden.
 """
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ import json
 import sys
 
 from engine.pdf_extractor import extract_pages
+from engine.report_generator import generate_report
 from engine.text_comparator import compare
 
 __version__ = "0.1.0"
@@ -36,12 +40,29 @@ def _run_compare(args: argparse.Namespace) -> int:
 
     result = compare(ref_pages, cnd_pages)
 
+    report_path = None
+    if args.report:
+        try:
+            generate_report(result, args.ref_pdf, args.cnd_pdf, args.report)
+        except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
+            print(str(exc), file=sys.stderr)
+            return 1
+        report_path = args.report
+
     if args.json:
-        print(json.dumps(dataclasses.asdict(result)))
-    elif result.has_delta:
-        print(f"{len(result.deltas)} Delta(s) gefunden.")
+        payload = dataclasses.asdict(result)
+        if report_path is not None:
+            payload["report_path"] = report_path
+        print(json.dumps(payload))
     else:
-        print("Kein Delta gefunden.")
+        summary = (
+            f"{len(result.deltas)} Delta(s) gefunden."
+            if result.has_delta
+            else "Kein Delta gefunden."
+        )
+        if report_path is not None:
+            summary += f" Report: {report_path}"
+        print(summary)
 
     return 0
 
@@ -60,6 +81,11 @@ def main(argv: list[str] | None = None) -> int:
     compare_parser.add_argument("cnd_pdf", help="Pfad zur Kandidat-PDF")
     compare_parser.add_argument(
         "--json", action="store_true", help="Ergebnis als JSON auf stdout ausgeben"
+    )
+    compare_parser.add_argument(
+        "--report",
+        default=None,
+        help="Pfad für PDF-Report mit rot markierten Deltas (TC-R-001)",
     )
     compare_parser.set_defaults(func=_run_compare)
 

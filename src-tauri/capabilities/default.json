@@ -6,6 +6,11 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "dialog:allow-open",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$APPCACHE/reports/**" }]
+    },
     {
       "identifier": "shell:allow-execute",
       "allow": [
