@@ -29,17 +29,20 @@
       "Bash(git pull *)",
       "Bash(git merge *)",
       "Bash(git reset *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Read(./.env)",
+      "Read(./.env.*)"
     ],
     "deny": [
-      "Bash(rm -rf *)",
       "Bash(git push --force*)",
       "Bash(git push * --force*)",
       "Bash(sudo *)",
       "Bash(curl *)",
       "Bash(wget *)",
-      "Read(./.env)",
-      "Read(./.env.*)",
       "Read(**/*.key)",
       "Read(**/*.pem)"
     ]
