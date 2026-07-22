@@ -92,6 +92,89 @@ def _mark_deltas_in_document(
     return doc
 
 
+_SBS_PAGE_W = 842.0
+_SBS_PAGE_H = 595.0
+_SBS_MARGIN_TOP = 30.0
+_SBS_MARGIN_BOTTOM = 20.0
+_SBS_MARGIN_LR = 20.0
+_SBS_DIVIDER_X = _SBS_PAGE_W / 2  # 421
+_SBS_HEADER_HEIGHT = 15.0
+_SBS_FOOTER_HEIGHT = 15.0
+_SBS_CONTENT_TOP = _SBS_MARGIN_TOP + _SBS_HEADER_HEIGHT
+_SBS_CONTENT_BOTTOM = _SBS_PAGE_H - _SBS_MARGIN_BOTTOM - _SBS_FOOTER_HEIGHT
+_SBS_RENDER_ZOOM = 2.0
+_SBS_NO_PAGE_TEXT = "Keine entsprechende Seite"
+
+
+def _insert_scaled_page_image(
+    page: fitz.Page, doc: Optional[fitz.Document], src_page_num: Optional[int],
+    x0: float, y0: float, x1: float, y1: float,
+) -> None:
+    """Rendert Seite src_page_num (1-basiert) aus doc als Pixmap (inkl.
+    Highlight-Annotationen) und fügt sie proportional skaliert und zentriert
+    in das Rechteck (x0, y0, x1, y1) ein. Fehlt die Seite, wird ein Hinweis
+    eingeblendet (unterschiedliche Seitenzahlen durch Seitenumbruch)."""
+    target = fitz.Rect(x0, y0, x1, y1)
+    if doc is None or src_page_num is None or not (1 <= src_page_num <= len(doc)):
+        page.insert_textbox(target, _SBS_NO_PAGE_TEXT, fontsize=10, align=1)
+        return
+
+    src_page = doc[src_page_num - 1]
+    pixmap = src_page.get_pixmap(matrix=fitz.Matrix(_SBS_RENDER_ZOOM, _SBS_RENDER_ZOOM), annots=True)
+
+    avail_w, avail_h = target.width, target.height
+    scale = min(avail_w / pixmap.width, avail_h / pixmap.height)
+    w, h = pixmap.width * scale, pixmap.height * scale
+    rx0 = x0 + (avail_w - w) / 2
+    ry0 = y0 + (avail_h - h) / 2
+    page.insert_image(fitz.Rect(rx0, ry0, rx0 + w, ry0 + h), pixmap=pixmap)
+
+
+def _build_side_by_side_document(
+    ref_marked: fitz.Document, cnd_marked: fitz.Document,
+) -> fitz.Document:
+    """Erzeugt den Seite-für-Seite Nebeneinander-Vergleich in Querformat:
+    links die Referenz-, rechts die Kandidat-Seite, jeweils inkl. der
+    bereits gesetzten Delta-Highlight-Annotationen."""
+    page_count = max(len(ref_marked), len(cnd_marked))
+    out_doc = fitz.open()
+
+    for i in range(page_count):
+        page = out_doc.new_page(width=_SBS_PAGE_W, height=_SBS_PAGE_H)
+
+        page.insert_textbox(
+            fitz.Rect(_SBS_MARGIN_LR, _SBS_MARGIN_TOP, _SBS_DIVIDER_X - 1, _SBS_CONTENT_TOP),
+            "Referenz", fontsize=8,
+        )
+        page.insert_textbox(
+            fitz.Rect(_SBS_DIVIDER_X + 1, _SBS_MARGIN_TOP, _SBS_PAGE_W - _SBS_MARGIN_LR, _SBS_CONTENT_TOP),
+            "Kandidat", fontsize=8,
+        )
+        page.draw_line(
+            fitz.Point(_SBS_DIVIDER_X, _SBS_MARGIN_TOP),
+            fitz.Point(_SBS_DIVIDER_X, _SBS_PAGE_H - _SBS_MARGIN_BOTTOM),
+            width=1,
+        )
+
+        ref_page_num = i + 1 if i < len(ref_marked) else None
+        cnd_page_num = i + 1 if i < len(cnd_marked) else None
+        _insert_scaled_page_image(
+            page, ref_marked, ref_page_num,
+            _SBS_MARGIN_LR, _SBS_CONTENT_TOP, _SBS_DIVIDER_X - 1, _SBS_CONTENT_BOTTOM,
+        )
+        _insert_scaled_page_image(
+            page, cnd_marked, cnd_page_num,
+            _SBS_DIVIDER_X + 1, _SBS_CONTENT_TOP, _SBS_PAGE_W - _SBS_MARGIN_LR, _SBS_CONTENT_BOTTOM,
+        )
+
+        page.insert_textbox(
+            fitz.Rect(0, _SBS_PAGE_H - _SBS_FOOTER_HEIGHT, _SBS_PAGE_W, _SBS_PAGE_H),
+            f"Seite {i + 1} von {page_count}", fontsize=8, align=1,
+        )
+
+    return out_doc
+
+
 def _generate_report_html(
     compare_result: CompareResult,
     ref_pdf_path: Path,
@@ -139,9 +222,10 @@ def generate_report(
     output_path: Union[str, Path],
     profile: Optional[Profile] = None,
 ) -> Path:
-    """Erzeugt einen Einzel-Report (TC-R-001): Übersichtsseite mit Datei-
-    und Seitenangabe je Delta, gefolgt vom Referenz- und Kandidat-Dokument
-    mit markierten Delta-Stellen.
+    """Erzeugt einen Einzel-Report (TC-R-001): Übersichtsseite (Hochformat)
+    mit Datei- und Seitenangabe je Delta, gefolgt von einer Querformat-
+    Seite pro Dokumentenseite mit Referenz (links) und Kandidat (rechts)
+    nebeneinander, jeweils mit markierten Delta-Stellen.
 
     Die Delta.page-Angabe bezieht sich nur auf das Kandidat-Dokument (siehe
     text_comparator.Delta). Im Referenz-Dokument wird zuerst auf derselben
@@ -188,13 +272,14 @@ def generate_report(
     )
     cnd_marked = _mark_deltas_in_document(cnd_pdf_path, cnd_texts_by_page)
 
-    report_doc.insert_pdf(ref_marked)
-    report_doc.insert_pdf(cnd_marked)
+    side_by_side = _build_side_by_side_document(ref_marked, cnd_marked)
+    report_doc.insert_pdf(side_by_side)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     report_doc.save(str(output_path))
 
     report_doc.close()
+    side_by_side.close()
     ref_marked.close()
     cnd_marked.close()
 

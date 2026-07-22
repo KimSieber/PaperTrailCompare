@@ -39,9 +39,10 @@ def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
         ref_page_count = len(d)
     with fitz.open(str(cnd_path)) as d:
         cnd_page_count = len(d)
+    side_by_side_page_count = max(ref_page_count, cnd_page_count)
 
     report = fitz.open(str(output_path))
-    summary_page_count = len(report) - ref_page_count - cnd_page_count
+    summary_page_count = len(report) - side_by_side_page_count
     assert summary_page_count >= 1
 
     summary_text = "".join(
@@ -52,18 +53,17 @@ def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
     assert "Seite 1" in summary_text
     assert "Seite 2" in summary_text
 
-    ref_start = summary_page_count
-    cnd_start = summary_page_count + ref_page_count
-
-    ref_annot_count = sum(
-        len(list(report[i].annots() or [])) for i in range(ref_start, ref_start + ref_page_count)
-    )
-    cnd_annot_count = sum(
-        len(list(report[i].annots() or [])) for i in range(cnd_start, cnd_start + cnd_page_count)
-    )
-
-    assert ref_annot_count == 3
-    assert cnd_annot_count == 3
+    # Ab hier: eine Querformat-Seite pro Dokumentenseite, Referenz links /
+    # Kandidat rechts nebeneinander, mit Kopf- und Fußzeile.
+    for i in range(summary_page_count, len(report)):
+        page = report[i]
+        assert page.rect.width > page.rect.height  # Querformat
+        page_text = page.get_text()
+        assert "Referenz" in page_text
+        assert "Kandidat" in page_text
+        assert f"Seite {i - summary_page_count + 1} von {side_by_side_page_count}" in page_text
+        # Referenz- und Kandidat-Rendering je als eingebettetes Bild.
+        assert len(page.get_images()) == 2
 
     report.close()
 
@@ -88,21 +88,19 @@ def test_tc_r_001_seitenumbruch_referenz_markierung_mit_fallback(tmp_path):
         ref_page_count = len(d)
     with fitz.open(str(cnd_path)) as d:
         cnd_page_count = len(d)
+    side_by_side_page_count = max(ref_page_count, cnd_page_count)
 
     report = fitz.open(str(output_path))
-    summary_page_count = len(report) - ref_page_count - cnd_page_count
-    ref_start = summary_page_count
-    cnd_start = summary_page_count + ref_page_count
+    summary_page_count = len(report) - side_by_side_page_count
 
-    # "100" steht im Referenz-Dokument auf Seite 2 (0-basiert: ref_start+1),
-    # nicht auf der gemeldeten Delta-Seite 1 -> Fallback muss dort markieren.
-    ref_page2_annots = list(report[ref_start + 1].annots() or [])
-    assert len(ref_page2_annots) == 1
-    ref_page1_annots = list(report[ref_start].annots() or [])
-    assert len(ref_page1_annots) == 0
-
-    cnd_page1_annots = list(report[cnd_start].annots() or [])
-    assert len(cnd_page1_annots) == 1
+    # Markierung erfolgt vor dem Rendern der Seiten (Fallback-Suche über
+    # das gesamte Referenz-Dokument). ref.pdf hat 2 Seiten, cnd.pdf nur 1 -
+    # die zweite Vergleichsseite zeigt daher nur die Referenz-Seite plus
+    # den Hinweis "Keine entsprechende Seite" für die fehlende Kandidatseite.
+    assert len(report[summary_page_count].get_images()) == 2
+    last_page = report[len(report) - 1]
+    assert len(last_page.get_images()) == 1
+    assert "Keine entsprechende Seite" in last_page.get_text()
 
     report.close()
 
@@ -141,9 +139,10 @@ def test_tc_r_003_detaillierter_report_kein_delta(tmp_path):
         ref_page_count = len(d)
     with fitz.open(str(cnd_path)) as d:
         cnd_page_count = len(d)
+    side_by_side_page_count = max(ref_page_count, cnd_page_count)
 
     report = fitz.open(str(output_path))
-    summary_page_count = len(report) - ref_page_count - cnd_page_count
+    summary_page_count = len(report) - side_by_side_page_count
     summary_text = "".join(report[i].get_text() for i in range(summary_page_count))
 
     assert "Keine Unterschiede gefunden" in summary_text

@@ -9,7 +9,7 @@
     "dialog:allow-open",
     {
       "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "$APPCACHE/reports/**" }]
+      "allow": [{ "path": "$DOCUMENT/PaperTrailCompare/**" }]
     },
     {
       "identifier": "shell:allow-execute",
