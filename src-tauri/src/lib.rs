@@ -1,7 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 
@@ -30,31 +29,37 @@ struct CompareOutput {
     report_path: Option<String>,
 }
 
-/// Verzeichnis für Vergleichs-Reports innerhalb des App-Caches (nicht neben
-/// den Kundendokumenten, da deren Ablageort ggf. nicht beschreibbar sein
-/// soll oder nicht mit Zusatzdateien versehen werden darf).
+/// Verzeichnis für Vergleichs-Reports unterhalb der Dokumente des Nutzers
+/// (macOS: ~/Documents/PaperTrailCompare/, Windows: Eigene
+/// Dokumente\PaperTrailCompare\). Reports bleiben dauerhaft erhalten und
+/// werden nicht automatisch geleert.
 fn reports_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
-        .app_cache_dir()
+        .document_dir()
         .map_err(|e| e.to_string())?
-        .join("reports");
+        .join("PaperTrailCompare");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }
 
-/// Entfernt alle Dateien im Report-Verzeichnis. Reports enthalten
-/// Kundendokument-Inhalte (Delta-Markierungen aus Referenz- und
-/// Kandidat-PDF) und müssen daher vollständig bereinigt werden (TC-S-002) –
-/// beim App-Start (verwaiste Reports nach Absturz/hartem Beenden), beim
-/// App-Exit und vor jedem neuen Vergleich.
-fn clear_reports_dir(dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let _ = std::fs::remove_file(entry.path());
-    }
+/// Ersetzt alle Zeichen, die nicht auf jedem Zielbetriebssystem in
+/// Dateinamen zulässig sind (Leerzeichen, Umlaute, Sonderzeichen), durch
+/// Unterstriche, damit der resultierende Report-Pfad sowohl unter macOS als
+/// auch unter Windows gültig ist.
+fn sanitize_filename_part(name: &str) -> String {
+    name.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+/// Dateiname ohne Endung, z. B. "Rechnung_2024_alt.pdf" -> "Rechnung_2024_alt".
+fn file_stem_sanitized(path: &str) -> String {
+    let stem = Path::new(path)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string());
+    sanitize_filename_part(&stem)
 }
 
 /// Vergleicht zwei PDF-Dateien textlich über die Python Core Engine
@@ -68,13 +73,11 @@ async fn compare_documents(
     cnd_path: String,
 ) -> Result<CompareOutput, String> {
     let dir = reports_dir(&app)?;
-    clear_reports_dir(&dir);
 
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_nanos();
-    let report_path = dir.join(format!("report-{timestamp}.pdf"));
+    let ref_name = file_stem_sanitized(&ref_path);
+    let cnd_name = file_stem_sanitized(&cnd_path);
+    let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M");
+    let report_path = dir.join(format!("{ref_name}_{cnd_name}_{timestamp}.pdf"));
     let report_path_str = report_path.to_string_lossy().to_string();
 
     let sidecar = app
@@ -138,14 +141,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
-            // Verwaiste Reports aus einer vorherigen Sitzung entfernen (z. B.
-            // nach Absturz oder hartem Beenden) – TC-S-002.
-            if let Ok(dir) = reports_dir(app.handle()) {
-                clear_reports_dir(&dir);
-            }
-            Ok(())
-        })
         .invoke_handler(tauri::generate_handler![
             greet,
             engine_version,
@@ -153,11 +148,5 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::Exit = event {
-                if let Ok(dir) = reports_dir(app_handle) {
-                    clear_reports_dir(&dir);
-                }
-            }
-        });
+        .run(|_app_handle, _event| {});
 }
