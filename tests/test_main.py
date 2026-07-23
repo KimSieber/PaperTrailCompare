@@ -17,9 +17,17 @@ Fixtures: tests/fixtures/TC-T-001 (kein Delta), tests/fixtures/TC-R-001
 import json
 from pathlib import Path
 
+from reportlab.pdfgen import canvas
+
 from engine.__main__ import main
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _write_single_page_pdf(path: Path, text: str) -> None:
+    c = canvas.Canvas(str(path))
+    c.drawString(72, 720, text)
+    c.save()
 
 
 def test_compare_json_ohne_delta(capsys):
@@ -137,6 +145,43 @@ def test_compare_mit_report_ohne_json_zeigt_pfad_in_zusammenfassung(tmp_path, ca
     assert exit_code == 0
     assert report_path.exists()
     assert str(report_path) in capsys.readouterr().out
+
+
+def test_compare_mit_profile_flag_normalize_whitespace_unterdrueckt_delta(tmp_path, capsys):
+    """--profile lädt ein JSON-Profil mit normalize_whitespace=true; ein
+    reiner OCR-Wort-Trennfehler darf dann nicht als Delta erscheinen."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_single_page_pdf(ref_path, "Die Vertragsbedingungen gelten sofort.")
+    _write_single_page_pdf(cnd_path, "Die Vertrags bedingungen gelten sofort.")
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0", "normalize_whitespace": True}), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+    assert payload["deltas"] == []
+
+
+def test_compare_mit_ungueltigem_profile_liefert_fehler_und_exit_code(tmp_path, capsys):
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+    profile_path = tmp_path / "invalid_profile.json"
+    profile_path.write_text("{not valid json", encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code != 0
+    assert captured.out == ""
+    assert captured.err != ""
 
 
 def test_version_flag(capsys):

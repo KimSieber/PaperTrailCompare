@@ -7,7 +7,7 @@ Deutsch ('deu').
 from __future__ import annotations
 
 import io
-from typing import List
+from typing import List, Tuple
 
 import fitz
 import pytesseract
@@ -45,13 +45,18 @@ def _ocr_page(page: "fitz.Page", lang: str = _DEFAULT_LANG, dpi: int = _DEFAULT_
 
 def extract_pages_with_ocr_fallback(
     pdf_path: str, lang: str = _DEFAULT_LANG, dpi: int = _DEFAULT_DPI
-) -> List[str]:
+) -> Tuple[List[str], bool]:
     """Extrahiert pro Seite nativen Text, falls vorhanden, sonst via OCR.
 
     Erkennt automatisch, ob eine Seite einen nativen Textlayer besitzt
     (TC-O-002: gemischtes PDF mit nativen und gescannten Seiten).
+
+    Rückgabe: (Seitentexte, ocr_used) - ocr_used ist True, sobald
+    mindestens eine Seite über Tesseract statt nativer Extraktion gelesen
+    wurde, damit Aufrufer (z.B. der Report) das sichtbar machen können.
     """
     pages_text: List[str] = []
+    ocr_used = False
     doc = fitz.open(pdf_path)
     try:
         for page in doc:
@@ -60,6 +65,7 @@ def extract_pages_with_ocr_fallback(
                 pages_text.append(native_text)
             else:
                 pages_text.append(_ocr_page(page, lang=lang, dpi=dpi))
+                ocr_used = True
     finally:
         doc.close()
-    return pages_text
+    return pages_text, ocr_used

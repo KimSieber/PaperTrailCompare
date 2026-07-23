@@ -11,9 +11,13 @@ Tabellen").
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 2.
 """
+import shutil
 from pathlib import Path
 
-from engine.pdf_extractor import extract_pages
+import pytest
+
+from engine.pdf_extractor import extract_pages, extract_pages_for_profile
+from engine.profile_loader import OcrConfig, Profile
 from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -51,6 +55,38 @@ def test_tc_t_007_mehrspaltiger_text_korrekte_lesereihenfolge():
     result = compare(ref_pages, cnd_pages)
     assert result.has_delta is False
     assert result.deltas == []
+
+
+def test_extract_pages_for_profile_ohne_profil_wie_extract_pages():
+    pages, ocr_used = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), None)
+
+    assert pages == extract_pages(str(FIXTURES / "TC-X-002" / "doc.pdf"))
+    assert ocr_used is False
+
+
+def test_extract_pages_for_profile_ocr_deaktiviert_wie_extract_pages():
+    profile = Profile(version="1.0", ocr=OcrConfig(enabled=False))
+    pages, ocr_used = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), profile)
+
+    assert pages == extract_pages(str(FIXTURES / "TC-X-002" / "doc.pdf"))
+    assert ocr_used is False
+
+
+@pytest.mark.skipif(
+    shutil.which("tesseract") is None,
+    reason="Tesseract-Binary nicht installiert (siehe README.md 'Tesseract OCR')",
+)
+def test_extract_pages_for_profile_ocr_aktiviert_nutzt_fallback():
+    """Bei profile.ocr.enabled=True muss extract_pages_for_profile die
+    gescannte Seite (kein nativer Textlayer) via OCR-Fallback lesen,
+    statt leeren Text zu liefern (siehe TC-O-002-Fixture)."""
+    profile = Profile(version="1.0", ocr=OcrConfig(enabled=True))
+    pages, ocr_used = extract_pages_for_profile(str(FIXTURES / "TC-O-002" / "ref.pdf"), profile)
+
+    assert len(pages) == 2
+    assert "AB-2026-00099" in pages[0]
+    assert "Lieferdatum" in pages[1]  # nur via OCR lesbar (Seite ohne Textlayer)
+    assert ocr_used is True
 
 
 def test_tc_t_008_tabellenerkennung_kein_falsches_delta():

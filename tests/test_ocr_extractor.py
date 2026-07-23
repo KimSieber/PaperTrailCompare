@@ -44,8 +44,8 @@ def test_tc_o_001_gescannten_text_via_ocr_erkennen():
 
 
 def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
-    ref_pages = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "ref.pdf"))
-    cnd_pages = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "cnd.pdf"))
+    ref_pages, ref_ocr_used = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "ref.pdf"))
+    cnd_pages, cnd_ocr_used = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "cnd.pdf"))
 
     assert len(ref_pages) == 2
     # Seite 1: nativer Text, direkt extrahiert (kein OCR nötig).
@@ -54,7 +54,11 @@ def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
     # Seite 2: keine nativen Zeichen, Inhalt kommt aus OCR.
     assert "Lieferdatum" in ref_pages[1]
     assert "25.07.2026" in ref_pages[1]
+    # Mindestens eine Seite (Seite 2) wurde tatsächlich per OCR gelesen.
+    assert ref_ocr_used is True
+    assert cnd_ocr_used is True
 
-    result = compare(ref_pages, cnd_pages)
+    result = compare(ref_pages, cnd_pages, ocr_used=ref_ocr_used or cnd_ocr_used)
     assert result.has_delta is False
     assert result.deltas == []
+    assert result.ocr_was_used is True

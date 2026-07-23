@@ -44,7 +44,7 @@ class OcrConfig:
 class Profile:
     version: str
     case_sensitive: bool = True
-    normalize_whitespace: bool = True
+    normalize_whitespace: bool = False
     exclude_regions: List[ExcludeRegion] = field(default_factory=list)
     page_groups: List[PageGroupPattern] = field(default_factory=list)
     report_format: str = "pdf"
@@ -117,7 +117,7 @@ def load_profile(path: Union[str, Path]) -> Profile:
     return Profile(
         version=str(data["version"]),
         case_sensitive=bool(data.get("case_sensitive", True)),
-        normalize_whitespace=bool(data.get("normalize_whitespace", True)),
+        normalize_whitespace=bool(data.get("normalize_whitespace", False)),
         exclude_regions=exclude_regions,
         page_groups=page_groups,
         report_format=report_format,

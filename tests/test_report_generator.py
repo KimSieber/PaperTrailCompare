@@ -159,6 +159,26 @@ def test_tc_r_003_detaillierter_report_kein_delta(tmp_path):
     report.close()
 
 
+def test_ocr_verwendet_zeigt_tatsaechlichen_laufzeitwert_nicht_profil_flag(tmp_path):
+    """OCR verwendet: Ja/Nein muss aus CompareResult.ocr_was_used kommen
+    (tatsächlicher Laufzeitwert), nicht aus profile.ocr.enabled (Profil-
+    Flag sagt nur, dass OCR erlaubt wäre - nicht, dass es gelaufen ist)."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)), ocr_used=True)
+    profile = Profile(version="1.0")  # ocr.enabled bleibt False (Default)
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    report = fitz.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "OCR verwendet\nJa" in summary_text
+
+
 def test_tc_r_004_report_format_konfigurierbar_html(tmp_path):
     """Profil mit report_format='html' -> HTML-Datei statt PDF, mit Datei-
     und Delta-Angaben."""

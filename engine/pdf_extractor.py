@@ -12,6 +12,8 @@ from typing import List, Optional, Sequence, Tuple
 import fitz
 import pdfplumber
 
+from engine.profile_loader import Profile
+
 _TEXT_BLOCK_TYPE = 0
 _COLUMN_BUCKET_PT = 50  # Blockbreite-Toleranz zur Spaltenerkennung
 
@@ -80,3 +82,23 @@ def extract_pages(pdf_path: str) -> List[str]:
     finally:
         doc.close()
     return pages_text
+
+
+def extract_pages_for_profile(
+    pdf_path: str, profile: Optional[Profile]
+) -> Tuple[List[str], bool]:
+    """Wie extract_pages(), nutzt aber den OCR-Fallback aus ocr_extractor
+    (Tesseract), sobald profile.ocr.enabled=True ist - z.B. für gescannte
+    Seiten ohne nativen Textlayer.
+
+    extract_pages() selbst bleibt unverändert (schneller Pfad ohne
+    Profilbezug); diese Funktion ist der zusätzliche, profilbewusste
+    Einstiegspunkt für Aufrufer (CLI, Batch-Verarbeitung), die wissen
+    müssen, ob für den Report tatsächlich OCR verwendet wurde.
+
+    Rückgabe: (Seitentexte, ocr_used).
+    """
+    if profile is not None and profile.ocr.enabled:
+        from engine.ocr_extractor import extract_pages_with_ocr_fallback
+        return extract_pages_with_ocr_fallback(pdf_path)
+    return extract_pages(pdf_path), False

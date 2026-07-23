@@ -271,7 +271,7 @@ def _build_summary_page_pdf_bytes(
         ["Kandidat-Datei", cnd_pdf_path.name],
         ["Vergleichsprofil", profile_label],
         ["Ausgeschlossene Regionen", str(len(profile.exclude_regions)) if profile else "0"],
-        ["OCR verwendet", "Ja" if (profile and profile.ocr.enabled) else "Nein"],
+        ["OCR verwendet", "Ja" if compare_result.ocr_was_used else "Nein"],
         ["Verarbeitungsdauer", f"{duration_seconds:.2f} s" if duration_seconds is not None else "—"],
         ["Vergleichsdatum", datetime.now().strftime("%d.%m.%Y %H:%M:%S")],
         ["Tool-Version", _tool_version()],

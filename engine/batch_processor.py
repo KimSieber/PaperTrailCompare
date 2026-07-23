@@ -17,7 +17,7 @@ import fitz
 
 from engine.models import BatchResult, PairResult
 from engine.page_group_detector import extract_page_groups
-from engine.pdf_extractor import extract_pages
+from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile
 from engine.text_comparator import compare
 
@@ -45,9 +45,15 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
         )
 
     case_sensitive = profile.case_sensitive if profile is not None else True
-    ref_pages = extract_pages(str(ref_file))
-    cnd_pages = extract_pages(str(cnd_file))
-    result = compare(ref_pages, cnd_pages, case_sensitive=case_sensitive)
+    normalize_whitespace = profile.normalize_whitespace if profile is not None else False
+    ref_pages, ref_ocr_used = extract_pages_for_profile(str(ref_file), profile)
+    cnd_pages, cnd_ocr_used = extract_pages_for_profile(str(cnd_file), profile)
+    result = compare(
+        ref_pages, cnd_pages,
+        case_sensitive=case_sensitive,
+        normalize_whitespace=normalize_whitespace,
+        ocr_used=ref_ocr_used or cnd_ocr_used,
+    )
 
     return PairResult(ref_path=ref_path, cnd_path=cnd_path, status="ok", compare_result=result)
 

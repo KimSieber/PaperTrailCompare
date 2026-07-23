@@ -82,3 +82,52 @@ def test_tc_t_006_case_sensitivity_delta_bei_case_sensitive():
 
     assert result.has_delta is True
     assert len(result.deltas) == 1
+
+
+def test_tc_t_009_ocr_wort_trennfehler_wird_bei_normalize_whitespace_ignoriert():
+    """OCR erzeugt fälschlich ein Leerzeichen mitten im Wort
+    ('Vertragsbedingungen' -> 'Vertrags bedingungen'); mit
+    normalize_whitespace=True darf das nicht als Delta gemeldet werden."""
+    ref_pages = ["Die Vertragsbedingungen gelten sofort."]
+    cnd_pages = ["Die Vertrags bedingungen gelten sofort."]
+
+    result = compare(ref_pages, cnd_pages, normalize_whitespace=True)
+
+    assert result.has_delta is False
+    assert result.deltas == []
+
+
+def test_tc_t_009_echter_unterschied_bleibt_trotz_normalize_whitespace_delta():
+    """Ein echter Textunterschied (nicht nur Leerzeichen) muss auch mit
+    normalize_whitespace=True weiterhin als Delta erkannt werden."""
+    ref_pages = ["Betrag: 100 EUR"]
+    cnd_pages = ["Betrag: 200 EUR"]
+
+    result = compare(ref_pages, cnd_pages, normalize_whitespace=True)
+
+    assert result.has_delta is True
+    assert len(result.deltas) == 1
+    assert "100" in result.deltas[0].ref_text
+    assert "200" in result.deltas[0].cnd_text
+
+
+def test_tc_t_009_ocr_wort_trennfehler_ohne_normalize_whitespace_bleibt_delta():
+    """Default-Verhalten (normalize_whitespace=False) bleibt unverändert:
+    der Wort-Trennfehler wird weiterhin als Delta gemeldet."""
+    ref_pages = ["Die Vertragsbedingungen gelten sofort."]
+    cnd_pages = ["Die Vertrags bedingungen gelten sofort."]
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is True
+    assert len(result.deltas) == 1
+
+
+def test_ocr_used_wird_in_compare_result_uebernommen():
+    result = compare(["Text"], ["Text"], ocr_used=True)
+
+    assert result.ocr_was_used is True
+
+    result_default = compare(["Text"], ["Text"])
+
+    assert result_default.ocr_was_used is False
