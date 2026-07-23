@@ -22,6 +22,7 @@ import argparse
 import dataclasses
 import json
 import sys
+import time
 
 from engine.pdf_extractor import extract_pages
 from engine.report_generator import generate_report
@@ -31,6 +32,7 @@ __version__ = "0.1.0"
 
 
 def _run_compare(args: argparse.Namespace) -> int:
+    start = time.perf_counter()
     try:
         ref_pages = extract_pages(args.ref_pdf)
         cnd_pages = extract_pages(args.cnd_pdf)
@@ -39,11 +41,15 @@ def _run_compare(args: argparse.Namespace) -> int:
         return 1
 
     result = compare(ref_pages, cnd_pages)
+    duration_seconds = time.perf_counter() - start
 
     report_path = None
     if args.report:
         try:
-            generate_report(result, args.ref_pdf, args.cnd_pdf, args.report)
+            generate_report(
+                result, args.ref_pdf, args.cnd_pdf, args.report,
+                duration_seconds=duration_seconds,
+            )
         except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
             print(str(exc), file=sys.stderr)
             return 1

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import html
 import io
+from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -24,7 +26,18 @@ from engine.text_comparator import CompareResult
 
 _STYLES = getSampleStyleSheet()
 _TITLE_STYLE = ParagraphStyle("report_title", parent=_STYLES["Heading1"])
+_SUBTITLE_STYLE = ParagraphStyle(
+    "report_subtitle", parent=_STYLES["Normal"], textColor=colors.HexColor("#666666")
+)
 _BODY_STYLE = _STYLES["Normal"]
+_CELL_STYLE = ParagraphStyle("report_cell", parent=_STYLES["Normal"], fontSize=9, leading=11)
+_DETAIL_CELL_STYLE = ParagraphStyle("report_detail_cell", parent=_STYLES["Normal"], fontSize=7, leading=9)
+_TILE_LABEL_STYLE = ParagraphStyle(
+    "report_tile_label", parent=_STYLES["Normal"], fontSize=7, textColor=colors.HexColor("#666666")
+)
+_TILE_VALUE_STYLE = ParagraphStyle(
+    "report_tile_value", parent=_STYLES["Normal"], fontSize=16, leading=19, fontName="Helvetica-Bold"
+)
 
 _TABLE_STYLE = TableStyle([
     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -33,6 +46,68 @@ _TABLE_STYLE = TableStyle([
     ("FONTSIZE", (0, 0), (-1, -1), 9),
     ("VALIGN", (0, 0), (-1, -1), "TOP"),
 ])
+
+_DETAIL_TABLE_COL_WIDTHS = [10 * mm, 20 * mm, 75 * mm, 75 * mm]
+_DETAIL_TABLE_STYLE = TableStyle([
+    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+    ("FONTSIZE", (0, 0), (-1, 0), 8),
+    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+])
+
+_COLOR_OK = colors.HexColor("#2E7D32")
+_COLOR_DELTA = colors.HexColor("#C62828")
+_COLOR_BADGE_OK_BG = colors.HexColor("#E8F5E9")
+_COLOR_BADGE_DELTA_BG = colors.HexColor("#FDECEA")
+_COLOR_HAIRLINE = colors.HexColor("#CCCCCC")
+
+_COLOR_TILE_NEUTRAL = colors.HexColor("#888780")
+_COLOR_TILE_GREEN = colors.HexColor("#1D9E75")
+_COLOR_TILE_ORANGE = colors.HexColor("#D85A30")
+_COLOR_TILE_VALUE_GREEN = colors.HexColor("#0F6E56")
+_COLOR_TILE_VALUE_ORANGE = colors.HexColor("#993C1D")
+_TILE_BORDER = colors.HexColor("#DDDDDD")
+_TILE_ACCENT_HEIGHT = 3.5
+_TILE_CORNER_RADIUS = 4
+
+
+def _build_kpi_tile(label: str, value: str, accent_color, value_color=colors.black) -> Table:
+    """Baut eine einzelne Kennzahlen-Kachel: farbiger Akzentstreifen oben,
+    heller Hintergrund, dünner Rahmen, Label klein/grau + Wert groß/fett."""
+    value_style = ParagraphStyle(
+        f"tile_value_{id(value_color)}", parent=_TILE_VALUE_STYLE, textColor=value_color
+    )
+    tile = Table(
+        [[""], [Paragraph(label, _TILE_LABEL_STYLE)], [Paragraph(value, value_style)]],
+        colWidths=[40 * mm],
+        rowHeights=[_TILE_ACCENT_HEIGHT, 12, 20],
+        cornerRadii=[_TILE_CORNER_RADIUS] * 4,
+    )
+    tile.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), accent_color),
+        ("BACKGROUND", (0, 1), (0, -1), colors.white),
+        ("BOX", (0, 0), (0, -1), 0.5, _TILE_BORDER),
+        ("LEFTPADDING", (0, 1), (0, -1), 6),
+        ("RIGHTPADDING", (0, 1), (0, -1), 6),
+        ("TOPPADDING", (0, 1), (0, 1), 6),
+        ("BOTTOMPADDING", (0, 1), (0, 1), 2),
+        ("TOPPADDING", (0, 2), (0, 2), 0),
+        ("BOTTOMPADDING", (0, 2), (0, 2), 6),
+        ("TOPPADDING", (0, 0), (0, 0), 0),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 0),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("RIGHTPADDING", (0, 0), (0, 0), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    return tile
+
+
+def _tool_version() -> str:
+    try:
+        return _pkg_version("papertrail-compare")
+    except PackageNotFoundError:
+        return "unbekannt"
 
 
 def _build_summary_pdf_bytes(
@@ -52,6 +127,189 @@ def _build_summary_pdf_bytes(
         table = Table(table_data, hAlign="LEFT")
         table.setStyle(_TABLE_STYLE)
         story.append(table)
+    doc.build(story)
+    return buf.getvalue()
+
+
+def _build_summary_page_pdf_bytes(
+    compare_result: CompareResult,
+    ref_pdf_path: Path,
+    cnd_pdf_path: Path,
+    total_pages: int,
+    comparisons: int,
+    profile: Optional[Profile],
+    profile_path: Optional[Union[str, Path]],
+    duration_seconds: Optional[float],
+) -> bytes:
+    """Baut Seite 1 (Zusammenfassung, TC-R-001): Status-Badge, Kennzahlen-
+    Kacheln, Fortschrittsbalken und Metadaten-Tabelle. Flaches Design ohne
+    Schatten/Verläufe, dünne Trennlinien statt Rahmen."""
+    delta_pages = sorted({d.page for d in compare_result.deltas})
+    pages_with_delta = len(delta_pages)
+    pages_without_delta = max(total_pages - pages_with_delta, 0)
+    match_ratio = (pages_without_delta / total_pages) if total_pages else 1.0
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=20 * mm, rightMargin=20 * mm,
+        topMargin=20 * mm, bottomMargin=20 * mm,
+    )
+    story: List = []
+
+    if compare_result.has_delta:
+        badge_text, badge_fg, badge_bg = "Deltas gefunden", _COLOR_DELTA, _COLOR_BADGE_DELTA_BG
+    else:
+        badge_text, badge_fg, badge_bg = "Keine Unterschiede", _COLOR_OK, _COLOR_BADGE_OK_BG
+
+    badge_style = ParagraphStyle("badge", parent=_STYLES["Normal"], textColor=badge_fg, fontSize=9, alignment=1)
+    header_table = Table(
+        [[
+            Paragraph("Vergleichs-Zusammenfassung<br/><font size=9 color='#666666'>"
+                      "PaperTrail Compare · Vergleichsreport</font>", _TITLE_STYLE),
+            Paragraph(badge_text, badge_style),
+        ]],
+        colWidths=[130 * mm, 40 * mm],
+    )
+    header_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BACKGROUND", (1, 0), (1, 0), badge_bg),
+        ("BOX", (1, 0), (1, 0), 0.5, badge_fg),
+        ("TOPPADDING", (1, 0), (1, 0), 6),
+        ("BOTTOMPADDING", (1, 0), (1, 0), 6),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 4))
+    story.append(Table([[""]], colWidths=[170 * mm], rowHeights=[0.5],
+                        style=TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.75, _COLOR_HAIRLINE)])))
+    story.append(Spacer(1, 12))
+
+    has_deltas = len(compare_result.deltas) > 0
+    delta_accent = _COLOR_TILE_ORANGE if has_deltas else _COLOR_TILE_GREEN
+    delta_value_color = _COLOR_TILE_VALUE_ORANGE if has_deltas else _COLOR_TILE_VALUE_GREEN
+
+    tiles = [
+        _build_kpi_tile("Seiten", str(total_pages), _COLOR_TILE_NEUTRAL),
+        _build_kpi_tile("Vergleiche", str(comparisons), _COLOR_TILE_NEUTRAL),
+        _build_kpi_tile("Deltas", str(len(compare_result.deltas)), delta_accent, delta_value_color),
+        _build_kpi_tile(
+            "Übereinstimmung", f"{match_ratio * 100:.0f} %",
+            _COLOR_TILE_GREEN, _COLOR_TILE_VALUE_GREEN,
+        ),
+    ]
+    tile_row = []
+    for i, tile in enumerate(tiles):
+        tile_row.append(tile)
+    tile_table = Table([tile_row], colWidths=[42.5 * mm] * 4)
+    tile_table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (-1, 0), (-1, 0), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(tile_table)
+    story.append(Spacer(1, 14))
+
+    story.append(Paragraph("Seiten mit Deltas", _TILE_LABEL_STYLE))
+    story.append(Spacer(1, 4))
+    bar_width_mm = 170.0
+    ok_width = bar_width_mm * match_ratio
+    delta_width = bar_width_mm - ok_width
+    bar_row = []
+    bar_widths = []
+    bar_colors = []
+    if ok_width > 0:
+        bar_row.append("")
+        bar_widths.append(ok_width * mm)
+        bar_colors.append(_COLOR_OK)
+    if delta_width > 0:
+        bar_row.append("")
+        bar_widths.append(delta_width * mm)
+        bar_colors.append(_COLOR_DELTA)
+    if not bar_row:
+        bar_row, bar_widths, bar_colors = [""], [bar_width_mm * mm], [_COLOR_OK]
+    bar_table = Table([bar_row], colWidths=bar_widths, rowHeights=[4 * mm])
+    bar_style = [("GRID", (0, 0), (-1, -1), 0, colors.white)]
+    for idx, color in enumerate(bar_colors):
+        bar_style.append(("BACKGROUND", (idx, 0), (idx, 0), color))
+    bar_table.setStyle(TableStyle(bar_style))
+    story.append(bar_table)
+    story.append(Spacer(1, 4))
+    story.append(Paragraph(
+        f"{pages_without_delta} von {total_pages} Seiten ohne Delta · "
+        f"{pages_with_delta} Seiten betroffen",
+        _BODY_STYLE,
+    ))
+    story.append(Spacer(1, 16))
+
+    if profile_path is not None:
+        profile_label = Path(profile_path).name
+        if profile is not None:
+            profile_label += f" (v{profile.version})"
+    elif profile is not None:
+        profile_label = f"v{profile.version}"
+    else:
+        profile_label = "—"
+
+    meta_rows = [
+        ["Referenz-Datei", ref_pdf_path.name],
+        ["Kandidat-Datei", cnd_pdf_path.name],
+        ["Vergleichsprofil", profile_label],
+        ["Ausgeschlossene Regionen", str(len(profile.exclude_regions)) if profile else "0"],
+        ["OCR verwendet", "Ja" if (profile and profile.ocr.enabled) else "Nein"],
+        ["Verarbeitungsdauer", f"{duration_seconds:.2f} s" if duration_seconds is not None else "—"],
+        ["Vergleichsdatum", datetime.now().strftime("%d.%m.%Y %H:%M:%S")],
+        ["Tool-Version", _tool_version()],
+    ]
+    meta_table = Table(
+        [[Paragraph(f"<b>{html.escape(label)}</b>", _CELL_STYLE), Paragraph(html.escape(value), _CELL_STYLE)]
+         for label, value in meta_rows],
+        colWidths=[55 * mm, 115 * mm],
+    )
+    meta_table.setStyle(TableStyle([
+        ("LINEBELOW", (0, 0), (-1, -1), 0.5, _COLOR_HAIRLINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.append(meta_table)
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+def _build_delta_detail_pdf_bytes(compare_result: CompareResult) -> bytes:
+    """Baut die Detailliste der Deltas (Seiten-/Dateiangabe je Delta) als
+    eigene(s) Seite(n) ans Ende des Reports, kleinere Schrift, feste
+    Spaltenbreiten mit Zeilenumbruch statt Überlauf (TC-R-001)."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=20 * mm, rightMargin=20 * mm,
+        topMargin=20 * mm, bottomMargin=20 * mm,
+    )
+    story: List = [
+        Paragraph("Delta-Details", _TITLE_STYLE),
+        Spacer(1, 8),
+        Paragraph(f"Anzahl Deltas: {len(compare_result.deltas)}", _BODY_STYLE),
+        Spacer(1, 10),
+    ]
+
+    table_rows = [["#", "Seite", "Referenz", "Kandidat"]]
+    for i, delta in enumerate(compare_result.deltas, start=1):
+        table_rows.append([
+            Paragraph(str(i), _DETAIL_CELL_STYLE),
+            Paragraph(f"Seite {delta.page}", _DETAIL_CELL_STYLE),
+            Paragraph(html.escape(delta.ref_text), _DETAIL_CELL_STYLE),
+            Paragraph(html.escape(delta.cnd_text), _DETAIL_CELL_STYLE),
+        ])
+    table_rows[0] = [Paragraph(f"<b>{c}</b>", _DETAIL_CELL_STYLE) for c in table_rows[0]]
+
+    table = Table(table_rows, colWidths=_DETAIL_TABLE_COL_WIDTHS, hAlign="LEFT", repeatRows=1)
+    table.setStyle(_DETAIL_TABLE_STYLE)
+    story.append(table)
+
     doc.build(story)
     return buf.getvalue()
 
@@ -221,11 +479,14 @@ def generate_report(
     cnd_pdf_path: Union[str, Path],
     output_path: Union[str, Path],
     profile: Optional[Profile] = None,
+    profile_path: Optional[Union[str, Path]] = None,
+    duration_seconds: Optional[float] = None,
 ) -> Path:
-    """Erzeugt einen Einzel-Report (TC-R-001): Übersichtsseite (Hochformat)
-    mit Datei- und Seitenangabe je Delta, gefolgt von einer Querformat-
-    Seite pro Dokumentenseite mit Referenz (links) und Kandidat (rechts)
-    nebeneinander, jeweils mit markierten Delta-Stellen.
+    """Erzeugt einen Einzel-Report (TC-R-001): Zusammenfassungsseite
+    (Hochformat) mit Status, Kennzahlen und Metadaten, gefolgt von einer
+    Querformat-Seite pro Dokumentenseite mit Referenz (links) und Kandidat
+    (rechts) nebeneinander (jeweils mit markierten Delta-Stellen), und
+    abschließend der Delta-Detailliste mit Seiten- und Dateiangabe.
 
     Die Delta.page-Angabe bezieht sich nur auf das Kandidat-Dokument (siehe
     text_comparator.Delta). Im Referenz-Dokument wird zuerst auf derselben
@@ -233,6 +494,12 @@ def generate_report(
     Referenz und Kandidat (Kernprinzip des Vergleichs, siehe TC-T-003) und
     fehlendem Treffer wird über das gesamte Referenz-Dokument gesucht
     (TC-R-001-seitenumbruch).
+
+    duration_seconds erlaubt es Aufrufern, die Dauer des gesamten
+    Vergleichsvorgangs (inkl. text_comparator.compare()) für die
+    Zusammenfassungsseite zu übergeben, statt nur die Report-Erzeugung
+    selbst zu messen. profile_path wird nur zur Anzeige des Profil-
+    Dateinamens auf der Zusammenfassungsseite verwendet.
 
     profile.report_format="html" erzeugt statt des PDF-Reports einen
     einfachen HTML-Bericht ohne Delta-Markierung im Dokument (TC-R-004) –
@@ -247,33 +514,32 @@ def generate_report(
 
     ref_texts_by_page: Dict[int, List[str]] = {}
     cnd_texts_by_page: Dict[int, List[str]] = {}
-    table_rows = [["#", "Seite", "Referenz", "Kandidat"]]
-    for i, delta in enumerate(compare_result.deltas, start=1):
+    for delta in compare_result.deltas:
         ref_texts_by_page.setdefault(delta.page, []).append(delta.ref_text)
         cnd_texts_by_page.setdefault(delta.page, []).append(delta.cnd_text)
-        table_rows.append([str(i), f"Seite {delta.page}", delta.ref_text, delta.cnd_text])
 
-    intro = [
-        f"Referenzdatei: {ref_pdf_path.name}",
-        f"Kandidatdatei: {cnd_pdf_path.name}",
-        f"Anzahl Deltas: {len(compare_result.deltas)}"
-        if compare_result.has_delta else "Keine Unterschiede gefunden.",
-    ]
-
-    summary_bytes = _build_summary_pdf_bytes(
-        "PaperTrail Compare – Einzel-Report",
-        intro,
-        table_rows if compare_result.has_delta else [],
-    )
-
-    report_doc = fitz.open(stream=summary_bytes, filetype="pdf")
     ref_marked = _mark_deltas_in_document(
         ref_pdf_path, ref_texts_by_page, fallback_search_all_pages=True
     )
     cnd_marked = _mark_deltas_in_document(cnd_pdf_path, cnd_texts_by_page)
+    total_pages = max(len(ref_marked), len(cnd_marked))
+
+    summary_bytes = _build_summary_page_pdf_bytes(
+        compare_result, ref_pdf_path, cnd_pdf_path,
+        total_pages=total_pages, comparisons=1,
+        profile=profile, profile_path=profile_path,
+        duration_seconds=duration_seconds,
+    )
+    report_doc = fitz.open(stream=summary_bytes, filetype="pdf")
 
     side_by_side = _build_side_by_side_document(ref_marked, cnd_marked)
     report_doc.insert_pdf(side_by_side)
+
+    if compare_result.has_delta:
+        detail_bytes = _build_delta_detail_pdf_bytes(compare_result)
+        detail_doc = fitz.open(stream=detail_bytes, filetype="pdf")
+        report_doc.insert_pdf(detail_doc)
+        detail_doc.close()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     report_doc.save(str(output_path))
