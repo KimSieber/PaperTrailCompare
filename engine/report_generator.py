@@ -110,6 +110,19 @@ def _tool_version() -> str:
         return "unbekannt"
 
 
+_DETAIL_TEXT_MAX_LEN = 300
+
+
+def _truncate_end(text: str, max_len: int) -> str:
+    """Kürzt für die Detailliste (nur Anzeige, nicht die Delta-Daten selbst):
+    lange Delta-Texte werden nach max_len Zeichen mit "…" abgeschnitten,
+    damit ReportLab keine Tabellenzelle bauen muss, die höher als eine
+    Seite ist ("tallest cell ... too large on page")."""
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "…"
+
+
 def _build_summary_pdf_bytes(
     title: str, intro_lines: List[str], table_data: List[List[str]]
 ) -> bytes:
@@ -298,15 +311,24 @@ def _build_delta_detail_pdf_bytes(compare_result: CompareResult) -> bytes:
 
     table_rows = [["#", "Seite", "Referenz", "Kandidat"]]
     for i, delta in enumerate(compare_result.deltas, start=1):
+        ref_text = _truncate_end(delta.ref_text, _DETAIL_TEXT_MAX_LEN)
+        cnd_text = _truncate_end(delta.cnd_text, _DETAIL_TEXT_MAX_LEN)
         table_rows.append([
             Paragraph(str(i), _DETAIL_CELL_STYLE),
             Paragraph(f"Seite {delta.page}", _DETAIL_CELL_STYLE),
-            Paragraph(html.escape(delta.ref_text), _DETAIL_CELL_STYLE),
-            Paragraph(html.escape(delta.cnd_text), _DETAIL_CELL_STYLE),
+            Paragraph(html.escape(ref_text), _DETAIL_CELL_STYLE),
+            Paragraph(html.escape(cnd_text), _DETAIL_CELL_STYLE),
         ])
     table_rows[0] = [Paragraph(f"<b>{c}</b>", _DETAIL_CELL_STYLE) for c in table_rows[0]]
 
-    table = Table(table_rows, colWidths=_DETAIL_TABLE_COL_WIDTHS, hAlign="LEFT", repeatRows=1)
+    # splitByRow=1 (Default) erlaubt ReportLab, die Tabelle zwischen Zeilen
+    # über Seiten zu brechen; ohne die Text-Kürzung oben würde eine einzelne
+    # zu hohe Zeile ("tallest cell ... too large on page") das trotzdem
+    # verhindern, da eine Zeile selbst nie über Seiten gesplittet wird.
+    table = Table(
+        table_rows, colWidths=_DETAIL_TABLE_COL_WIDTHS, hAlign="LEFT",
+        repeatRows=1, splitByRow=1,
+    )
     table.setStyle(_DETAIL_TABLE_STYLE)
     story.append(table)
 
