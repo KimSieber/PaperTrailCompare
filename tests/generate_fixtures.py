@@ -1250,6 +1250,38 @@ def generate_tc_r_001_seitenumbruch() -> None:
     )
 
 
+def generate_tc_r_005_rotierte_seite() -> None:
+    """ref.pdf/cnd.pdf mit einer Seite, deren /Rotate-Flag auf 90 gesetzt
+    ist (z.B. quergescanntes Dokument), samt einem Delta darauf. Prüft,
+    dass report_generator._place_source_page() rotierte Quellseiten korrekt
+    (nicht verzerrt/abgeschnitten) als Vektor-Inhalt einbettet - siehe
+    PR-Diskussion zum Performance-Umbau (show_pdf_page() übernimmt
+    page.rotation nicht automatisch)."""
+    tc = "TC-R-005-rotation"
+    d = fixture_dir(tc)
+
+    simple_pdf(d / "ref.pdf", [["Kunde: Mustermann", "Betrag: 100 EUR"]], title=f"{tc} ref")
+    simple_pdf(d / "cnd.pdf", [["Kunde: Mustermann", "Betrag: 200 EUR"]], title=f"{tc} cnd")
+
+    for name in ("ref.pdf", "cnd.pdf"):
+        path = d / name
+        doc = fitz.open(str(path))
+        doc[0].set_rotation(90)
+        doc.saveIncr()
+        doc.close()
+
+    write_readme(
+        tc,
+        "Delta-Markierung auf rotierter Seite (/Rotate 90)",
+        "Einseitiges PDF mit Seiten-Rotation 90° (z.B. quer eingescanntes "
+        "Dokument) und einem Delta ('100'->'200'). report_generator muss "
+        "die Seite unverzerrt einbetten und das Delta-Rechteck an der "
+        "richtigen, um die Rotation transformierten Position markieren.",
+        "Betrag: 100 EUR, Seite um 90° gedreht.",
+        "Betrag: 200 EUR, Seite um 90° gedreht.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Hauptprogramm
 # ---------------------------------------------------------------------------
@@ -1277,6 +1309,7 @@ GENERATORS = [
     ("TC-B-005", generate_tc_b_005),
     ("TC-R-001", generate_tc_r_001),
     ("TC-R-001-seitenumbruch", generate_tc_r_001_seitenumbruch),
+    ("TC-R-005-rotation", generate_tc_r_005_rotierte_seite),
     ("TC-S-001 + TC-S-002", generate_tc_s_001_002),
 ]
 

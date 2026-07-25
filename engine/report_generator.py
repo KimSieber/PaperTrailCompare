@@ -336,13 +336,21 @@ def _build_delta_detail_pdf_bytes(compare_result: CompareResult) -> bytes:
     return buf.getvalue()
 
 
-def _mark_deltas_in_document(
-    pdf_path: Union[str, Path],
+def _find_delta_rects(
+    doc: fitz.Document,
     texts_by_page: Dict[int, List[str]],
     fallback_search_all_pages: bool = False,
-) -> fitz.Document:
-    """Öffnet ein PDF und markiert (Highlight-Annotation) die übergebenen
-    Textstellen je Seite. texts_by_page: {Seite (1-basiert): [Text, ...]}.
+) -> Dict[int, List[fitz.Rect]]:
+    """Sucht die übergebenen Delta-Textstellen im PDF und liefert ihre
+    Fundstellen-Rechtecke je Seite (1-basiert), transformiert in das
+    page.rect-Koordinatensystem (berücksichtigt page.rotation - siehe
+    page.rotation_matrix; search_for() liefert sonst rohe, unrotierte
+    Mediabox-Koordinaten).
+
+    Mutiert das Dokument NICHT mehr (keine Highlight-Annotationen) - die
+    Delta-Markierung erfolgt seit dem Umbau auf Vektor-Einbettung
+    (show_pdf_page) als eigenes Overlay direkt auf der Report-Seite, siehe
+    _place_source_page().
 
     Findet sich der Text nicht auf der erwarteten Seite (z.B. weil
     Referenz- und Kandidat-Dokument unterschiedlich umgebrochen sind – die
@@ -350,26 +358,34 @@ def _mark_deltas_in_document(
     Kandidat-Dokument), wird mit fallback_search_all_pages=True über das
     gesamte Dokument gesucht, statt die Markierung zu verwerfen.
     """
-    doc = fitz.open(str(pdf_path))
+    rects_by_page: Dict[int, List[fitz.Rect]] = {}
     for page_num, texts in texts_by_page.items():
         for text in texts:
             if not text:
                 continue
 
-            rects = []
-            if 1 <= page_num <= len(doc):
-                rects = doc[page_num - 1].search_for(text)
-                for rect in rects:
-                    doc[page_num - 1].add_highlight_annot(rect)
+            found_rects: List[fitz.Rect] = []
+            found_page_num: Optional[int] = None
 
-            if not rects and fallback_search_all_pages:
-                for page in doc:
-                    fallback_rects = page.search_for(text)
-                    if fallback_rects:
-                        for rect in fallback_rects:
-                            page.add_highlight_annot(rect)
+            if 1 <= page_num <= len(doc):
+                page = doc[page_num - 1]
+                raw_rects = page.search_for(text)
+                if raw_rects:
+                    found_rects = [r * page.rotation_matrix for r in raw_rects]
+                    found_page_num = page_num
+
+            if not found_rects and fallback_search_all_pages:
+                for idx, page in enumerate(doc, start=1):
+                    raw_rects = page.search_for(text)
+                    if raw_rects:
+                        found_rects = [r * page.rotation_matrix for r in raw_rects]
+                        found_page_num = idx
                         break
-    return doc
+
+            if found_rects and found_page_num is not None:
+                rects_by_page.setdefault(found_page_num, []).extend(found_rects)
+
+    return rects_by_page
 
 
 _SBS_PAGE_W = 842.0
@@ -382,41 +398,80 @@ _SBS_HEADER_HEIGHT = 15.0
 _SBS_FOOTER_HEIGHT = 15.0
 _SBS_CONTENT_TOP = _SBS_MARGIN_TOP + _SBS_HEADER_HEIGHT
 _SBS_CONTENT_BOTTOM = _SBS_PAGE_H - _SBS_MARGIN_BOTTOM - _SBS_FOOTER_HEIGHT
-_SBS_RENDER_ZOOM = 2.0
 _SBS_NO_PAGE_TEXT = "Keine entsprechende Seite"
+_DELTA_OVERLAY_FILL = (1, 1, 0)
+_DELTA_OVERLAY_FILL_OPACITY = 0.4
 
 
-def _insert_scaled_page_image(
+def _place_source_page(
     page: fitz.Page, doc: Optional[fitz.Document], src_page_num: Optional[int],
+    delta_rects: List[fitz.Rect],
     x0: float, y0: float, x1: float, y1: float,
 ) -> None:
-    """Rendert Seite src_page_num (1-basiert) aus doc als Pixmap (inkl.
-    Highlight-Annotationen) und fügt sie proportional skaliert und zentriert
-    in das Rechteck (x0, y0, x1, y1) ein. Fehlt die Seite, wird ein Hinweis
-    eingeblendet (unterschiedliche Seitenzahlen durch Seitenumbruch)."""
+    """Bettet Seite src_page_num (1-basiert) aus doc als Vektor-Inhalt
+    (page.show_pdf_page) proportional skaliert und zentriert in das
+    Rechteck (x0, y0, x1, y1) ein - keine Rasterung. Fehlt die Seite, wird
+    ein Hinweis eingeblendet (unterschiedliche Seitenzahlen durch
+    Seitenumbruch). delta_rects (in page.rect-Koordinaten der Quellseite,
+    siehe _find_delta_rects) werden in dasselbe Zielrechteck transformiert
+    und als halbtransparentes Vektor-Overlay auf die Report-Seite
+    gezeichnet, statt in die Seite hineingerastert zu werden.
+
+    Zu page.show_pdf_page()/rotierten Seiten (empirisch verifiziert, siehe
+    PR-Diskussion): show_pdf_page() übernimmt die eigene page.rotation der
+    Quellseite NICHT automatisch und liefert bei einer Quellseite mit
+    page.rotation != 0 UND zusätzlich gesetztem rotate-Parameter falsch
+    zugeschnittenen/verschobenen Inhalt (Clip-Rect wird gegen die
+    unrotierte Mediabox statt gegen page.rect berechnet). Der einzige
+    Weg, der in Tests mit /Rotate 90/180/270 exakt dem direkten
+    page.get_pixmap()-Rendering entsprach: die page.rotation der
+    Quellseite auf 0 setzen (reine In-Memory-Mutation des offenen
+    fitz.Document, nicht der Originaldatei) und stattdessen die
+    komplementäre Drehung (360 - rotation) % 360 explizit über den
+    rotate-Parameter anfordern.
+    """
     target = fitz.Rect(x0, y0, x1, y1)
     if doc is None or src_page_num is None or not (1 <= src_page_num <= len(doc)):
         page.insert_textbox(target, _SBS_NO_PAGE_TEXT, fontsize=10, align=1)
         return
 
     src_page = doc[src_page_num - 1]
-    pixmap = src_page.get_pixmap(matrix=fitz.Matrix(_SBS_RENDER_ZOOM, _SBS_RENDER_ZOOM), annots=True)
+    src_rect = src_page.rect
+    rotation = src_page.rotation
 
     avail_w, avail_h = target.width, target.height
-    scale = min(avail_w / pixmap.width, avail_h / pixmap.height)
-    w, h = pixmap.width * scale, pixmap.height * scale
+    scale = min(avail_w / src_rect.width, avail_h / src_rect.height)
+    w, h = src_rect.width * scale, src_rect.height * scale
     rx0 = x0 + (avail_w - w) / 2
     ry0 = y0 + (avail_h - h) / 2
-    page.insert_image(fitz.Rect(rx0, ry0, rx0 + w, ry0 + h), pixmap=pixmap)
+    embed_rect = fitz.Rect(rx0, ry0, rx0 + w, ry0 + h)
+
+    if rotation:
+        src_page.set_rotation(0)
+    page.show_pdf_page(embed_rect, doc, pno=src_page_num - 1, rotate=(360 - rotation) % 360)
+
+    for rect in delta_rects:
+        overlay_rect = fitz.Rect(
+            rx0 + (rect.x0 - src_rect.x0) * scale,
+            ry0 + (rect.y0 - src_rect.y0) * scale,
+            rx0 + (rect.x1 - src_rect.x0) * scale,
+            ry0 + (rect.y1 - src_rect.y0) * scale,
+        )
+        page.draw_rect(
+            overlay_rect, color=None,
+            fill=_DELTA_OVERLAY_FILL, fill_opacity=_DELTA_OVERLAY_FILL_OPACITY,
+        )
 
 
 def _build_side_by_side_document(
-    ref_marked: fitz.Document, cnd_marked: fitz.Document,
+    ref_doc: fitz.Document, cnd_doc: fitz.Document,
+    ref_rects_by_page: Dict[int, List[fitz.Rect]],
+    cnd_rects_by_page: Dict[int, List[fitz.Rect]],
 ) -> fitz.Document:
     """Erzeugt den Seite-für-Seite Nebeneinander-Vergleich in Querformat:
-    links die Referenz-, rechts die Kandidat-Seite, jeweils inkl. der
-    bereits gesetzten Delta-Highlight-Annotationen."""
-    page_count = max(len(ref_marked), len(cnd_marked))
+    links die Referenz-, rechts die Kandidat-Seite, jeweils als
+    eingebetteter Vektor-Inhalt mit Delta-Overlay (siehe _place_source_page)."""
+    page_count = max(len(ref_doc), len(cnd_doc))
     out_doc = fitz.open()
 
     for i in range(page_count):
@@ -436,14 +491,14 @@ def _build_side_by_side_document(
             width=1,
         )
 
-        ref_page_num = i + 1 if i < len(ref_marked) else None
-        cnd_page_num = i + 1 if i < len(cnd_marked) else None
-        _insert_scaled_page_image(
-            page, ref_marked, ref_page_num,
+        ref_page_num = i + 1 if i < len(ref_doc) else None
+        cnd_page_num = i + 1 if i < len(cnd_doc) else None
+        _place_source_page(
+            page, ref_doc, ref_page_num, ref_rects_by_page.get(ref_page_num, []),
             _SBS_MARGIN_LR, _SBS_CONTENT_TOP, _SBS_DIVIDER_X - 1, _SBS_CONTENT_BOTTOM,
         )
-        _insert_scaled_page_image(
-            page, cnd_marked, cnd_page_num,
+        _place_source_page(
+            page, cnd_doc, cnd_page_num, cnd_rects_by_page.get(cnd_page_num, []),
             _SBS_DIVIDER_X + 1, _SBS_CONTENT_TOP, _SBS_PAGE_W - _SBS_MARGIN_LR, _SBS_CONTENT_BOTTOM,
         )
 
@@ -540,11 +595,13 @@ def generate_report(
         ref_texts_by_page.setdefault(delta.page, []).append(delta.ref_text)
         cnd_texts_by_page.setdefault(delta.page, []).append(delta.cnd_text)
 
-    ref_marked = _mark_deltas_in_document(
-        ref_pdf_path, ref_texts_by_page, fallback_search_all_pages=True
+    ref_doc = fitz.open(str(ref_pdf_path))
+    cnd_doc = fitz.open(str(cnd_pdf_path))
+    ref_rects_by_page = _find_delta_rects(
+        ref_doc, ref_texts_by_page, fallback_search_all_pages=True
     )
-    cnd_marked = _mark_deltas_in_document(cnd_pdf_path, cnd_texts_by_page)
-    total_pages = max(len(ref_marked), len(cnd_marked))
+    cnd_rects_by_page = _find_delta_rects(cnd_doc, cnd_texts_by_page)
+    total_pages = max(len(ref_doc), len(cnd_doc))
 
     summary_bytes = _build_summary_page_pdf_bytes(
         compare_result, ref_pdf_path, cnd_pdf_path,
@@ -554,7 +611,9 @@ def generate_report(
     )
     report_doc = fitz.open(stream=summary_bytes, filetype="pdf")
 
-    side_by_side = _build_side_by_side_document(ref_marked, cnd_marked)
+    side_by_side = _build_side_by_side_document(
+        ref_doc, cnd_doc, ref_rects_by_page, cnd_rects_by_page
+    )
     report_doc.insert_pdf(side_by_side)
 
     if compare_result.has_delta:
@@ -564,12 +623,16 @@ def generate_report(
         detail_doc.close()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    report_doc.save(str(output_path))
+    # garbage=4 dedupliziert Ressourcen (dieselbe Quellseite wird ggf.
+    # mehrfach als Form-XObject referenziert), deflate=True komprimiert
+    # die Streams - beides senkt die Dateigröße zusätzlich zum Wegfall
+    # der Rasterbilder.
+    report_doc.save(str(output_path), garbage=4, deflate=True)
 
     report_doc.close()
     side_by_side.close()
-    ref_marked.close()
-    cnd_marked.close()
+    ref_doc.close()
+    cnd_doc.close()
 
     return output_path
 

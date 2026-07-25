@@ -51,6 +51,8 @@ def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
     assert "cnd.pdf" in summary_text
     assert "Deltas gefunden" in summary_text
 
+    ref_doc = fitz.open(str(ref_path))
+    cnd_doc = fitz.open(str(cnd_path))
     for i in range(1, 1 + side_by_side_page_count):
         page = report[i]
         assert page.rect.width > page.rect.height  # Querformat
@@ -58,8 +60,15 @@ def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
         assert "Referenz" in page_text
         assert "Kandidat" in page_text
         assert f"Seite {i} von {side_by_side_page_count}" in page_text
-        # Referenz- und Kandidat-Rendering je als eingebettetes Bild.
-        assert len(page.get_images()) == 2
+        # Referenz- und Kandidat-Seite werden als Vektor-Inhalt eingebettet
+        # (page.show_pdf_page), nicht mehr gerastert - der Text der
+        # Originalseite muss unverändert extrahierbar sein, und es dürfen
+        # keine Rasterbilder eingebettet sein (Performance-/Größen-Fix).
+        assert ref_doc[i - 1].get_text().strip() in page_text
+        assert cnd_doc[i - 1].get_text().strip() in page_text
+        assert len(page.get_images()) == 0
+    ref_doc.close()
+    cnd_doc.close()
 
     detail_text = "".join(
         report[i].get_text() for i in range(1 + side_by_side_page_count, len(report))
@@ -93,22 +102,74 @@ def test_tc_r_001_seitenumbruch_referenz_markierung_mit_fallback(tmp_path):
     side_by_side_page_count = max(ref_page_count, cnd_page_count)
 
     report = fitz.open(str(output_path))
+    ref_doc = fitz.open(str(ref_path))
 
     # Seite 1 ist die Zusammenfassung; danach folgen die Vergleichsseiten.
-    # Markierung erfolgt vor dem Rendern der Seiten (Fallback-Suche über
+    # Markierung erfolgt vor dem Einbetten der Seiten (Fallback-Suche über
     # das gesamte Referenz-Dokument). ref.pdf hat 2 Seiten, cnd.pdf nur 1 -
-    # die zweite Vergleichsseite zeigt daher nur die Referenz-Seite plus
-    # den Hinweis "Keine entsprechende Seite" für die fehlende Kandidatseite.
-    assert len(report[1].get_images()) == 2
+    # die zweite Vergleichsseite zeigt daher nur die Referenz-Seite (als
+    # Vektor-Inhalt, kein Rasterbild) plus den Hinweis "Keine entsprechende
+    # Seite" für die fehlende Kandidatseite.
+    first_page_text = report[1].get_text()
+    assert ref_doc[0].get_text().strip() in first_page_text
+    assert len(report[1].get_images()) == 0
+
     last_side_by_side_page = report[side_by_side_page_count]
-    assert len(last_side_by_side_page.get_images()) == 1
+    assert ref_doc[1].get_text().strip() in last_side_by_side_page.get_text()
+    assert len(last_side_by_side_page.get_images()) == 0
     assert "Keine entsprechende Seite" in last_side_by_side_page.get_text()
 
     report.close()
+    ref_doc.close()
+
+
+def test_tc_r_005_rotierte_seite_wird_unverzerrt_eingebettet_und_delta_korrekt_positioniert(tmp_path):
+    """Seite mit /Rotate 90 (z.B. quer eingescanntes Dokument) muss beim
+    Vektor-Einbetten (show_pdf_page) unverzerrt erscheinen, und das
+    Delta-Rechteck muss trotz Rotation exakt über dem geänderten Text
+    liegen (siehe report_generator._place_source_page)."""
+    ref_path = FIXTURES / "TC-R-005-rotation" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-R-005-rotation" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    assert len(result.deltas) == 1
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path)
+
+    report = fitz.open(str(output_path))
+    ref_doc = fitz.open(str(ref_path))
+    cnd_doc = fitz.open(str(cnd_path))
+    sbs_page = report[1]
+
+    # Kein Rasterbild, Original-Text (inkl. Rotation) unverändert extrahierbar.
+    assert len(sbs_page.get_images()) == 0
+    assert ref_doc[0].get_text().strip() in sbs_page.get_text()
+    assert cnd_doc[0].get_text().strip() in sbs_page.get_text()
+
+    # Delta-Overlay (gelbes Füllrechteck) muss über der jeweiligen
+    # geänderten Zahl liegen, nicht irgendwo abseits auf der Seite.
+    ref_number_rect = sbs_page.search_for("100")[0]
+    cnd_number_rect = sbs_page.search_for("200")[0]
+    # Highlights werden als Vektor-Overlay (draw_rect), nicht als
+    # Annotation gezeichnet - stattdessen über die Pixelfarbe verifizieren:
+    # an einem Punkt innerhalb des jeweiligen Zahl-Rechtecks muss die
+    # gelbe Overlay-Füllung sichtbar sein.
+    pix = sbs_page.get_pixmap(matrix=fitz.Matrix(3, 3))
+    for rect in (ref_number_rect, cnd_number_rect):
+        cx, cy = int(rect.x0 * 3) + 1, int((rect.y0 + rect.height / 2) * 3)
+        r, g, b = pix.pixel(cx, cy)
+        # Gelb-Overlay (fill=(1,1,0), opacity 0.4) auf weißem Hintergrund
+        # ergibt einen deutlich abgedunkelten Blaukanal.
+        assert b < 200, f"Kein gelbes Delta-Overlay bei ({cx}, {cy}): RGB={r, g, b}"
+
+    report.close()
+    ref_doc.close()
+    cnd_doc.close()
 
 
 def test_generate_report_ignoriert_leeren_text_und_seite_ausserhalb_dokument(tmp_path):
-    """Deckt die Randfälle in _mark_deltas_in_document ab: ein Delta ohne
+    """Deckt die Randfälle in _find_delta_rects ab: ein Delta ohne
     Text (reine Einfügung/Löschung) und eine Delta-Seite außerhalb des
     Dokuments (Fallback-Suche findet dann ebenfalls nichts)."""
     ref_path = FIXTURES / "TC-R-001" / "ref.pdf"
