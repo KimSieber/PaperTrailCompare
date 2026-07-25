@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "case_sensitive": true,
+  "normalize_whitespace": true,
+  "report_format": "pdf",
+  "exclude_regions": [],
+  "page_groups": [],
+  "ocr": {
+    "enabled": false,
+    "confidence_threshold": 0.85
+  }
+}

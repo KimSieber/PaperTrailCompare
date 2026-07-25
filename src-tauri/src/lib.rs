@@ -29,6 +29,69 @@ struct CompareOutput {
     report_path: Option<String>,
 }
 
+/// Entspricht dem Ausschnitt von engine.profile_loader.Profile, der über den
+/// Einstellungen-Reiter editierbar ist. `version` wird von load_profile()
+/// als Pflichtfeld verlangt (siehe engine/profile_loader.py).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Profile {
+    version: String,
+    #[serde(default = "default_normalize_whitespace")]
+    normalize_whitespace: bool,
+}
+
+/// GUI-Default für den Einstellungen-Toggle "Leerzeichen-Toleranz": greift
+/// sowohl beim allerersten Start (keine profile.json vorhanden) als auch,
+/// falls eine vorhandene profile.json das Feld nicht enthält. Bewusst
+/// getrennt vom CLI-/engine.profile_loader.Profile-Default (False, dort
+/// weiterhin opt-in).
+fn default_normalize_whitespace() -> bool {
+    true
+}
+
+impl Default for Profile {
+    fn default() -> Self {
+        Profile {
+            version: "1.0".to_string(),
+            normalize_whitespace: default_normalize_whitespace(),
+        }
+    }
+}
+
+/// Pfad der persistierten Profildatei im App-Konfigurationsverzeichnis
+/// (macOS: ~/Library/Application Support/<bundle-id>/, Windows:
+/// %APPDATA%/<bundle-id>/). Diese Datei wird per --profile an den
+/// Sidecar-Prozess übergeben, siehe compare_documents.
+fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("profile.json"))
+}
+
+/// Lädt die persistierten Einstellungen; liefert Defaults, falls noch keine
+/// Profildatei existiert (z.B. beim allerersten Programmstart).
+#[tauri::command]
+fn load_settings(app: tauri::AppHandle) -> Result<Profile, String> {
+    let path = settings_path(&app)?;
+    if !path.exists() {
+        return Ok(Profile::default());
+    }
+    let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
+}
+
+/// Persistiert die Einstellungen aus dem Einstellungen-Reiter als JSON-Profil
+/// (engine/profile_loader.py-kompatibel).
+#[tauri::command]
+fn save_settings(app: tauri::AppHandle, normalize_whitespace: bool) -> Result<(), String> {
+    let path = settings_path(&app)?;
+    let profile = Profile {
+        version: "1.0".to_string(),
+        normalize_whitespace,
+    };
+    let json = serde_json::to_string_pretty(&profile).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
 /// Verzeichnis für Vergleichs-Reports unterhalb der Dokumente des Nutzers
 /// (macOS: ~/Documents/PaperTrailCompare/, Windows: Eigene
 /// Dokumente\PaperTrailCompare\). Reports bleiben dauerhaft erhalten und
@@ -88,15 +151,22 @@ async fn compare_documents(
         .sidecar("papertrail-engine")
         .map_err(|e| e.to_string())?;
 
+    let mut cli_args = vec![
+        "compare".to_string(),
+        ref_path.clone(),
+        cnd_path.clone(),
+        "--json".to_string(),
+        "--report".to_string(),
+        report_path_str.clone(),
+    ];
+    let profile_path = settings_path(&app)?;
+    if profile_path.exists() {
+        cli_args.push("--profile".to_string());
+        cli_args.push(profile_path.to_string_lossy().to_string());
+    }
+
     let output = sidecar
-        .args([
-            "compare",
-            &ref_path,
-            &cnd_path,
-            "--json",
-            "--report",
-            &report_path_str,
-        ])
+        .args(cli_args)
         .output()
         .await
         .map_err(|e| e.to_string())?;
@@ -147,7 +217,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             engine_version,
-            compare_documents
+            compare_documents,
+            load_settings,
+            save_settings
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

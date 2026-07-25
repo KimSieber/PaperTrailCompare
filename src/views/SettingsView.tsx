@@ -1,12 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MainPanel } from "../layout/MainPanel";
 import { PlaceholderPanel } from "../layout/PlaceholderPanel";
+import { Toggle } from "../layout/Toggle";
+import type { Profile } from "../types";
 
 export function SettingsView() {
   const [engineStatus, setEngineStatus] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [checking, setChecking] = useState(false);
+  const [normalizeWhitespace, setNormalizeWhitespace] = useState(true);
+
+  useEffect(() => {
+    invoke<Profile>("load_settings")
+      .then((profile) => setNormalizeWhitespace(profile.normalize_whitespace))
+      .catch((err) => setError(String(err)));
+  }, []);
+
+  async function handleNormalizeWhitespaceChange(checked: boolean) {
+    setNormalizeWhitespace(checked);
+    try {
+      await invoke("save_settings", { normalizeWhitespace: checked });
+    } catch (err) {
+      setError(String(err));
+    }
+  }
 
   async function checkEngine() {
     setError("");
@@ -56,6 +74,18 @@ export function SettingsView() {
               Fehler: <code>{error}</code>
             </p>
           )}
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-slate-900">Vergleich</h2>
+          <div className="mt-4">
+            <Toggle
+              label="Leerzeichen-Toleranz"
+              description="Ignoriert Unterschiede, die nur durch zusätzliche oder fehlende Leerzeichen innerhalb von Wörtern entstehen (z.B. durch OCR-Fehler bei gescannten Dokumenten)."
+              checked={normalizeWhitespace}
+              onChange={handleNormalizeWhitespaceChange}
+            />
+          </div>
         </section>
 
         <section>

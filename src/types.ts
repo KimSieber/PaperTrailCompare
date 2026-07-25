@@ -14,3 +14,9 @@ export interface CompareResult {
   deltas: Delta[];
   report_path: string | null;
 }
+
+/** Ausschnitt von engine.profile_loader.Profile, der über die GUI editierbar ist. */
+export interface Profile {
+  version: string;
+  normalize_whitespace: boolean;
+}
