@@ -146,3 +146,65 @@ def test_load_profile_fehlendes_feld_in_region_oder_gruppe_wirft_validation_erro
 
     with pytest.raises(ValidationError):
         load_profile(profile_path)
+
+
+def test_load_profile_ocr_defaults_ohne_ocr_feld(tmp_path):
+    """Ohne ocr-Feld im Profil bleiben mode_reference/mode_candidate None
+    (nicht explizit gesetzt) und dpi hat den per Messung ermittelten
+    Default 200."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0"}), encoding="utf-8")
+
+    profile = load_profile(profile_path)
+
+    assert profile.ocr.mode_reference is None
+    assert profile.ocr.mode_candidate is None
+    assert profile.ocr.dpi == 200
+
+
+def test_load_profile_ocr_mode_reference_und_candidate_getrennt_einstellbar(tmp_path):
+    """Kernanforderung: Referenz per OCR erzwingen, Kandidat nativ lassen."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "ocr": {"mode_reference": "force", "mode_candidate": "off", "dpi": 250},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert profile.ocr.mode_reference == "force"
+    assert profile.ocr.mode_candidate == "off"
+    assert profile.ocr.dpi == 250
+
+
+@pytest.mark.parametrize(
+    "ocr_data",
+    [
+        {"mode_reference": "auto"},
+        {"mode_candidate": "always"},
+    ],
+    ids=["ungueltiger_mode_reference", "ungueltiger_mode_candidate"],
+)
+def test_load_profile_ungueltiger_ocr_modus_wirft_validation_error(tmp_path, ocr_data):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({"version": "1.0", "ocr": ocr_data}), encoding="utf-8"
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_ocr_dpi_nicht_positiv_wirft_validation_error(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({"version": "1.0", "ocr": {"dpi": 0}}), encoding="utf-8"
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)

@@ -121,3 +121,28 @@ def test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis():
         [p.compare_result.has_delta for p in sequential.pairs]
         == [p.compare_result.has_delta for p in parallel.pairs]
     )
+
+
+def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypatch):
+    """Referenz- und Kandidat-Datei müssen mit ihrer jeweils eigenen role
+    an extract_pages_for_profile übergeben werden - sonst würde ein
+    vergessener Default den Kandidaten fälschlich mit der
+    Referenz-OCR-Einstellung lesen (siehe Rückmeldung zum Umsetzungsplan)."""
+    seen_roles = []
+
+    def fake_extract(pdf_path, profile, role="reference"):
+        seen_roles.append((pdf_path, role))
+        return extract_pages(pdf_path), False
+
+    import engine.batch_processor as batch_processor_module
+
+    monkeypatch.setattr(batch_processor_module, "extract_pages_for_profile", fake_extract)
+
+    batch_compare(FIXTURES / "TC-B-001" / "filelist.csv")
+
+    assert seen_roles
+    for _, role in seen_roles:
+        assert role in ("reference", "candidate")
+    # jedes Paar liefert genau einen "reference"- und einen "candidate"-Aufruf
+    assert seen_roles[0][1] == "reference"
+    assert seen_roles[1][1] == "candidate"

@@ -9,10 +9,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 
 _VALID_REPORT_FORMATS = ("pdf", "html")
 _VALID_TEXT_EXTRACTION_MODES = ("native", "reconstruct")
+_VALID_OCR_MODES = ("off", "fallback", "force")
 _REQUIRED_FIELDS = ("version",)
 
 
@@ -37,8 +38,23 @@ class PageGroupPattern:
 
 @dataclass
 class OcrConfig:
+    """mode_reference/mode_candidate erlauben getrennte Einstellungen für
+    Referenz- und Kandidat-Datei (z.B. Referenz per OCR erzwingen, weil ihre
+    Type3-Schrift kaputte Wortgrenzen liefert, während der Kandidat sauberen
+    nativen Text hat und nicht durch OCR verschlechtert werden soll).
+
+    None bedeutet "im Profil nicht explizit gesetzt" – dann gilt zur
+    Laufzeit (siehe pdf_extractor._effective_ocr_mode) das alte Verhalten
+    über 'enabled': True -> "fallback", False -> "off". Das hält bestehende
+    Profile und direkt konstruierte OcrConfig(enabled=...)-Aufrufe (Tests)
+    unverändert kompatibel; wer die neuen Felder setzt, überschreibt gezielt
+    eine Seite."""
+
     enabled: bool = False
     confidence_threshold: float = 0.85
+    mode_reference: Optional[str] = None
+    mode_candidate: Optional[str] = None
+    dpi: int = 200
 
 
 @dataclass
@@ -111,9 +127,25 @@ def load_profile(path: Union[str, Path]) -> Profile:
         ) from exc
 
     ocr_data = data.get("ocr", {})
+    mode_reference = ocr_data.get("mode_reference")
+    mode_candidate = ocr_data.get("mode_candidate")
+    for field_name, mode_value in (("mode_reference", mode_reference), ("mode_candidate", mode_candidate)):
+        if mode_value is not None and mode_value not in _VALID_OCR_MODES:
+            raise ValidationError(
+                f"Profil '{path}': ocr.{field_name} muss einer von {_VALID_OCR_MODES} "
+                f"sein, ist '{mode_value}'"
+            )
+
+    dpi = int(ocr_data.get("dpi", 200))
+    if dpi <= 0:
+        raise ValidationError(f"Profil '{path}': ocr.dpi muss positiv sein, ist {dpi}")
+
     ocr = OcrConfig(
         enabled=bool(ocr_data.get("enabled", False)),
         confidence_threshold=float(ocr_data.get("confidence_threshold", 0.85)),
+        mode_reference=mode_reference,
+        mode_candidate=mode_candidate,
+        dpi=dpi,
     )
 
     text_extraction = data.get("text_extraction", "native")

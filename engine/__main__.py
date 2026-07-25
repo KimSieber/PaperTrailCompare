@@ -11,10 +11,12 @@ PyInstaller zu einer eigenständigen Executable gebündelt
 führt den Einzelvergleich aus (pdf_extractor + text_comparator) und gibt bei
 `--json` exakt die Felder von text_comparator.CompareResult/Delta als JSON
 aus. `--profile` lädt ein JSON-Vergleichsprofil (profile_loader.load_profile)
-und übernimmt daraus case_sensitive, normalize_whitespace und ocr.enabled
-(OCR-Fallback über pdf_extractor.extract_pages_for_profile) für den
-Vergleich; ohne `--profile` gilt das bisherige Verhalten (case_sensitive=True,
-kein Whitespace-Toleranz-Filter, kein OCR-Fallback). `--report` erzeugt
+und übernimmt daraus case_sensitive, normalize_whitespace sowie
+ocr.mode_reference/ocr.mode_candidate ("off"/"fallback"/"force", getrennt
+für Referenz und Kandidat einstellbar) und ocr.dpi über
+pdf_extractor.extract_pages_for_profile(role="reference"/"candidate"); ohne
+`--profile` gilt das bisherige Verhalten (case_sensitive=True, kein
+Whitespace-Toleranz-Filter, kein OCR). `--report` erzeugt
 zusätzlich einen PDF-Report mit rot markierten Delta-Stellen
 (report_generator.generate_report, TC-R-001); der Pfad erscheint bei
 `--json` als zusätzliches Feld `report_path`. Weitere Befehle
@@ -49,8 +51,8 @@ def _run_compare(args: argparse.Namespace) -> int:
 
     start = time.perf_counter()
     try:
-        ref_pages, ref_ocr_used = extract_pages_for_profile(args.ref_pdf, profile)
-        cnd_pages, cnd_ocr_used = extract_pages_for_profile(args.cnd_pdf, profile)
+        ref_pages, ref_ocr_used = extract_pages_for_profile(args.ref_pdf, profile, role="reference")
+        cnd_pages, cnd_ocr_used = extract_pages_for_profile(args.cnd_pdf, profile, role="candidate")
     except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
         print(str(exc), file=sys.stderr)
         return 1

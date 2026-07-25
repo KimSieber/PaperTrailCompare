@@ -46,8 +46,8 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
 
     case_sensitive = profile.case_sensitive if profile is not None else True
     normalize_whitespace = profile.normalize_whitespace if profile is not None else False
-    ref_pages, ref_ocr_used = extract_pages_for_profile(str(ref_file), profile)
-    cnd_pages, cnd_ocr_used = extract_pages_for_profile(str(cnd_file), profile)
+    ref_pages, ref_ocr_used = extract_pages_for_profile(str(ref_file), profile, role="reference")
+    cnd_pages, cnd_ocr_used = extract_pages_for_profile(str(cnd_file), profile, role="candidate")
     result = compare(
         ref_pages, cnd_pages,
         case_sensitive=case_sensitive,

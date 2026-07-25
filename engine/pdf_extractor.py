@@ -360,23 +360,54 @@ def extract_pages(pdf_path: str) -> List[str]:
     return pages_text
 
 
-def extract_pages_for_profile(
-    pdf_path: str, profile: Optional[Profile]
-) -> Tuple[List[str], bool]:
-    """Wie extract_pages(), nutzt aber den OCR-Fallback aus ocr_extractor
-    (Tesseract), sobald profile.ocr.enabled=True ist - z.B. für gescannte
-    Seiten ohne nativen Textlayer.
+def _effective_ocr_mode(ocr: "OcrConfig", role: str) -> str:
+    """Löst den tatsächlich anzuwendenden OCR-Modus für eine Seite
+    (Referenz oder Kandidat) auf.
 
-    extract_pages() selbst bleibt unverändert (schneller Pfad ohne
-    Profilbezug); diese Funktion ist der zusätzliche, profilbewusste
-    Einstiegspunkt für Aufrufer (CLI, Batch-Verarbeitung), die wissen
-    müssen, ob für den Report tatsächlich OCR verwendet wurde.
+    mode_reference/mode_candidate gewinnen, wenn im Profil explizit gesetzt
+    (nicht None). Andernfalls gilt das alte 'enabled'-Flag für beide Seiten
+    gleich (True -> "fallback", False -> "off") - so bleiben Altprofile und
+    direkt konstruierte OcrConfig(enabled=...)-Aufrufe unverändert gültig."""
+    mode = ocr.mode_reference if role == "reference" else ocr.mode_candidate
+    if mode is not None:
+        return mode
+    return "fallback" if ocr.enabled else "off"
+
+
+def extract_pages_for_profile(
+    pdf_path: str, profile: Optional[Profile], role: str = "reference"
+) -> Tuple[List[str], bool]:
+    """Wie extract_pages(), wendet aber je nach role ("reference" oder
+    "candidate") und profile.ocr.mode_reference/mode_candidate einen der
+    drei OCR-Modi an:
+
+    - "off": kein OCR, heutiger Pfad (native/reconstruct je text_extraction).
+    - "fallback": OCR nur für Seiten ohne nativen Text (ocr_extractor.
+      extract_pages_with_ocr_fallback) - z.B. gescannte Seiten.
+    - "force": OCR für JEDE Seite, auch wenn nativer Text vorhanden ist
+      (ocr_extractor.extract_text_via_ocr) - für Fälle wie Type3-Schriften
+      ohne ToUnicode-Tabelle, bei denen nativer Text zwar existiert, aber
+      wortselektiv kaputte Wortgrenzen liefert. "force" überspringt dabei
+      zwangsläufig die pdfplumber-Tabellenerkennung und die eigene
+      Wortrekonstruktion (text_extraction="reconstruct") - Tesseract liest
+      die gerasterte Seite als Ganzes, es gibt keine Tabellen-/Blockstruktur
+      mehr, auf die diese beiden Wege aufbauen könnten.
+
+    role bestimmt, welche der beiden Profil-Einstellungen greift; es gibt
+    bewusst keinen Default, der aus dem Aufruf-Kontext erschlossen wird -
+    Aufrufer (CLI, Batch) müssen role explizit übergeben, siehe
+    engine.__main__ und engine.batch_processor.
 
     Rückgabe: (Seitentexte, ocr_used).
     """
-    if profile is not None and profile.ocr.enabled:
-        from engine.ocr_extractor import extract_pages_with_ocr_fallback
-        return extract_pages_with_ocr_fallback(pdf_path)
-    if profile is not None and profile.text_extraction == "reconstruct":
-        return _extract_pages_reconstructed(pdf_path), False
+    if profile is not None:
+        mode = _effective_ocr_mode(profile.ocr, role)
+        if mode == "force":
+            from engine.ocr_extractor import extract_text_via_ocr
+            return extract_text_via_ocr(pdf_path, dpi=profile.ocr.dpi), True
+        if mode == "fallback":
+            from engine.ocr_extractor import extract_pages_with_ocr_fallback
+            return extract_pages_with_ocr_fallback(pdf_path, dpi=profile.ocr.dpi)
+        if profile.text_extraction == "reconstruct":
+            return _extract_pages_reconstructed(pdf_path), False
     return extract_pages(pdf_path), False

@@ -98,6 +98,86 @@ def test_extract_pages_for_profile_ocr_aktiviert_nutzt_fallback():
     assert ocr_used is True
 
 
+def test_extract_pages_for_profile_mode_off_ignoriert_enabled_flag():
+    """mode_reference/mode_candidate gewinnen, sobald sie explizit gesetzt
+    sind - auch gegen ein 'enabled=True', das sonst (ohne Modus) fallback
+    für beide Seiten bedeuten würde."""
+    profile = Profile(version="1.0", ocr=OcrConfig(enabled=True, mode_reference="off"))
+    pages, ocr_used = extract_pages_for_profile(
+        str(FIXTURES / "TC-O-002" / "ref.pdf"), profile, role="reference"
+    )
+
+    assert ocr_used is False
+    assert pages[1].strip() == ""  # Seite ohne Textlayer bleibt leer ohne OCR
+
+
+def test_extract_pages_for_profile_mode_candidate_unabhaengig_von_reference():
+    """mode_reference und mode_candidate sind unabhängig voneinander
+    einstellbar (Kernanforderung: Referenz per OCR, Kandidat nativ)."""
+    profile = Profile(
+        version="1.0",
+        ocr=OcrConfig(mode_reference="fallback", mode_candidate="off"),
+    )
+
+    ref_pages, ref_ocr_used = extract_pages_for_profile(
+        str(FIXTURES / "TC-O-002" / "ref.pdf"), profile, role="reference"
+    )
+    cnd_pages, cnd_ocr_used = extract_pages_for_profile(
+        str(FIXTURES / "TC-O-002" / "ref.pdf"), profile, role="candidate"
+    )
+
+    assert ref_ocr_used is True
+    assert "Lieferdatum" in ref_pages[1]
+    assert cnd_ocr_used is False
+    assert cnd_pages[1].strip() == ""
+
+
+@pytest.mark.skipif(
+    shutil.which("tesseract") is None,
+    reason="Tesseract-Binary nicht installiert (siehe README.md 'Tesseract OCR')",
+)
+def test_extract_pages_for_profile_mode_force_liest_auch_native_seiten_per_ocr():
+    """'force' muss OCR auch auf Seiten mit vorhandenem, aber unbrauchbarem
+    nativem Text anwenden - anders als 'fallback', das nur bei leerem Text
+    greift (siehe TC-X-002: Seiten haben sauberen nativen Text, force liest
+    trotzdem via Tesseract)."""
+    profile = Profile(version="1.0", ocr=OcrConfig(mode_reference="force"))
+    pages, ocr_used = extract_pages_for_profile(
+        str(FIXTURES / "TC-X-002" / "doc.pdf"), profile, role="reference"
+    )
+
+    assert ocr_used is True
+    assert len(pages) == 3
+    assert "Seite eins" in pages[0]
+
+
+@pytest.mark.skipif(
+    shutil.which("tesseract") is None,
+    reason="Tesseract-Binary nicht installiert (siehe README.md 'Tesseract OCR')",
+)
+def test_extract_pages_for_profile_dpi_wird_an_ocr_durchgereicht(monkeypatch):
+    """profile.ocr.dpi (Default 200, siehe Messung) muss bis zum
+    OCR-Aufruf durchgereicht werden, nicht der ocr_extractor-eigene
+    Default (300) verwendet werden."""
+    seen_dpi = {}
+
+    def fake_fallback(pdf_path, lang="deu", dpi=300):
+        seen_dpi["dpi"] = dpi
+        return (["x"], False)
+
+    import engine.pdf_extractor as pdf_extractor_module
+
+    monkeypatch.setattr(
+        "engine.ocr_extractor.extract_pages_with_ocr_fallback", fake_fallback
+    )
+    profile = Profile(version="1.0", ocr=OcrConfig(mode_reference="fallback", dpi=222))
+    pdf_extractor_module.extract_pages_for_profile(
+        str(FIXTURES / "TC-X-002" / "doc.pdf"), profile, role="reference"
+    )
+
+    assert seen_dpi["dpi"] == 222
+
+
 def _make_rawdict_chars(specs):
     """specs: Liste von (char, x0) mit fester Zeichenbreite 6.0pt/Höhe 10pt -
     Kurzform für handgefertigte rawdict-Zeichen-Tupel in den Tests unten."""

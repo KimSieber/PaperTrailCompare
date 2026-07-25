@@ -184,6 +184,33 @@ def test_compare_mit_ungueltigem_profile_liefert_fehler_und_exit_code(tmp_path, 
     assert captured.err != ""
 
 
+def test_compare_ruft_extraktion_mit_korrekter_role_fuer_ref_und_cnd_auf(tmp_path, capsys, monkeypatch):
+    """ref_pdf muss mit role="reference", cnd_pdf mit role="candidate" an
+    extract_pages_for_profile übergeben werden - ein vergessener Default
+    würde den Kandidaten sonst fälschlich mit der Referenz-OCR-Einstellung
+    lesen (siehe Rückmeldung zum Umsetzungsplan)."""
+    from engine.pdf_extractor import extract_pages
+
+    seen_roles = {}
+
+    def fake_extract(pdf_path, profile, role="reference"):
+        seen_roles[role] = pdf_path
+        return extract_pages(pdf_path), False
+
+    import engine.__main__ as main_module
+
+    monkeypatch.setattr(main_module, "extract_pages_for_profile", fake_extract)
+
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    exit_code = main(["compare", str(ref_path), str(cnd_path), "--json"])
+
+    assert exit_code == 0
+    assert seen_roles["reference"] == str(ref_path)
+    assert seen_roles["candidate"] == str(cnd_path)
+
+
 def test_version_flag(capsys):
     exit_code = main(["--version"])
 
