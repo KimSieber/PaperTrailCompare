@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import re
+import sys
 from multiprocessing import Pool
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple, Union
@@ -46,8 +47,15 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
 
     case_sensitive = profile.case_sensitive if profile is not None else True
     normalize_whitespace = profile.normalize_whitespace if profile is not None else False
-    ref_pages, ref_ocr_used = extract_pages_for_profile(str(ref_file), profile, role="reference")
-    cnd_pages, cnd_ocr_used = extract_pages_for_profile(str(cnd_file), profile, role="candidate")
+    region_warnings: List[str] = []
+    ref_pages, ref_ocr_used = extract_pages_for_profile(
+        str(ref_file), profile, role="reference", warnings=region_warnings
+    )
+    cnd_pages, cnd_ocr_used = extract_pages_for_profile(
+        str(cnd_file), profile, role="candidate", warnings=region_warnings
+    )
+    for warning in region_warnings:
+        print(f"Warnung ({ref_path} / {cnd_path}): {warning}", file=sys.stderr)
     result = compare(
         ref_pages, cnd_pages,
         case_sensitive=case_sensitive,

@@ -26,7 +26,7 @@ from engine.pdf_extractor import (
     extract_pages,
     extract_pages_for_profile,
 )
-from engine.profile_loader import OcrConfig, Profile
+from engine.profile_loader import ExcludeRegion, OcrConfig, Profile
 from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -161,7 +161,7 @@ def test_extract_pages_for_profile_dpi_wird_an_ocr_durchgereicht(monkeypatch):
     Default (300) verwendet werden."""
     seen_dpi = {}
 
-    def fake_fallback(pdf_path, lang="deu", dpi=300):
+    def fake_fallback(pdf_path, lang="deu", dpi=300, regions=None, warnings=None):
         seen_dpi["dpi"] = dpi
         return (["x"], False)
 
@@ -310,6 +310,96 @@ def test_tc_t_008_tabellenerkennung_kein_falsches_delta():
 
     assert "Artikel Alpha" in ref_pages[0]
     assert "907,97 EUR" in ref_pages[0]
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is False
+    assert result.deltas == []
+
+
+# Kopfbereich mit "Druckdatum: ..." und "Seite N" liegt bei y ca. 34-65pt,
+# x ca. 42-152pt (fitz-Koordinaten) - dieselbe Region wie in
+# test_region_filter.py::HEADER_REGION, hier aber über profile.exclude_regions
+# und den Produktivpfad extract_pages_for_profile statt über den direkten
+# Aufruf von region_filter.extract_pages_excluding_regions.
+_HEADER_EXCLUDE_REGION = dict(x=0, y=0, width=250, height=80)
+
+
+def test_exclude_regions_wirkt_ueber_extract_pages_for_profile_tc_e_001():
+    """Verdrahtungstest: profile.exclude_regions muss über den
+    Produktivpfad (extract_pages_for_profile, genutzt von CLI und Batch)
+    tatsächlich wirken - nicht nur über den direkten Aufruf von
+    region_filter.extract_pages_excluding_regions (siehe Befund: die
+    Verdrahtung fehlte, obwohl TC-E-001/002 grün waren)."""
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[
+            ExcludeRegion(page=1, **_HEADER_EXCLUDE_REGION),
+            ExcludeRegion(page=2, **_HEADER_EXCLUDE_REGION),
+        ],
+    )
+
+    ref_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "ref.pdf"), profile, role="reference")
+    cnd_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "cnd.pdf"), profile, role="candidate")
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is False
+    assert result.deltas == []
+
+
+def test_exclude_regions_gilt_nur_fuer_definierte_seite_tc_e_002():
+    """Wie TC-E-002: Ausschluss nur für Seite 1 - der Datumsunterschied im
+    Kopfbereich auf Seite 2 muss über den Produktivpfad weiterhin als
+    Delta erkannt werden (Seitenbezug bleibt bei der Verdrahtung erhalten)."""
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[ExcludeRegion(page=1, **_HEADER_EXCLUDE_REGION)],
+    )
+
+    ref_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-002" / "ref.pdf"), profile, role="reference")
+    cnd_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-002" / "cnd.pdf"), profile, role="candidate")
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is True
+    assert any(delta.page == 2 for delta in result.deltas)
+
+
+def test_exclude_regions_auf_tabellenseite_erzeugt_warnung_statt_stiller_wirkungslosigkeit():
+    """Tabellenlinearisierung ist nicht block-basiert und kann eine
+    konfigurierte Region daher nicht anwenden - das darf nicht klanglos
+    passieren, sondern muss über den warnings-Parameter sichtbar werden
+    (siehe _warn_if_table_page_has_regions)."""
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[ExcludeRegion(page=1, x=0, y=0, width=10, height=10)],
+    )
+    warnings: list = []
+
+    extract_pages_for_profile(
+        str(FIXTURES / "TC-T-008" / "ref.pdf"), profile, role="reference", warnings=warnings
+    )
+
+    assert len(warnings) == 1
+    assert "Seite 1" in warnings[0]
+    assert "Tabellenerkennung" in warnings[0]
+
+
+def test_exclude_regions_wirkt_auch_unter_text_extraction_reconstruct():
+    """Anforderung (a): der Ausschluss muss auch für
+    text_extraction='reconstruct' funktionieren, nicht nur für 'native'."""
+    profile = Profile(
+        version="1.0",
+        text_extraction="reconstruct",
+        exclude_regions=[
+            ExcludeRegion(page=1, **_HEADER_EXCLUDE_REGION),
+            ExcludeRegion(page=2, **_HEADER_EXCLUDE_REGION),
+        ],
+    )
+
+    ref_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "ref.pdf"), profile, role="reference")
+    cnd_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "cnd.pdf"), profile, role="candidate")
 
     result = compare(ref_pages, cnd_pages)
 

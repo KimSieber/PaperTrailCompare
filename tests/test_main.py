@@ -193,7 +193,7 @@ def test_compare_ruft_extraktion_mit_korrekter_role_fuer_ref_und_cnd_auf(tmp_pat
 
     seen_roles = {}
 
-    def fake_extract(pdf_path, profile, role="reference"):
+    def fake_extract(pdf_path, profile, role="reference", warnings=None):
         seen_roles[role] = pdf_path
         return extract_pages(pdf_path), False
 
@@ -209,6 +209,37 @@ def test_compare_ruft_extraktion_mit_korrekter_role_fuer_ref_und_cnd_auf(tmp_pat
     assert exit_code == 0
     assert seen_roles["reference"] == str(ref_path)
     assert seen_roles["candidate"] == str(cnd_path)
+
+
+def test_compare_mit_profile_exclude_regions_end_to_end_tc_e_001(tmp_path, capsys):
+    """TC-E-001 end-to-end über den Produktivpfad (CLI --profile), nicht
+    nur über den direkten Aufruf von region_filter.extract_pages_excluding_regions
+    - genau diese Lücke hatte die fehlende Verdrahtung von exclude_regions
+    verdeckt (Regionen wurden geladen/validiert/im Report gezählt, wirkten
+    aber nicht auf die tatsächliche Extraktion)."""
+    ref_path = FIXTURES / "TC-E-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-E-001" / "cnd.pdf"
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 250, "height": 80},
+                {"page": 2, "x": 0, "y": 0, "width": 250, "height": 80},
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+    assert payload["deltas"] == []
 
 
 def test_version_flag(capsys):

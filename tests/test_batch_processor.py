@@ -14,7 +14,7 @@ from pathlib import Path
 
 from engine.batch_processor import batch_compare, batch_compare_by_xmp, split_batch_pdf
 from engine.pdf_extractor import extract_pages
-from engine.profile_loader import PageGroupPattern, Profile
+from engine.profile_loader import ExcludeRegion, PageGroupPattern, Profile
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -130,7 +130,7 @@ def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypa
     Referenz-OCR-Einstellung lesen (siehe Rückmeldung zum Umsetzungsplan)."""
     seen_roles = []
 
-    def fake_extract(pdf_path, profile, role="reference"):
+    def fake_extract(pdf_path, profile, role="reference", warnings=None):
         seen_roles.append((pdf_path, role))
         return extract_pages(pdf_path), False
 
@@ -146,3 +146,28 @@ def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypa
     # jedes Paar liefert genau einen "reference"- und einen "candidate"-Aufruf
     assert seen_roles[0][1] == "reference"
     assert seen_roles[1][1] == "candidate"
+
+
+def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path):
+    """TC-E-002 end-to-end über den Produktivpfad batch_compare (nicht nur
+    über den direkten Aufruf von region_filter.extract_pages_excluding_regions):
+    Ausschluss ist nur für Seite 1 konfiguriert, der Datumsunterschied im
+    Kopfbereich auf Seite 2 muss weiterhin als Delta erkannt werden."""
+    ref_path = FIXTURES / "TC-E-002" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-E-002" / "cnd.pdf"
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"ref,cnd\n{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[ExcludeRegion(page=1, x=0, y=0, width=250, height=80)],
+    )
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    pair = result.pairs[0]
+    assert pair.status == "ok"
+    assert pair.compare_result.has_delta is True
+    assert any(delta.page == 2 for delta in pair.compare_result.deltas)

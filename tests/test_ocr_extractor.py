@@ -14,21 +14,66 @@ Abschnitt "Tesseract OCR"); ist sie nicht vorhanden, werden die Tests
 übersprungen statt fehlzuschlagen.
 """
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
-from engine.ocr_extractor import extract_pages_with_ocr_fallback, extract_text_via_ocr
+from engine.ocr_extractor import (
+    _mask_regions_on_image,
+    extract_pages_with_ocr_fallback,
+    extract_text_via_ocr,
+)
 from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-pytestmark = pytest.mark.skipif(
+
+@dataclass
+class _FakeRegion:
+    """Duck-typed Ersatz für pdf_extractor.Region (page/x/y/w/h) - vermeidet
+    eine Testabhängigkeit auf pdf_extractor, _mask_regions_on_image liest
+    ohnehin nur diese Attribute."""
+
+    page: int
+    x: float
+    y: float
+    w: float
+    h: float
+
+
+def test_mask_regions_on_image_faerbt_region_weiss_bei_passender_seite():
+    """Keine Tesseract-Abhängigkeit nötig: prüft direkt, dass
+    _mask_regions_on_image die Pixel innerhalb der Region auf der
+    richtigen Seite weiß färbt, VOR dem eigentlichen OCR-Lauf - das ist
+    der Mechanismus, der exclude_regions unter ocr.mode='force' wirken
+    lässt (siehe pdf_extractor.extract_pages_for_profile)."""
+    image = Image.new("RGB", (100, 100), color="black")
+    region = _FakeRegion(page=1, x=0, y=0, w=50, h=50)  # PDF-Punktkoordinaten bei dpi=72
+
+    masked = _mask_regions_on_image(image, page_num=1, regions=[region], dpi=72)
+
+    assert masked.getpixel((10, 10)) == (255, 255, 255)  # innerhalb der Region
+    assert masked.getpixel((90, 90)) == (0, 0, 0)  # außerhalb bleibt unverändert
+
+
+def test_mask_regions_on_image_wirkt_nur_auf_die_definierte_seite():
+    image = Image.new("RGB", (100, 100), color="black")
+    region = _FakeRegion(page=2, x=0, y=0, w=50, h=50)
+
+    masked = _mask_regions_on_image(image, page_num=1, regions=[region], dpi=72)
+
+    assert masked.getpixel((10, 10)) == (0, 0, 0)  # Region gilt nicht für Seite 1
+
+
+_requires_tesseract = pytest.mark.skipif(
     shutil.which("tesseract") is None,
     reason="Tesseract-Binary nicht installiert (siehe README.md 'Tesseract OCR')",
 )
 
 
+@_requires_tesseract
 def test_tc_o_001_gescannten_text_via_ocr_erkennen():
     ref_pages = extract_text_via_ocr(str(FIXTURES / "TC-O-001" / "ref.pdf"))
     cnd_pages = extract_text_via_ocr(str(FIXTURES / "TC-O-001" / "cnd.pdf"))
@@ -43,6 +88,7 @@ def test_tc_o_001_gescannten_text_via_ocr_erkennen():
     assert result.deltas == []
 
 
+@_requires_tesseract
 def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
     ref_pages, ref_ocr_used = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "ref.pdf"))
     cnd_pages, cnd_ocr_used = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "cnd.pdf"))

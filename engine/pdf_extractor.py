@@ -68,6 +68,44 @@ class SpacewidthCalibration:
     criterion_met: bool
 
 
+@dataclass
+class Region:
+    """Koordinatenbasierte Ausschluss-Region (PyMuPDF-Koordinaten, Ursprung
+    oben links, y wächst nach unten). Lebt hier statt in engine.region_filter,
+    weil pdf_extractors eigene block-basierte Extraktionspfade (native,
+    reconstruct) sie direkt anwenden müssen, um profile.exclude_regions
+    tatsächlich wirken zu lassen (siehe extract_pages_for_profile);
+    engine.region_filter importiert diese Klasse von hier und exportiert
+    sie unter ihrem angestammten Namen weiter (TC-E-001 ff.)."""
+
+    page: int  # 1-basiert
+    x: float
+    y: float
+    w: float
+    h: float
+
+    def overlaps(self, bbox: Sequence[float]) -> bool:
+        x0, y0, x1, y1 = bbox
+        return not (
+            x1 <= self.x
+            or x0 >= self.x + self.w
+            or y1 <= self.y
+            or y0 >= self.y + self.h
+        )
+
+
+def filter_blocks_by_regions(
+    blocks: Sequence[TextBlock], page_num: int, regions: Sequence[Region]
+) -> List[TextBlock]:
+    """Entfernt Textblöcke, die eine für page_num definierte Region
+    überlappen (TC-E-001: Ausschluss, TC-E-002: nur für die definierte
+    Seite). Regionen für andere Seiten bleiben wirkungslos."""
+    page_regions = [r for r in regions if r.page == page_num]
+    if not page_regions:
+        return list(blocks)
+    return [b for b in blocks if not any(r.overlaps(b[:4]) for r in page_regions)]
+
+
 def get_text_blocks(page: "fitz.Page") -> List[TextBlock]:
     """Liefert die nicht-leeren Textblöcke einer Seite, unsortiert.
 
@@ -91,10 +129,14 @@ def join_block_text(blocks: Sequence[TextBlock]) -> str:
     return "\n".join(b[4].strip() for b in blocks)
 
 
-def _extract_page_text_columns(page: "fitz.Page") -> str:
+def _extract_page_text_columns(
+    page: "fitz.Page", page_num: int = 1, regions: Sequence[Region] = ()
+) -> str:
     """Liest den Text einer Seite spaltenweise (links vor rechts), statt
-    strikt zeilenweise."""
-    return join_block_text(sort_blocks_columns(get_text_blocks(page)))
+    strikt zeilenweise. regions wird vor der Sortierung angewendet
+    (Ausschluss-Regionen, siehe filter_blocks_by_regions)."""
+    blocks = filter_blocks_by_regions(get_text_blocks(page), page_num, regions)
+    return join_block_text(sort_blocks_columns(blocks))
 
 
 def _linearize_tables(tables: List[List[List[Optional[str]]]]) -> str:
@@ -311,12 +353,38 @@ def get_text_blocks_reconstructed(
 
 
 def _extract_page_text_columns_reconstructed(
-    page: "fitz.Page", calibration: Dict[Tuple[str, float], SpacewidthCalibration]
+    page: "fitz.Page",
+    calibration: Dict[Tuple[str, float], SpacewidthCalibration],
+    page_num: int = 1,
+    regions: Sequence[Region] = (),
 ) -> str:
-    return join_block_text(sort_blocks_columns(get_text_blocks_reconstructed(page, calibration)))
+    blocks = filter_blocks_by_regions(
+        get_text_blocks_reconstructed(page, calibration), page_num, regions
+    )
+    return join_block_text(sort_blocks_columns(blocks))
 
 
-def _extract_pages_reconstructed(pdf_path: str) -> List[str]:
+def _warn_if_table_page_has_regions(
+    page_num: int, regions: Sequence[Region], warnings: Optional[List[str]]
+) -> None:
+    """Tabellenlinearisierung (_linearize_tables) ist nicht block-basiert und
+    kann Ausschluss-Regionen daher nicht anwenden. Statt das Ausschluss-
+    Fehlen dort still zu übergehen, wird es hier vermerkt - Aufrufer (CLI,
+    Batch) geben das an Log/Report weiter."""
+    if warnings is None:
+        return
+    if any(r.page == page_num for r in regions):
+        warnings.append(
+            f"Seite {page_num}: Ausschluss-Region(en) konnten wegen Tabellenerkennung "
+            "nicht angewendet werden."
+        )
+
+
+def _extract_pages_reconstructed(
+    pdf_path: str,
+    regions: Sequence[Region] = (),
+    warnings: Optional[List[str]] = None,
+) -> List[str]:
     """Wie extract_pages(), nutzt für Nicht-Tabellenseiten aber die eigene
     Wortrekonstruktion statt PyMuPDFs Leerzeichen-Heuristik. Tabellenerkennung
     (pdfplumber) bleibt unverändert und hat weiterhin Vorrang, wie in
@@ -327,34 +395,47 @@ def _extract_pages_reconstructed(pdf_path: str) -> List[str]:
         calibration = calibrate_spacewidths(doc)
         with pdfplumber.open(pdf_path) as plumber_pdf:
             for page_index, page in enumerate(doc):
+                page_num = page_index + 1
                 plumber_page = plumber_pdf.pages[page_index]
                 tables = plumber_page.extract_tables()
                 if tables:
+                    _warn_if_table_page_has_regions(page_num, regions, warnings)
                     pages_text.append(_linearize_tables(tables))
                 else:
-                    pages_text.append(_extract_page_text_columns_reconstructed(page, calibration))
+                    pages_text.append(
+                        _extract_page_text_columns_reconstructed(page, calibration, page_num, regions)
+                    )
     finally:
         doc.close()
     return pages_text
 
 
-def extract_pages(pdf_path: str) -> List[str]:
+def extract_pages(
+    pdf_path: str,
+    regions: Sequence[Region] = (),
+    warnings: Optional[List[str]] = None,
+) -> List[str]:
     """Extrahiert den Text jeder Seite eines PDFs als eigenen String.
 
     Enthält eine Seite Tabellen, wird deren Inhalt zeilenweise linearisiert;
-    andernfalls wird der Fließtext spaltenbewusst gelesen.
+    andernfalls wird der Fließtext spaltenbewusst gelesen. regions schließt
+    Textblöcke aus, die eine für ihre Seite definierte Region überlappen
+    (TC-E-001 ff.) - auf Tabellenseiten kann das nicht angewendet werden,
+    siehe _warn_if_table_page_has_regions.
     """
     pages_text: List[str] = []
     doc = fitz.open(pdf_path)
     try:
         with pdfplumber.open(pdf_path) as plumber_pdf:
             for page_index, page in enumerate(doc):
+                page_num = page_index + 1
                 plumber_page = plumber_pdf.pages[page_index]
                 tables = plumber_page.extract_tables()
                 if tables:
+                    _warn_if_table_page_has_regions(page_num, regions, warnings)
                     pages_text.append(_linearize_tables(tables))
                 else:
-                    pages_text.append(_extract_page_text_columns(page))
+                    pages_text.append(_extract_page_text_columns(page, page_num, regions))
     finally:
         doc.close()
     return pages_text
@@ -375,39 +456,68 @@ def _effective_ocr_mode(ocr: "OcrConfig", role: str) -> str:
 
 
 def extract_pages_for_profile(
-    pdf_path: str, profile: Optional[Profile], role: str = "reference"
+    pdf_path: str,
+    profile: Optional[Profile],
+    role: str = "reference",
+    warnings: Optional[List[str]] = None,
 ) -> Tuple[List[str], bool]:
     """Wie extract_pages(), wendet aber je nach role ("reference" oder
     "candidate") und profile.ocr.mode_reference/mode_candidate einen der
-    drei OCR-Modi an:
+    drei OCR-Modi an, UND wendet profile.exclude_regions tatsächlich auf
+    die Extraktion an (TC-E-001 ff.) - das ist der Produktivpfad, den
+    engine.__main__ und engine.batch_processor nutzen, anders als der
+    direkte Aufruf von engine.region_filter.extract_pages_excluding_regions
+    in den ursprünglichen TC-E-Tests, der nicht in dieser Funktion mündete.
 
+    OCR-Modi:
     - "off": kein OCR, heutiger Pfad (native/reconstruct je text_extraction).
+      exclude_regions wird block-basiert angewendet (filter_blocks_by_regions);
+      auf Tabellenseiten (pdfplumber) ist das nicht möglich, siehe
+      _warn_if_table_page_has_regions.
     - "fallback": OCR nur für Seiten ohne nativen Text (ocr_extractor.
-      extract_pages_with_ocr_fallback) - z.B. gescannte Seiten.
+      extract_pages_with_ocr_fallback) - z.B. gescannte Seiten. Regionen
+      werden für native Seiten block-basiert gefiltert, für tatsächlich
+      per OCR gelesene Seiten vor dem Rastern maskiert (siehe "force").
     - "force": OCR für JEDE Seite, auch wenn nativer Text vorhanden ist
       (ocr_extractor.extract_text_via_ocr) - für Fälle wie Type3-Schriften
       ohne ToUnicode-Tabelle, bei denen nativer Text zwar existiert, aber
-      wortselektiv kaputte Wortgrenzen liefert. "force" überspringt dabei
+      wortselektiv kaputte Wortgrenzen liefert. Es gibt hier keine Block-
+      struktur mehr, auf die filter_blocks_by_regions aufbauen könnte;
+      exclude_regions wird deshalb VOR dem OCR-Lauf als weiße Fläche auf
+      das gerasterte Seitenbild gemalt (ocr_extractor._mask_regions_on_image)
+      - das wirkt unabhängig von Layout/Blockstruktur zuverlässig, anders
+      als ein nachträglicher Textabgleich. "force" überspringt dabei
       zwangsläufig die pdfplumber-Tabellenerkennung und die eigene
       Wortrekonstruktion (text_extraction="reconstruct") - Tesseract liest
-      die gerasterte Seite als Ganzes, es gibt keine Tabellen-/Blockstruktur
-      mehr, auf die diese beiden Wege aufbauen könnten.
+      die gerasterte Seite als Ganzes.
 
     role bestimmt, welche der beiden Profil-Einstellungen greift; es gibt
     bewusst keinen Default, der aus dem Aufruf-Kontext erschlossen wird -
     Aufrufer (CLI, Batch) müssen role explizit übergeben, siehe
     engine.__main__ und engine.batch_processor.
 
+    warnings sammelt (falls übergeben) Hinweise auf Konstellationen, in
+    denen exclude_regions NICHT angewendet werden konnte (aktuell nur
+    Tabellenseiten unter "off"/"fallback") - Aufrufer geben das an Log und
+    Report weiter, statt den Ausschluss dort still wirkungslos zu lassen.
+
     Rückgabe: (Seitentexte, ocr_used).
     """
+    regions: List[Region] = []
     if profile is not None:
+        regions = [
+            Region(page=r.page, x=r.x, y=r.y, w=r.width, h=r.height)
+            for r in profile.exclude_regions
+        ]
         mode = _effective_ocr_mode(profile.ocr, role)
         if mode == "force":
             from engine.ocr_extractor import extract_text_via_ocr
-            return extract_text_via_ocr(pdf_path, dpi=profile.ocr.dpi), True
+            return extract_text_via_ocr(pdf_path, dpi=profile.ocr.dpi, regions=regions), True
         if mode == "fallback":
             from engine.ocr_extractor import extract_pages_with_ocr_fallback
-            return extract_pages_with_ocr_fallback(pdf_path, dpi=profile.ocr.dpi)
+            return extract_pages_with_ocr_fallback(
+                pdf_path, dpi=profile.ocr.dpi, regions=regions, warnings=warnings
+            )
         if profile.text_extraction == "reconstruct":
-            return _extract_pages_reconstructed(pdf_path), False
-    return extract_pages(pdf_path), False
+            return _extract_pages_reconstructed(pdf_path, regions=regions, warnings=warnings), False
+    return extract_pages(pdf_path, regions=regions, warnings=warnings), False

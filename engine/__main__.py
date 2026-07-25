@@ -49,13 +49,21 @@ def _run_compare(args: argparse.Namespace) -> int:
             print(str(exc), file=sys.stderr)
             return 1
 
+    region_warnings: list[str] = []
     start = time.perf_counter()
     try:
-        ref_pages, ref_ocr_used = extract_pages_for_profile(args.ref_pdf, profile, role="reference")
-        cnd_pages, cnd_ocr_used = extract_pages_for_profile(args.cnd_pdf, profile, role="candidate")
+        ref_pages, ref_ocr_used = extract_pages_for_profile(
+            args.ref_pdf, profile, role="reference", warnings=region_warnings
+        )
+        cnd_pages, cnd_ocr_used = extract_pages_for_profile(
+            args.cnd_pdf, profile, role="candidate", warnings=region_warnings
+        )
     except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
         print(str(exc), file=sys.stderr)
         return 1
+
+    for warning in region_warnings:
+        print(f"Warnung: {warning}", file=sys.stderr)
 
     result = compare(
         ref_pages, cnd_pages,
@@ -72,6 +80,7 @@ def _run_compare(args: argparse.Namespace) -> int:
                 result, args.ref_pdf, args.cnd_pdf, args.report,
                 profile=profile, profile_path=args.profile,
                 duration_seconds=duration_seconds,
+                region_warnings=region_warnings,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
             print(str(exc), file=sys.stderr)

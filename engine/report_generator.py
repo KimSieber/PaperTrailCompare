@@ -153,6 +153,7 @@ def _build_summary_page_pdf_bytes(
     profile: Optional[Profile],
     profile_path: Optional[Union[str, Path]],
     duration_seconds: Optional[float],
+    region_warnings: Optional[List[str]] = None,
 ) -> bytes:
     """Baut Seite 1 (Zusammenfassung, TC-R-001): Status-Badge, Kennzahlen-
     Kacheln, Fortschrittsbalken und Metadaten-Tabelle. Flaches Design ohne
@@ -266,11 +267,19 @@ def _build_summary_page_pdf_bytes(
     else:
         profile_label = "—"
 
+    region_count = len(profile.exclude_regions) if profile else 0
+    if region_count == 0:
+        region_display = "0"
+    elif region_warnings:
+        region_display = f"{region_count} (!) nicht vollständig angewendet, siehe Log"
+    else:
+        region_display = f"{region_count} (angewendet)"
+
     meta_rows = [
         ["Referenz-Datei", ref_pdf_path.name],
         ["Kandidat-Datei", cnd_pdf_path.name],
         ["Vergleichsprofil", profile_label],
-        ["Ausgeschlossene Regionen", str(len(profile.exclude_regions)) if profile else "0"],
+        ["Ausgeschlossene Regionen", region_display],
         ["OCR verwendet", "Ja" if compare_result.ocr_was_used else "Nein"],
         ["Verarbeitungsdauer", f"{duration_seconds:.2f} s" if duration_seconds is not None else "—"],
         ["Vergleichsdatum", datetime.now().strftime("%d.%m.%Y %H:%M:%S")],
@@ -558,6 +567,7 @@ def generate_report(
     profile: Optional[Profile] = None,
     profile_path: Optional[Union[str, Path]] = None,
     duration_seconds: Optional[float] = None,
+    region_warnings: Optional[List[str]] = None,
 ) -> Path:
     """Erzeugt einen Einzel-Report (TC-R-001): Zusammenfassungsseite
     (Hochformat) mit Status, Kennzahlen und Metadaten, gefolgt von einer
@@ -581,6 +591,12 @@ def generate_report(
     profile.report_format="html" erzeugt statt des PDF-Reports einen
     einfachen HTML-Bericht ohne Delta-Markierung im Dokument (TC-R-004) –
     PDF bleibt das primäre Format (Architekturentscheidung #4).
+
+    region_warnings (siehe pdf_extractor.extract_pages_for_profile) macht
+    auf der Zusammenfassungsseite sichtbar, wenn profile.exclude_regions
+    nicht vollständig angewendet werden konnte (z.B. Tabellenseiten),
+    statt den Ausschluss dort nur als reine Konfigurationszahl ohne
+    Aussage über die tatsächliche Anwendung zu zeigen.
     """
     ref_pdf_path = Path(ref_pdf_path)
     cnd_pdf_path = Path(cnd_pdf_path)
@@ -608,6 +624,7 @@ def generate_report(
         total_pages=total_pages, comparisons=1,
         profile=profile, profile_path=profile_path,
         duration_seconds=duration_seconds,
+        region_warnings=region_warnings,
     )
     report_doc = fitz.open(stream=summary_bytes, filetype="pdf")
 

@@ -16,7 +16,7 @@ import fitz
 
 from engine.models import BatchResult, PairResult
 from engine.pdf_extractor import extract_pages
-from engine.profile_loader import Profile
+from engine.profile_loader import ExcludeRegion, Profile
 from engine.report_generator import generate_batch_report, generate_report
 from engine.text_comparator import CompareResult, Delta, compare
 
@@ -238,6 +238,50 @@ def test_ocr_verwendet_zeigt_tatsaechlichen_laufzeitwert_nicht_profil_flag(tmp_p
     report.close()
 
     assert "OCR verwendet\nJa" in summary_text
+
+
+def test_ausgeschlossene_regionen_zeigt_angewendet_ohne_warnungen(tmp_path):
+    """Anforderung (c): der Zähler soll erkennbar machen, ob die Regionen
+    tatsächlich angewendet wurden, nicht nur die konfigurierte Anzahl -
+    ohne region_warnings gilt "angewendet"."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    profile = Profile(version="1.0", exclude_regions=[ExcludeRegion(page=1, x=0, y=0, width=10, height=10)])
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile, region_warnings=[])
+
+    report = fitz.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "angewendet" in summary_text
+    assert "nicht vollständig" not in summary_text
+
+
+def test_ausgeschlossene_regionen_zeigt_warnung_bei_nicht_vollstaendiger_anwendung(tmp_path):
+    """Mit region_warnings (z.B. Tabellenseite, siehe
+    pdf_extractor._warn_if_table_page_has_regions) muss der Report das
+    sichtbar machen, statt weiter nur die konfigurierte Anzahl zu zeigen."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    profile = Profile(version="1.0", exclude_regions=[ExcludeRegion(page=1, x=0, y=0, width=10, height=10)])
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(
+        result, ref_path, cnd_path, output_path, profile=profile,
+        region_warnings=["Seite 1: Ausschluss-Region(en) konnten wegen Tabellenerkennung nicht angewendet werden."],
+    )
+
+    report = fitz.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "nicht vollständig" in summary_text
 
 
 def test_tc_r_004_report_format_konfigurierbar_html(tmp_path):
