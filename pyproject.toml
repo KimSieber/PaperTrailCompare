@@ -20,6 +20,10 @@ lint = [
     "mypy",
     "types-reportlab",
 ]
+build = [
+    "pyinstaller",
+    "pyinstaller-hooks-contrib",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

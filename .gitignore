@@ -29,6 +29,13 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
+!packaging/papertrail-engine.spec
+
+# PyInstaller-Sidecar-Build (siehe packaging/build_sidecar.py) - reine
+# Build-Artefakte, reproduzierbar aus packaging/papertrail-engine.spec.
+packaging/.build/
+packaging/.dist/
+packaging/.pyinstaller-build/
 
 # Test / Coverage
 htmlcov/

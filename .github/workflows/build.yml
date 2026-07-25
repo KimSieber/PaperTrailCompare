@@ -1,0 +1,88 @@
+name: Build
+
+# Baut die Tauri-Desktop-App inkl. des PyInstaller-Sidecars für die Engine
+# (siehe CLAUDE.md Architekturentscheidung #2/#6: Cross-Platform von Anfang
+# an, macOS + Windows, je eigener Runner). Der Sidecar-Build läuft nicht
+# als eigener Schritt hier, sondern automatisch über
+# tauri.conf.json:beforeBuildCommand -> packaging/prepare_sidecar.mjs ->
+# packaging/build_sidecar.py, exakt derselbe Weg wie bei einem lokalen
+# `npm run tauri build` - es gibt keinen zweiten, CI-spezifischen
+# Build-Pfad, der auseinanderlaufen könnte.
+#
+# Windows-Teil ist UNGETESTET (kein Windows-Runner beim Erstellen dieses
+# Workflows verfügbar) - insbesondere die Tesseract-Installation per
+# Chocolatey und das DLL-Layout in packaging/build_sidecar.py
+# (_stage_tesseract_windows) sollten beim ersten echten CI-Lauf geprüft
+# und ggf. nachgebessert werden.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target-triple: aarch64-apple-darwin
+          - os: windows-latest
+            target-triple: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # macOS: Tesseract + Sprachmodell (deu) + dylibbundler für die
+      # Relozierung der Homebrew-Abhängigkeiten (siehe
+      # packaging/build_sidecar.py:_stage_tesseract_macos).
+      - name: Install Tesseract (macOS)
+        if: runner.os == 'macOS'
+        run: brew install tesseract tesseract-lang dylibbundler
+
+      # Windows: UNGETESTET, siehe Kommentar oben. choco-Paket "tesseract"
+      # bringt ggf. nicht automatisch das deu-Sprachmodell mit - dann hier
+      # zusätzlich deu.traineddata von
+      # https://github.com/tesseract-ocr/tessdata herunterladen und ins
+      # tessdata-Verzeichnis der Installation legen.
+      - name: Install Tesseract (Windows)
+        if: runner.os == 'Windows'
+        run: choco install tesseract --version=5.3.3.20231005 -y
+
+      - name: Install Python build dependencies
+        run: |
+          python -m venv .venv
+          ${{ runner.os == 'Windows' && '.venv\Scripts\pip' || '.venv/bin/pip' }} install -e ".[build,test]"
+
+      - name: Run Python tests
+        run: ${{ runner.os == 'Windows' && '.venv\Scripts\python' || '.venv/bin/python' }} -m pytest -q
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # Baut Frontend + Sidecar (via beforeBuildCommand) + Tauri-Bundle in
+      # einem Schritt, siehe Kommentar oben.
+      - name: Build Tauri app
+        run: npm run tauri build
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: papertrail-compare-${{ matrix.target-triple }}
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+          if-no-files-found: warn

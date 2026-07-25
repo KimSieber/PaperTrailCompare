@@ -7,6 +7,9 @@ Deutsch ('deu').
 from __future__ import annotations
 
 import io
+import os
+import sys
+from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 import fitz
@@ -15,6 +18,31 @@ from PIL import Image, ImageDraw
 
 _DEFAULT_DPI = 300
 _DEFAULT_LANG = "deu"
+
+
+def _configure_bundled_tesseract() -> None:
+    """Zeigt pytesseract im PyInstaller-gebündelten Zustand (sys.frozen) auf
+    die mitgelieferte Tesseract-Binary/tessdata statt auf die PATH-Suche
+    von pytesseract - siehe packaging/papertrail-engine.spec, das Binary
+    und deu.traineddata unter <MEIPASS>/tesseract/ ablegt (Layout siehe
+    packaging/build_sidecar.py:_stage_tesseract). Ohne das würde die
+    Datei zwar mitgebündelt, pytesseract fände sie zur Laufzeit aber
+    trotzdem nicht (Standardverhalten: 'tesseract' über PATH suchen -
+    auf einer frischen Kundenmaschine ohne separate Tesseract-Installation
+    schlägt das fehl).
+
+    Im Dev-Betrieb (sys.frozen nicht gesetzt) bleibt das
+    Standardverhalten unverändert - dort ist Tesseract separat installiert
+    (siehe README.md, Abschnitt 'Tesseract OCR')."""
+    if not getattr(sys, "frozen", False):
+        return
+    bundle_root = Path(getattr(sys, "_MEIPASS", ""))
+    binary_name = "tesseract.exe" if sys.platform == "win32" else "tesseract"
+    pytesseract.pytesseract.tesseract_cmd = str(bundle_root / "tesseract" / "bin" / binary_name)
+    os.environ["TESSDATA_PREFIX"] = str(bundle_root / "tesseract" / "tessdata")
+
+
+_configure_bundled_tesseract()
 
 
 def _mask_regions_on_image(

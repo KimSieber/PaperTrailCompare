@@ -9,7 +9,6 @@ from __future__ import annotations
 import html
 import io
 from datetime import datetime
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -21,6 +20,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from engine import __version__
 from engine.models import BatchResult
 from engine.profile_loader import Profile
 from engine.text_comparator import CompareResult
@@ -109,10 +109,13 @@ def _build_kpi_tile(label: str, value: str, accent_color, value_color=colors.bla
 
 
 def _tool_version() -> str:
-    try:
-        return _pkg_version("papertrail-compare")
-    except PackageNotFoundError:
-        return "unbekannt"
+    """Fest eingebettete Version (engine.__version__) statt
+    importlib.metadata.version() zur Laufzeit - letzteres setzt
+    installierte Distributions-Metadaten voraus, die im PyInstaller-
+    gebündelten Zustand nicht garantiert vorhanden sind (siehe Diagnose:
+    fataler Git-Fallback in einem *anderen* Codepfad, dem lokalen
+    Sidecar-Dev-Wrapper, hat denselben Symptombereich betroffen)."""
+    return __version__
 
 
 _DETAIL_TEXT_MAX_LEN = 300

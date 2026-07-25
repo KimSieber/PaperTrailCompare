@@ -32,12 +32,11 @@ import sys
 import time
 from typing import Optional
 
+from engine import __version__
 from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile, ValidationError, load_profile
 from engine.report_generator import generate_report
 from engine.text_comparator import compare
-
-__version__ = "0.1.0"
 
 
 def _run_compare(args: argparse.Namespace) -> int:
