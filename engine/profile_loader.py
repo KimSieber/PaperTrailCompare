@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import List, Union
 
 _VALID_REPORT_FORMATS = ("pdf", "html")
+_VALID_TEXT_EXTRACTION_MODES = ("native", "reconstruct")
 _REQUIRED_FIELDS = ("version",)
 
 
@@ -49,6 +50,7 @@ class Profile:
     page_groups: List[PageGroupPattern] = field(default_factory=list)
     report_format: str = "pdf"
     ocr: OcrConfig = field(default_factory=OcrConfig)
+    text_extraction: str = "native"
 
 
 def load_profile(path: Union[str, Path]) -> Profile:
@@ -114,6 +116,13 @@ def load_profile(path: Union[str, Path]) -> Profile:
         confidence_threshold=float(ocr_data.get("confidence_threshold", 0.85)),
     )
 
+    text_extraction = data.get("text_extraction", "native")
+    if text_extraction not in _VALID_TEXT_EXTRACTION_MODES:
+        raise ValidationError(
+            f"Profil '{path}': text_extraction muss einer von {_VALID_TEXT_EXTRACTION_MODES} "
+            f"sein, ist '{text_extraction}'"
+        )
+
     return Profile(
         version=str(data["version"]),
         case_sensitive=bool(data.get("case_sensitive", True)),
@@ -122,6 +131,7 @@ def load_profile(path: Union[str, Path]) -> Profile:
         page_groups=page_groups,
         report_format=report_format,
         ocr=ocr,
+        text_extraction=text_extraction,
     )
 
 

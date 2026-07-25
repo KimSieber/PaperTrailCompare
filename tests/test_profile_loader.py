@@ -111,6 +111,25 @@ def test_load_profile_ungueltiges_report_format_wirft_validation_error(tmp_path)
         load_profile(profile_path)
 
 
+def test_load_profile_text_extraction_default_ist_native(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0"}), encoding="utf-8")
+
+    profile = load_profile(profile_path)
+
+    assert profile.text_extraction == "native"
+
+
+def test_load_profile_ungueltiger_text_extraction_wert_wirft_validation_error(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({"version": "1.0", "text_extraction": "auto"}), encoding="utf-8"
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
 @pytest.mark.parametrize(
     "profile_data",
     [

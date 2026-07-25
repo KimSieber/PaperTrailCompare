@@ -1283,6 +1283,53 @@ def generate_tc_r_005_rotierte_seite() -> None:
 
 
 # ---------------------------------------------------------------------------
+# TC-T-009  Wortrekonstruktion bei Sperrsatz ohne Leerzeichen-Glyph
+# ---------------------------------------------------------------------------
+
+def generate_tc_t_009_sperrsatz_ohne_leerzeichen() -> None:
+    """ref.pdf: jeder Buchstabe einzeln mit erhöhter Laufweite gesetzt (kein
+    echtes Leerzeichen im Content-Stream) - reproduziert das Muster aus dem
+    Großrechner-Drucksystem-Befund (Type3-Schrift ohne Space-Glyph, siehe
+    CLAUDE-Diagnose-Session). Da hier JEDE Buchstabenlücke gleich groß ist
+    (kein Unterschied zwischen Intra-Wort- und Wortgrenzen-Abstand), kann die
+    Kalibrierung keinen klaren Sprung finden - genau das ist der Fall, für
+    den engine.pdf_extractor.calibrate_spacewidths() bewusst NICHT
+    rekonstruiert (Sicherheits-Fallback statt Rateverfahren, siehe
+    _calibrate_from_gaps/_reconstruct_line_text).
+
+    cnd.pdf: normaler Fließtext mit echten Leerzeichen, unverändert - dient
+    als Gegenprobe, dass der reconstruct-Modus normale Dokumente nicht
+    verändert."""
+    tc = "TC-T-009"
+    d = fixture_dir(tc)
+
+    c = rl_canvas.Canvas(str(d / "ref.pdf"), pagesize=A4)
+    c.setFont("Helvetica", 12)
+    textobj = c.beginText(25 * mm, H - 30 * mm)
+    textobj.setFont("Helvetica", 12)
+    textobj.setCharSpace(4.0)
+    textobj.textOut("SparkassenVersicherung")
+    c.drawText(textobj)
+    c.showPage()
+    c.save()
+
+    simple_pdf(d / "cnd.pdf", [["SparkassenVersicherung ist ein Beispieltext."]], title=f"{tc} cnd")
+
+    write_readme(
+        tc,
+        "Wortrekonstruktion bei Sperrsatz ohne Leerzeichen-Glyph",
+        "ref.pdf setzt 'SparkassenVersicherung' Buchstabe für Buchstabe mit "
+        "erhöhter, aber gleichmäßiger Laufweite (kein echtes Leerzeichen-"
+        "Zeichen). Da alle Glyphenlücken gleich groß sind, findet die "
+        "Space-Breiten-Kalibrierung keinen klaren Sprung zwischen Intra-Wort- "
+        "und Wortgrenzen-Abstand und muss auf die native Extraktion "
+        "zurückfallen (Sicherheits-Fallback statt Rateverfahren).",
+        "'SparkassenVersicherung' mit gleichmäßiger Laufweite, kein Space-Glyph.",
+        "Normaler Fließtext mit echten Leerzeichen (Gegenprobe, unverändert).",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Hauptprogramm
 # ---------------------------------------------------------------------------
 
@@ -1297,6 +1344,7 @@ GENERATORS = [
     ("TC-T-006", generate_tc_t_006),
     ("TC-T-007", generate_tc_t_007),
     ("TC-T-008", generate_tc_t_008),
+    ("TC-T-009", generate_tc_t_009_sperrsatz_ohne_leerzeichen),
     ("TC-E-001 + TC-E-002", generate_tc_e_001_002),
     ("TC-E-003", generate_tc_e_003),
     ("TC-G-001 + TC-G-002", generate_tc_g_001_002),
