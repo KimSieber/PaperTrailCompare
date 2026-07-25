@@ -14,15 +14,20 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import fitz
+from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from engine.models import BatchResult
 from engine.profile_loader import Profile
 from engine.text_comparator import CompareResult
+
+_ASSETS_DIR = Path(__file__).parent / "assets"
+_REPORT_ICON_PATH = _ASSETS_DIR / "512x512.png"
+_REPORT_ICON_HEIGHT_MM = 19.0
 
 _STYLES = getSampleStyleSheet()
 _TITLE_STYLE = ParagraphStyle("report_title", parent=_STYLES["Heading1"])
@@ -144,6 +149,24 @@ def _build_summary_pdf_bytes(
     return buf.getvalue()
 
 
+def _build_report_icon_flowable() -> Optional[RLImage]:
+    """Lädt das App-Icon (engine/assets/512x512.png, bereits mit
+    transparentem Hintergrund) für die Zusammenfassungsseite - Pfad relativ
+    zum Modul, damit es unabhängig vom aktuellen Arbeitsverzeichnis
+    funktioniert. Höhe fix auf _REPORT_ICON_HEIGHT_MM, Breite aus dem
+    tatsächlichen Seitenverhältnis der Bilddatei abgeleitet (aktuell
+    quadratisch, aber nicht angenommen). None, falls die Datei fehlt -
+    Aufrufer fällt dann auf das ursprüngliche Zweispalten-Layout ohne Icon
+    zurück, statt den Report-Bau abzubrechen."""
+    if not _REPORT_ICON_PATH.exists():
+        return None
+    with PILImage.open(_REPORT_ICON_PATH) as im:
+        width_px, height_px = im.size
+    height = _REPORT_ICON_HEIGHT_MM * mm
+    width = height * (width_px / height_px)
+    return RLImage(str(_REPORT_ICON_PATH), width=width, height=height)
+
+
 def _build_summary_page_pdf_bytes(
     compare_result: CompareResult,
     ref_pdf_path: Path,
@@ -177,20 +200,29 @@ def _build_summary_page_pdf_bytes(
         badge_text, badge_fg, badge_bg = "Keine Unterschiede", _COLOR_OK, _COLOR_BADGE_OK_BG
 
     badge_style = ParagraphStyle("badge", parent=_STYLES["Normal"], textColor=badge_fg, fontSize=9, alignment=1)
-    header_table = Table(
-        [[
-            Paragraph("Vergleichs-Zusammenfassung<br/><font size=9 color='#666666'>"
-                      "PaperTrail Compare · Vergleichsreport</font>", _TITLE_STYLE),
-            Paragraph(badge_text, badge_style),
-        ]],
-        colWidths=[130 * mm, 40 * mm],
+    title_paragraph = Paragraph(
+        "Vergleichs-Zusammenfassung<br/><font size=9 color='#666666'>"
+        "PaperTrail Compare · Vergleichsreport</font>", _TITLE_STYLE,
     )
+    badge_paragraph = Paragraph(badge_text, badge_style)
+
+    icon_flowable = _build_report_icon_flowable()
+    if icon_flowable is not None:
+        header_cells = [icon_flowable, title_paragraph, badge_paragraph]
+        header_col_widths = [22 * mm, 108 * mm, 40 * mm]
+        badge_col = 2
+    else:
+        header_cells = [title_paragraph, badge_paragraph]
+        header_col_widths = [130 * mm, 40 * mm]
+        badge_col = 1
+
+    header_table = Table([header_cells], colWidths=header_col_widths)
     header_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BACKGROUND", (1, 0), (1, 0), badge_bg),
-        ("BOX", (1, 0), (1, 0), 0.5, badge_fg),
-        ("TOPPADDING", (1, 0), (1, 0), 6),
-        ("BOTTOMPADDING", (1, 0), (1, 0), 6),
+        ("BACKGROUND", (badge_col, 0), (badge_col, 0), badge_bg),
+        ("BOX", (badge_col, 0), (badge_col, 0), 0.5, badge_fg),
+        ("TOPPADDING", (badge_col, 0), (badge_col, 0), 6),
+        ("BOTTOMPADDING", (badge_col, 0), (badge_col, 0), 6),
     ]))
     story.append(header_table)
     story.append(Spacer(1, 4))
