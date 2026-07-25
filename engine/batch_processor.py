@@ -47,6 +47,7 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
 
     case_sensitive = profile.case_sensitive if profile is not None else True
     normalize_whitespace = profile.normalize_whitespace if profile is not None else False
+    compare_mode = profile.compare_mode if profile is not None else "words"
     region_warnings: List[str] = []
     ref_pages, ref_ocr_used = extract_pages_for_profile(
         str(ref_file), profile, role="reference", warnings=region_warnings
@@ -61,6 +62,7 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
         case_sensitive=case_sensitive,
         normalize_whitespace=normalize_whitespace,
         ocr_used=ref_ocr_used or cnd_ocr_used,
+        compare_mode=compare_mode,
     )
 
     return PairResult(ref_path=ref_path, cnd_path=cnd_path, status="ok", compare_result=result)

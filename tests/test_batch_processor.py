@@ -171,3 +171,25 @@ def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path)
     assert pair.status == "ok"
     assert pair.compare_result.has_delta is True
     assert any(delta.page == 2 for delta in pair.compare_result.deltas)
+
+
+def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch):
+    """Verdrahtungstest: profile.compare_mode muss bei batch_compare an
+    text_comparator.compare durchgereicht werden, nicht nur im Profil
+    geladen/validiert werden."""
+    seen_modes = []
+
+    import engine.batch_processor as batch_processor_module
+    real_compare = batch_processor_module.compare
+
+    def spy_compare(*args, **kwargs):
+        seen_modes.append(kwargs.get("compare_mode"))
+        return real_compare(*args, **kwargs)
+
+    monkeypatch.setattr(batch_processor_module, "compare", spy_compare)
+
+    profile = Profile(version="1.0", compare_mode="chars")
+    result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv", profile=profile)
+
+    assert result.ok_count == 10
+    assert seen_modes == ["chars"] * 10

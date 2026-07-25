@@ -70,6 +70,7 @@ def _run_compare(args: argparse.Namespace) -> int:
         case_sensitive=profile.case_sensitive if profile else True,
         normalize_whitespace=profile.normalize_whitespace if profile else False,
         ocr_used=ref_ocr_used or cnd_ocr_used,
+        compare_mode=profile.compare_mode if profile else "words",
     )
     duration_seconds = time.perf_counter() - start
 

@@ -208,3 +208,44 @@ def test_load_profile_ocr_dpi_nicht_positiv_wirft_validation_error(tmp_path):
 
     with pytest.raises(ValidationError):
         load_profile(profile_path)
+
+
+def test_load_profile_compare_mode_default_ist_words(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0"}), encoding="utf-8")
+
+    profile = load_profile(profile_path)
+
+    assert profile.compare_mode == "words"
+
+
+def test_load_profile_compare_mode_chars_wird_uebernommen(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({"version": "1.0", "compare_mode": "chars"}), encoding="utf-8"
+    )
+
+    profile = load_profile(profile_path)
+
+    assert profile.compare_mode == "chars"
+
+
+def test_load_profile_ungueltiger_compare_mode_wirft_validation_error(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({"version": "1.0", "compare_mode": "sentences"}), encoding="utf-8"
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_compare_mode_hybrid_wird_uebernommen(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({"version": "1.0", "compare_mode": "hybrid"}), encoding="utf-8"
+    )
+
+    profile = load_profile(profile_path)
+
+    assert profile.compare_mode == "hybrid"

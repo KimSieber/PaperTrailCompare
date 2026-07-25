@@ -14,6 +14,7 @@ from typing import List, Optional, Union
 _VALID_REPORT_FORMATS = ("pdf", "html")
 _VALID_TEXT_EXTRACTION_MODES = ("native", "reconstruct")
 _VALID_OCR_MODES = ("off", "fallback", "force")
+_VALID_COMPARE_MODES = ("words", "chars", "hybrid")
 _REQUIRED_FIELDS = ("version",)
 
 
@@ -59,6 +60,25 @@ class OcrConfig:
 
 @dataclass
 class Profile:
+    """compare_mode ist eine kundenseitige Einstellung, kein internes Flag:
+    "words" (Default) vergleicht auf Wort-Tokens - das passt für Dokumente
+    mit intakten Wortgrenzen. "chars" ignoriert beim Vergleich jeglichen
+    Whitespace vollständig und vergleicht zeichenweise; das lohnt sich nur
+    für Dokumente, deren Wortgrenzen bei der Extraktion unzuverlässig sind
+    (z.B. Type3-Schriften alter Großrechner-Drucksysteme ohne ToUnicode-
+    Tabelle, siehe Diagnose-Session zu PDF EBR.PY.*) - kann aber auf
+    Dokumenten mit vielen bereits strukturell abweichenden Textstellen zu
+    einer Explosion kleiner, verstreuter Deltas führen (gemessen: 388 im
+    Wortmodus -> 1024 im Zeichenmodus auf denselben Dateien). "hybrid"
+    behebt das: Wort-Matcher zur groben Ausrichtung, Zeichenvergleich nur
+    innerhalb der so gefundenen Bereiche (siehe
+    text_comparator._compare_hybrid) - für dieselbe Dokumentklasse i.d.R.
+    die bessere Wahl als "chars". Andere Kunden mit anderen Dokumenttypen
+    haben in aller Regel intakte Wortgrenzen - dort würden "chars"/"hybrid"
+    nur unnötig Rechenzeit kosten und Änderungen feiner aufsplitten als
+    nötig. Deshalb bewusst kein globaler Default, sondern ein expliziter
+    Opt-in pro Vergleichsprofil."""
+
     version: str
     case_sensitive: bool = True
     normalize_whitespace: bool = False
@@ -67,6 +87,7 @@ class Profile:
     report_format: str = "pdf"
     ocr: OcrConfig = field(default_factory=OcrConfig)
     text_extraction: str = "native"
+    compare_mode: str = "words"
 
 
 def load_profile(path: Union[str, Path]) -> Profile:
@@ -155,6 +176,13 @@ def load_profile(path: Union[str, Path]) -> Profile:
             f"sein, ist '{text_extraction}'"
         )
 
+    compare_mode = data.get("compare_mode", "words")
+    if compare_mode not in _VALID_COMPARE_MODES:
+        raise ValidationError(
+            f"Profil '{path}': compare_mode muss einer von {_VALID_COMPARE_MODES} "
+            f"sein, ist '{compare_mode}'"
+        )
+
     return Profile(
         version=str(data["version"]),
         case_sensitive=bool(data.get("case_sensitive", True)),
@@ -164,6 +192,7 @@ def load_profile(path: Union[str, Path]) -> Profile:
         report_format=report_format,
         ocr=ocr,
         text_extraction=text_extraction,
+        compare_mode=compare_mode,
     )
 
 

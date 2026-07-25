@@ -37,6 +37,8 @@ struct Profile {
     version: String,
     #[serde(default = "default_normalize_whitespace")]
     normalize_whitespace: bool,
+    #[serde(default = "default_compare_mode")]
+    compare_mode: String,
 }
 
 /// GUI-Default für den Einstellungen-Toggle "Leerzeichen-Toleranz": greift
@@ -48,11 +50,20 @@ fn default_normalize_whitespace() -> bool {
     true
 }
 
+/// Default für compare_mode ("words" | "chars" | "hybrid", siehe
+/// engine.profile_loader.Profile.compare_mode) - hier bewusst NICHT von der
+/// Engine-Default abweichend (anders als normalize_whitespace oben): es
+/// gibt keinen Grund, den GUI-Standard von "words" abweichen zu lassen.
+fn default_compare_mode() -> String {
+    "words".to_string()
+}
+
 impl Default for Profile {
     fn default() -> Self {
         Profile {
             version: "1.0".to_string(),
             normalize_whitespace: default_normalize_whitespace(),
+            compare_mode: default_compare_mode(),
         }
     }
 }
@@ -80,13 +91,20 @@ fn load_settings(app: tauri::AppHandle) -> Result<Profile, String> {
 }
 
 /// Persistiert die Einstellungen aus dem Einstellungen-Reiter als JSON-Profil
-/// (engine/profile_loader.py-kompatibel).
+/// (engine/profile_loader.py-kompatibel). Die GUI übergibt bei jedem Aufruf
+/// den vollständigen Einstellungsstand (beide Felder), nicht nur das gerade
+/// geänderte - save_settings schreibt profile.json jedes Mal komplett neu.
 #[tauri::command]
-fn save_settings(app: tauri::AppHandle, normalize_whitespace: bool) -> Result<(), String> {
+fn save_settings(
+    app: tauri::AppHandle,
+    normalize_whitespace: bool,
+    compare_mode: String,
+) -> Result<(), String> {
     let path = settings_path(&app)?;
     let profile = Profile {
         version: "1.0".to_string(),
         normalize_whitespace,
+        compare_mode,
     };
     let json = serde_json::to_string_pretty(&profile).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())

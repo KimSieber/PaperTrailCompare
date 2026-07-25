@@ -15,8 +15,13 @@ export interface CompareResult {
   report_path: string | null;
 }
 
+/** Entspricht engine.profile_loader.Profile.compare_mode - siehe dortigen
+ * Docstring für die fachliche Begründung der drei Werte. */
+export type CompareMode = "words" | "chars" | "hybrid";
+
 /** Ausschnitt von engine.profile_loader.Profile, der über die GUI editierbar ist. */
 export interface Profile {
   version: string;
   normalize_whitespace: boolean;
+  compare_mode: CompareMode;
 }

@@ -242,6 +242,55 @@ def test_compare_mit_profile_exclude_regions_end_to_end_tc_e_001(tmp_path, capsy
     assert payload["deltas"] == []
 
 
+def test_compare_mit_profile_compare_mode_chars_end_to_end(tmp_path, capsys):
+    """compare_mode="chars" muss über die CLI wirken: eine fragmentierte
+    Wortgrenze in der Referenz darf kein Delta mehr ergeben."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_single_page_pdf(ref_path, "Der Versi ch e ru n gssch u tz gilt.")
+    _write_single_page_pdf(cnd_path, "Der Versicherungsschutz gilt.")
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0", "compare_mode": "chars"}), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+    assert payload["deltas"] == []
+
+
+def test_compare_ruft_compare_mit_profile_compare_mode_auf(tmp_path, capsys, monkeypatch):
+    """Verdrahtungstest: profile.compare_mode muss an text_comparator.compare
+    durchgereicht werden, nicht nur geladen/validiert werden (dasselbe
+    Muster wie die vorherige Verdrahtungslücke bei exclude_regions)."""
+    seen_modes = []
+
+    import engine.__main__ as main_module
+    real_compare = main_module.compare
+
+    def spy_compare(*args, **kwargs):
+        seen_modes.append(kwargs.get("compare_mode"))
+        return real_compare(*args, **kwargs)
+
+    monkeypatch.setattr(main_module, "compare", spy_compare)
+
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0", "compare_mode": "chars"}), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    assert seen_modes == ["chars"]
+
+
 def test_version_flag(capsys):
     exit_code = main(["--version"])
 
