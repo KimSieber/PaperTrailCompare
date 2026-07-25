@@ -8,7 +8,7 @@ Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 2.
 """
 import pytest
 
-from engine.text_comparator import compare
+from engine.text_comparator import compare, normalize_text
 
 
 def test_tc_t_001_identische_texte_kein_delta():
@@ -24,6 +24,40 @@ def test_tc_t_001_identische_texte_kein_delta():
 def test_tc_t_002_silbentrennung_am_zeilenende_normalisieren():
     ref_pages = ["Das ist eine Silben-\ntrennung im Text."]
     cnd_pages = ["Das ist eine Silbentrennung im Text."]
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is False
+    assert result.deltas == []
+
+
+def test_normalize_text_silbentrennung_wird_zusammengefuehrt():
+    """TC-T-002 auf Funktionsebene: Wortzeichen unmittelbar vor dem
+    Bindestrich UND unmittelbar nach dem Umbruch -> echte Silbentrennung,
+    wird zusammengeführt."""
+    assert normalize_text("Silben-\ntrennung") == "Silbentrennung"
+
+
+def test_normalize_text_isolierter_bindestrich_nach_zeilenumbruch_bleibt_erhalten():
+    """Bindestrich mit Whitespace/Zeilenumbruch DAVOR ist kein
+    Silbentrennungs-Bindestrich, sondern ein eigenständiger Gedankenstrich
+    (z.B. Ein-Wort-pro-Zeile-Layout eines Type3-Dokuments) - bleibt erhalten."""
+    assert normalize_text("Wort\n-\nnächstes") == "Wort - nächstes"
+
+
+def test_normalize_text_bindestrich_mit_leerzeichen_davor_bleibt_erhalten():
+    """Bindestrich mit Leerzeichen davor (kein Wortzeichen unmittelbar vor
+    dem Strich) ist ebenfalls kein Silbentrennungs-Bindestrich."""
+    assert normalize_text("Ende -\nAnfang") == "Ende - Anfang"
+
+
+def test_isolierter_gedankenstrich_ergibt_kein_falsches_delta():
+    """Reproduziert den auf TC_REAL gefundenen Fall: ein eigenständiger
+    Gedankenstrich, der im Referenzdokument zufällig allein auf einer Zeile
+    steht, wurde vor dem Fix von der Silbentrennungs-Regex verschluckt
+    (ref='' vs. cnd='-' als falsches Delta, 8 von 220 betroffen)."""
+    ref_pages = ["Verlässlichkeit\n-\nvielen Dank dafür!"]
+    cnd_pages = ["Verlässlichkeit - vielen Dank dafür!"]
 
     result = compare(ref_pages, cnd_pages)
 

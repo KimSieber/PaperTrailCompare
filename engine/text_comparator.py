@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import List, Sequence, Tuple
 
-_HYPHENATION_RE = re.compile(r"-\s*\n\s*")
+_HYPHENATION_RE = re.compile(r"(?<=\w)-\s*\n\s*(?=\w)")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 _VALID_COMPARE_MODES = ("words", "chars", "hybrid")
@@ -44,7 +44,17 @@ class CompareResult:
 
 
 def normalize_text(text: str) -> str:
-    """Führt Silbentrennungen am Zeilenende zusammen und normalisiert Whitespace."""
+    """Führt Silbentrennungen am Zeilenende zusammen und normalisiert Whitespace.
+
+    _HYPHENATION_RE verlangt ein Wortzeichen unmittelbar VOR dem Bindestrich
+    und eines unmittelbar NACH dem Umbruch (Lookbehind/Lookahead) - nur dann
+    handelt es sich um echte Silbentrennung ('Silben-\\ntrennung'). Ein
+    isolierter Gedankenstrich (Whitespace/Zeilenumbruch davor, z.B. weil er
+    in einem Ein-Wort-pro-Zeile-Layout zufällig allein auf einer Zeile
+    steht) wird nicht entfernt - siehe Diagnose-Session: in einem echten
+    Dokument stand '...Verlässlichkeit\\n-\\nvielen Dank...', wobei der
+    Strich Satzzeichen war, aber wie Silbentrennung behandelt wurde und
+    verschwand ('' vs. '-' als falsches Delta, 8 von 220 betroffen)."""
     text = _HYPHENATION_RE.sub("", text)
     text = _WHITESPACE_RE.sub(" ", text)
     return text.strip()
