@@ -1,5 +1,6 @@
 # Individuell
 .DS_Store
+tests/fixtures/TC_REAL/
 
 # Node / Vite / Tauri Frontend
 node_modules/
