@@ -1,0 +1,11 @@
+Basierend auf den git-getrackten Dateien (ohne node_modules, Build-Artefakte etc.):
+
+Gesamt: ~8.700 Zeilen Code
+
+Bereich	Zeilen
+engine/ (Python Core Engine)	2.516
+tests/ (Python Tests)	3.746
+tools/, packaging/, Root-Skripte (Python)	1.430
+src/ (React/TypeScript GUI)	724
+src-tauri/ (Rust)	254
+Auffällig: Es gibt fast 1,5× so viele Testzeilen wie Engine-Code – passt zur TDD-Strategie aus CLAUDE.md. GUI (React/Tauri) steckt noch in einem frühen Stadium (~1.000 Zeilen zusammen), der Fokus lag bisher klar auf Schicht 1–3 der Engine.
