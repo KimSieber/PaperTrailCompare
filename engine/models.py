@@ -20,6 +20,11 @@ class PairResult:
     status: str  # "ok" oder "error"
     compare_result: Optional[CompareResult] = None
     error: Optional[str] = None
+    # max(Seitenzahl Referenz, Seitenzahl Kandidat) - Grundlage für die
+    # Übereinstimmungs-Prozentangabe je Paar in der Batch-GUI (analog zur
+    # Zusammenfassungsseite des Einzelvergleich-Reports, siehe
+    # report_generator._build_summary_page_pdf_bytes: match_ratio).
+    total_pages: Optional[int] = None
 
 
 @dataclass

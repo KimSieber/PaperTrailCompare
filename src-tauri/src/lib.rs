@@ -215,6 +215,7 @@ struct BatchPairResult {
     status: String,
     compare_result: Option<BatchCompareResult>,
     error: Option<String>,
+    total_pages: Option<u32>,
 }
 
 /// Payload des an das Frontend emittierten "batch-progress"-Events - 1:1 zur

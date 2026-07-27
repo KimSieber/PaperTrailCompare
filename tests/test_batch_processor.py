@@ -53,6 +53,16 @@ def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf():
     assert [c[2] for c in calls] == result.pairs
 
 
+def test_batch_compare_liefert_total_pages_pro_paar_fuer_uebereinstimmungs_prozent():
+    """total_pages (max. Seitenzahl von Referenz/Kandidat) ist Grundlage für
+    die Übereinstimmungs-Prozentanzeige je Zeile in der Batch-GUI (siehe
+    prompt_batch_verarbeitung.md)."""
+    result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv")
+
+    for pair in result.pairs:
+        assert pair.total_pages == 1
+
+
 def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet():
     result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv")
 

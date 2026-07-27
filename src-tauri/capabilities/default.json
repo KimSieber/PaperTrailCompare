@@ -9,7 +9,10 @@
     "dialog:allow-open",
     {
       "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "$DOCUMENT/PaperTrailCompare/**" }]
+      "allow": [
+        { "path": "$DOCUMENT/PaperTrailCompare/**" },
+        { "path": "$HOME/**" }
+      ]
     },
     {
       "identifier": "shell:allow-execute",

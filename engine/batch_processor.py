@@ -65,8 +65,12 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
         ocr_used=ref_ocr_used or cnd_ocr_used,
         compare_mode=compare_mode,
     )
+    total_pages = max(len(ref_pages), len(cnd_pages))
 
-    return PairResult(ref_path=ref_path, cnd_path=cnd_path, status="ok", compare_result=result)
+    return PairResult(
+        ref_path=ref_path, cnd_path=cnd_path, status="ok",
+        compare_result=result, total_pages=total_pages,
+    )
 
 
 def _compare_pair_worker(args: Tuple[str, str, Optional[Profile]]) -> PairResult:

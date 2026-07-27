@@ -1,49 +1,13 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { MainPanel } from "../layout/MainPanel";
+import { FilePickerRow } from "../components/FilePickerRow";
+import { useDragDropTarget } from "../hooks/useDragDropTarget";
 import type { CompareResult } from "../types";
 
-type DropTarget = "reference" | "candidate" | null;
-
-interface FilePickerRowProps {
-  label: string;
-  path: string;
-  onPick: () => void;
-  dropTarget: "reference" | "candidate";
-  isDropActive: boolean;
-  isDragPending: boolean;
-}
-
-function FilePickerRow({ label, path, onPick, dropTarget, isDropActive, isDragPending }: FilePickerRowProps) {
-  return (
-    <div
-      data-drop-target={dropTarget}
-      className={[
-        "flex items-center gap-4 rounded-md p-2 transition-colors",
-        isDropActive
-          ? "border-2 border-dashed border-blue-400 bg-blue-50 ring-2 ring-blue-400"
-          : isDragPending
-            ? "border-2 border-dashed border-slate-300 bg-slate-50"
-            : "border-2 border-transparent",
-      ].join(" ")}
-    >
-      <span className="w-28 shrink-0 text-sm font-medium text-slate-700">{label}</span>
-      <span className="flex-1 truncate rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-        {isDropActive ? "Datei hier ablegen…" : path || "Keine Datei ausgewählt"}
-      </span>
-      <button
-        type="button"
-        onClick={onPick}
-        className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-      >
-        Durchsuchen…
-      </button>
-    </div>
-  );
-}
+type DropTarget = "reference" | "candidate";
 
 export function SingleComparisonView() {
   const [refPath, setRefPath] = useState("");
@@ -51,106 +15,23 @@ export function SingleComparisonView() {
   const [result, setResult] = useState<CompareResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeDropTarget, setActiveDropTarget] = useState<DropTarget>(null);
-  const [isDragPending, setIsDragPending] = useState(false);
 
-  useEffect(() => {
-    // Verhindert, dass der Browser eine gedroppte Datei selbst öffnet.
-    const preventDefault = (event: DragEvent) => event.preventDefault();
-    window.addEventListener("dragover", preventDefault);
-    window.addEventListener("drop", preventDefault);
-
-    let unlisten: (() => void) | undefined;
-
-    // Tauri liefert die Cursor-Position fensterweit in physischen/logischen
-    // Pixeln mit einem konstanten, aber unbekannten Y-Offset gegenüber
-    // getBoundingClientRect()/document.elementFromPoint() (vermutlich durch
-    // Titelleiste/Fensterdekoration). Statt den Offset zu berechnen, wird er
-    // pro Drag-Session einmalig empirisch kalibriert: Sobald der Cursor über
-    // einem der Zielfelder steht, liefert einer der getesteten Offsets (0-50)
-    // einen Treffer per elementFromPoint — dieser wird für den Rest der
-    // Drag-Session wiederverwendet.
-    let calibratedYOffset: number | null = null;
-
-    function resolveDropTarget(tauriX: number, tauriY: number): DropTarget {
-      if (calibratedYOffset === null) {
-        for (let testOffset = 0; testOffset <= 50; testOffset++) {
-          const el = document.elementFromPoint(tauriX, tauriY - testOffset);
-          const hit = el?.closest("[data-drop-target]");
-          if (hit) {
-            calibratedYOffset = testOffset;
-            break;
-          }
-        }
+  const { activeDropTarget, isDragPending } = useDragDropTarget<DropTarget>({
+    isValidPath: (_target, path) => path.toLowerCase().endsWith(".pdf"),
+    onInvalidDrop: () => setError("Nur PDF-Dateien können per Drag & Drop abgelegt werden."),
+    onMultipleDropped: () =>
+      setError("Es kann nur eine Datei pro Feld abgelegt werden. Nur die erste Datei wurde übernommen."),
+    onDrop: (target, path, wasMultiple) => {
+      if (!wasMultiple) {
+        setError("");
       }
-
-      if (calibratedYOffset === null) {
-        return null;
+      if (target === "reference") {
+        setRefPath(path);
+      } else {
+        setCndPath(path);
       }
-
-      const el = document.elementFromPoint(tauriX, tauriY - calibratedYOffset);
-      const hit = el?.closest<HTMLElement>("[data-drop-target]");
-      return (hit?.dataset.dropTarget as DropTarget) ?? null;
-    }
-
-    getCurrentWebview()
-      .onDragDropEvent((event) => {
-        const payload = event.payload;
-
-        if (payload.type === "enter") {
-          calibratedYOffset = null;
-          setIsDragPending(true);
-          return;
-        }
-
-        if (payload.type === "over") {
-          setActiveDropTarget(resolveDropTarget(payload.position.x, payload.position.y));
-          return;
-        }
-
-        if (payload.type === "drop") {
-          const target = resolveDropTarget(payload.position.x, payload.position.y);
-          setActiveDropTarget(null);
-          setIsDragPending(false);
-          calibratedYOffset = null;
-
-          if (!target) {
-            return;
-          }
-          if (payload.paths.length > 1) {
-            setError("Es kann nur eine Datei pro Feld abgelegt werden. Nur die erste Datei wurde übernommen.");
-          }
-          const droppedPath = payload.paths[0];
-          if (!droppedPath || !droppedPath.toLowerCase().endsWith(".pdf")) {
-            setError("Nur PDF-Dateien können per Drag & Drop abgelegt werden.");
-            return;
-          }
-          if (payload.paths.length <= 1) {
-            setError("");
-          }
-          if (target === "reference") {
-            setRefPath(droppedPath);
-          } else {
-            setCndPath(droppedPath);
-          }
-          return;
-        }
-
-        // "leave": Drag hat das Fenster verlassen oder wurde abgebrochen.
-        setActiveDropTarget(null);
-        setIsDragPending(false);
-        calibratedYOffset = null;
-      })
-      .then((fn) => {
-        unlisten = fn;
-      });
-
-    return () => {
-      window.removeEventListener("dragover", preventDefault);
-      window.removeEventListener("drop", preventDefault);
-      unlisten?.();
-    };
-  }, []);
+    },
+  });
 
   async function pickFile(onPicked: (path: string) => void) {
     const path = await open({
