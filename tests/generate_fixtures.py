@@ -995,7 +995,6 @@ def generate_tc_b_001_003() -> None:
 
     with open(d / "filelist.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["ref", "cnd"])
         writer.writerows(filelist_rows)
 
     write_readme(
@@ -1024,7 +1023,6 @@ def generate_tc_b_001_003() -> None:
 
     with open(d / "filelist.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["ref", "cnd"])
         writer.writerows(filelist_rows)
 
     write_readme(
@@ -1139,7 +1137,6 @@ def generate_tc_b_005() -> None:
 
     with open(d / "filelist.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["ref", "cnd"])
         writer.writerows(filelist_rows)
 
     write_readme(

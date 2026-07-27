@@ -12,11 +12,28 @@ generate_tc_b_005).
 """
 from pathlib import Path
 
-from engine.batch_processor import batch_compare, batch_compare_by_xmp, split_batch_pdf
+from engine.batch_processor import batch_compare, batch_compare_by_xmp, read_filelist, split_batch_pdf
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import ExcludeRegion, PageGroupPattern, Profile
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_read_filelist_ohne_kopfzeile(tmp_path):
+    """CSV-Dateiliste hat keine Kopfzeile (Architekturentscheidung Batch-GUI-
+    Prompt): jede Zeile ist direkt 'Referenzdatei,Kandidatendatei'."""
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(
+        "/pfad/ref1.pdf,/pfad/cnd1.pdf\n/pfad/ref2.pdf,/pfad/cnd2.pdf\n",
+        encoding="utf-8",
+    )
+
+    pairs = read_filelist(filelist_path)
+
+    assert pairs == [
+        ("/pfad/ref1.pdf", "/pfad/cnd1.pdf"),
+        ("/pfad/ref2.pdf", "/pfad/cnd2.pdf"),
+    ]
 
 
 def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet():
@@ -157,7 +174,7 @@ def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path)
     cnd_path = FIXTURES / "TC-E-002" / "cnd.pdf"
 
     filelist_path = tmp_path / "filelist.csv"
-    filelist_path.write_text(f"ref,cnd\n{ref_path},{cnd_path}\n", encoding="utf-8")
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
 
     profile = Profile(
         version="1.0",

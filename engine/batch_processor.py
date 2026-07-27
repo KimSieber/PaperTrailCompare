@@ -26,10 +26,11 @@ _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
 
 
 def read_filelist(filelist_path: Union[str, Path]) -> List[Tuple[str, str]]:
-    """Liest eine CSV-Dateiliste mit Spalten 'ref' und 'cnd'."""
+    """Liest eine CSV-Dateiliste ohne Kopfzeile: jede Zeile ist
+    'Referenzdatei,Kandidatendatei'."""
     with open(filelist_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        return [(row["ref"], row["cnd"]) for row in reader]
+        reader = csv.reader(f)
+        return [(row[0], row[1]) for row in reader if row]
 
 
 def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> PairResult:
