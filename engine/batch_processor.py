@@ -12,7 +12,7 @@ import re
 import sys
 from multiprocessing import Pool
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Callable, List, Optional, Sequence, Tuple, Union
 
 import fitz
 
@@ -80,6 +80,7 @@ def batch_compare(
     filelist_path: Union[str, Path],
     profile: Optional[Profile] = None,
     workers: int = 1,
+    on_progress: Optional[Callable[[int, int, PairResult], None]] = None,
 ) -> BatchResult:
     """Vergleicht alle Dateipaare aus einer CSV-Dateiliste.
 
@@ -89,18 +90,36 @@ def batch_compare(
     workers>1 verarbeitet die Paare parallel über multiprocessing.Pool
     (TC-B-005) – siehe Architekturspezifikation: "Python multiprocessing /
     parallele Verarbeitung ohne externen Queue-Server". Die Ergebnisreihenfolge
-    entspricht dabei stets der Reihenfolge in der Dateiliste (Pool.map
+    entspricht dabei stets der Reihenfolge in der Dateiliste (Pool.imap
     erhält die Eingabereihenfolge).
+
+    on_progress(index, total, pair_result) wird nach jedem verarbeiteten Paar
+    aufgerufen (index ab 1) – Grundlage für Live-Progress-Events Richtung GUI
+    per Tauri-Command. Bei workers>1 entspricht die Aufrufreihenfolge des
+    Callbacks weiterhin der Dateilisten-Reihenfolge (Pool.imap statt
+    Pool.map), nicht notwendigerweise der tatsächlichen Fertigstellungs-
+    reihenfolge der Worker-Prozesse.
     """
     pairs = read_filelist(filelist_path)
+    total = len(pairs)
 
     if workers > 1:
         with Pool(processes=workers) as pool:
-            results = pool.map(
+            results_iter = pool.imap(
                 _compare_pair_worker, [(ref, cnd, profile) for ref, cnd in pairs]
             )
+            results = []
+            for index, pair_result in enumerate(results_iter, start=1):
+                results.append(pair_result)
+                if on_progress is not None:
+                    on_progress(index, total, pair_result)
     else:
-        results = [_compare_pair(ref, cnd, profile) for ref, cnd in pairs]
+        results = []
+        for index, (ref, cnd) in enumerate(pairs, start=1):
+            pair_result = _compare_pair(ref, cnd, profile)
+            results.append(pair_result)
+            if on_progress is not None:
+                on_progress(index, total, pair_result)
 
     return BatchResult(pairs=results)
 

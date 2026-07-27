@@ -36,6 +36,23 @@ def test_read_filelist_ohne_kopfzeile(tmp_path):
     ]
 
 
+def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf():
+    """on_progress(index, total, pair_result) wird nach jedem verarbeiteten
+    Paar aufgerufen - Grundlage für Live-Progress-Events Richtung GUI
+    (siehe prompt_batch_verarbeitung.md)."""
+    calls = []
+
+    def on_progress(index, total, pair_result):
+        calls.append((index, total, pair_result))
+
+    result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv", on_progress=on_progress)
+
+    assert len(calls) == 10
+    assert [c[0] for c in calls] == list(range(1, 11))
+    assert all(c[1] == 10 for c in calls)
+    assert [c[2] for c in calls] == result.pairs
+
+
 def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet():
     result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv")
 
