@@ -134,16 +134,18 @@ def _run_batch(args: argparse.Namespace) -> int:
             "pair": dataclasses.asdict(pair_result),
         }), flush=True)
 
+    start = time.perf_counter()
     try:
         result = batch_compare(args.filelist, profile=profile, on_progress=on_progress)
     except OSError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    duration_seconds = time.perf_counter() - start
 
     output_dir = Path(args.output_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     report_path = output_dir / f"Batch-Report_{timestamp}.pdf"
-    generate_batch_report(result, report_path)
+    generate_batch_report(result, report_path, duration_seconds=duration_seconds)
 
     print(json.dumps({
         "type": "done",

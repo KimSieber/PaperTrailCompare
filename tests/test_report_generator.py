@@ -10,6 +10,7 @@ Fixture: tests/fixtures/TC-R-001/{ref,cnd}.pdf (3 Deltas auf 2 Seiten),
 tests/fixtures/TC-T-001/{ref,cnd}.pdf (identischer Text, kein Delta),
 siehe tests/generate_fixtures.py::generate_tc_r_001 / generate_tc_t_001.
 """
+from datetime import datetime
 from pathlib import Path
 
 import fitz
@@ -369,3 +370,27 @@ def test_tc_r_002_batch_report_uebersicht_aller_vergleiche(tmp_path):
     assert "1" in text  # Delta-Anzahl von Paar 1
     assert "0" in text  # Delta-Anzahl von Paar 2
     assert "nicht gefunden" in text  # Fehlerstatus von Paar 3
+
+
+def test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt(tmp_path):
+    """Kopfbereich des Batch-Reports zeigt Gesamtanzahl Dokumente, Laufzeit
+    und Zeitpunkt (siehe prompt_batch_verarbeitung.md)."""
+    batch_result = BatchResult(pairs=[
+        PairResult(
+            ref_path="pairs/doc_01_ref.pdf", cnd_path="pairs/doc_01_cnd.pdf",
+            status="ok", compare_result=CompareResult(has_delta=False, deltas=[]),
+        ),
+    ])
+
+    output_path = tmp_path / "batch_report.pdf"
+    before = datetime.now()
+    generate_batch_report(batch_result, output_path, duration_seconds=12.5)
+    after = datetime.now()
+
+    report = fitz.open(str(output_path))
+    text = "".join(page.get_text() for page in report)
+    report.close()
+
+    assert "1" in text  # Gesamtanzahl Dokumente/Paare
+    assert "12.5" in text or "12,5" in text  # Laufzeit
+    assert before.strftime("%d.%m.%Y") in text and after.strftime("%d.%m.%Y") in text

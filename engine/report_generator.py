@@ -690,10 +690,13 @@ def generate_report(
 
 
 def generate_batch_report(
-    batch_result: BatchResult, output_path: Union[str, Path]
+    batch_result: BatchResult,
+    output_path: Union[str, Path],
+    duration_seconds: Optional[float] = None,
 ) -> Path:
-    """Erzeugt eine Batch-Übersicht (TC-R-002): eine Zeile pro Dateipaar
-    mit Dateiname, Delta-Anzahl und Status."""
+    """Erzeugt eine Batch-Übersicht (TC-R-002): Kopfbereich mit
+    Gesamtanzahl Dokumente, Laufzeit und Zeitpunkt, gefolgt von einer Zeile
+    pro Dateipaar mit Dateiname, Delta-Anzahl und Status."""
     output_path = Path(output_path)
 
     table_rows = [["Referenz", "Kandidat", "Deltas", "Status"]]
@@ -710,6 +713,8 @@ def generate_batch_report(
 
     intro = [
         f"Anzahl verarbeiteter Paare: {len(batch_result.pairs)}",
+        f"Laufzeit: {duration_seconds:.2f} s" if duration_seconds is not None else "Laufzeit: —",
+        f"Zeitpunkt: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}",
         f"Erfolgreich: {batch_result.ok_count}",
         f"Fehler: {batch_result.error_count}",
     ]
