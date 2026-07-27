@@ -1,7 +1,8 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
 #[tauri::command]
@@ -196,6 +197,128 @@ async fn compare_documents(
     serde_json::from_slice::<CompareOutput>(&output.stdout).map_err(|e| e.to_string())
 }
 
+/// Entspricht 1:1 engine.text_comparator.CompareResult (ohne report_path,
+/// der existiert bei Batch-Paaren nicht) - Teil von BatchPairResult.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BatchCompareResult {
+    has_delta: bool,
+    deltas: Vec<Delta>,
+    ocr_was_used: bool,
+}
+
+/// Entspricht 1:1 engine.models.PairResult (siehe engine/__main__.py
+/// `batch --json-lines` bzw. die "progress"-Zeilen von `batch`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BatchPairResult {
+    ref_path: String,
+    cnd_path: String,
+    status: String,
+    compare_result: Option<BatchCompareResult>,
+    error: Option<String>,
+}
+
+/// Payload des an das Frontend emittierten "batch-progress"-Events - 1:1 zur
+/// "progress"-JSON-Zeile des Sidecar-Prozesses (siehe engine/__main__.py
+/// `_run_batch`), abzüglich des Discriminator-Felds "type".
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BatchProgressEvent {
+    index: u32,
+    total: u32,
+    pair: BatchPairResult,
+}
+
+/// Ergebnis von start_batch_compare nach Abschluss des gesamten Batch-Laufs -
+/// 1:1 zur abschließenden "done"-JSON-Zeile des Sidecar-Prozesses.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BatchOutput {
+    ok_count: u32,
+    error_count: u32,
+    report_path: String,
+}
+
+/// Startet den Massenvergleich über die Python Core Engine (Sidecar-Prozess,
+/// `papertrail-engine batch <filelist.csv> --output-dir <dir>`) und emittiert
+/// pro verarbeitetem Paar ein "batch-progress"-Event Richtung Frontend.
+///
+/// Anders als compare_documents (sidecar.output(), wartet auf vollständige
+/// Prozessbeendigung) wird hier sidecar.spawn() verwendet: der Sidecar-
+/// Prozess streamt pro Paar sofort eine JSON-Zeile auf stdout (siehe
+/// engine/__main__.py `_run_batch`), die hier zeilenweise gelesen und als
+/// Tauri-Event weitergereicht wird - erst so ist Live-Progress ohne
+/// Frontend-Polling-Schleife möglich (siehe prompt_batch_verarbeitung.md,
+/// "Live-Progress via Tauri-Events").
+///
+/// workers bleibt bewusst auf 1 (sequentiell) beschränkt - siehe
+/// prompt_batch_verarbeitung.md, "Nicht Teil dieser Session": workers>1 wird
+/// erst in einem späteren Schritt an die GUI angebunden.
+#[tauri::command]
+async fn start_batch_compare(
+    app: tauri::AppHandle,
+    filelist_path: String,
+    output_dir: String,
+) -> Result<BatchOutput, String> {
+    let sidecar = app
+        .shell()
+        .sidecar("papertrail-engine")
+        .map_err(|e| e.to_string())?;
+
+    let mut cli_args = vec![
+        "batch".to_string(),
+        filelist_path,
+        "--output-dir".to_string(),
+        output_dir,
+    ];
+    let profile_path = settings_path(&app)?;
+    if profile_path.exists() {
+        cli_args.push("--profile".to_string());
+        cli_args.push(profile_path.to_string_lossy().to_string());
+    }
+
+    let (mut rx, mut _child) = sidecar.args(cli_args).spawn().map_err(|e| e.to_string())?;
+
+    let mut stderr_output = String::new();
+    let mut done_output: Option<BatchOutput> = None;
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(line_bytes) => {
+                let line = String::from_utf8_lossy(&line_bytes);
+                let Ok(value) = serde_json::from_str::<serde_json::Value>(line.trim()) else {
+                    continue;
+                };
+                match value.get("type").and_then(|t| t.as_str()) {
+                    Some("progress") => {
+                        if let Ok(progress) = serde_json::from_value::<BatchProgressEvent>(value) {
+                            let _ = app.emit("batch-progress", progress);
+                        }
+                    }
+                    Some("done") => {
+                        if let Ok(done) = serde_json::from_value::<BatchOutput>(value) {
+                            done_output = Some(done);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            CommandEvent::Stderr(bytes) => {
+                stderr_output.push_str(&String::from_utf8_lossy(&bytes));
+            }
+            CommandEvent::Terminated(payload) => {
+                if payload.code != Some(0) {
+                    return Err(if stderr_output.is_empty() {
+                        format!("Batch-Verarbeitung fehlgeschlagen (Exit-Code {:?})", payload.code)
+                    } else {
+                        stderr_output.trim().to_string()
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    done_output.ok_or_else(|| "Batch-Verarbeitung lieferte kein Ergebnis".to_string())
+}
+
 /// Startet die Python Core Engine als Sidecar-Prozess (Kind-Prozess, kein
 /// Netzwerk-Socket) und gibt deren stdout zurück. Kommunikation läuft
 /// ausschließlich über Prozessargumente/stdout – siehe CLAUDE.md
@@ -236,6 +359,7 @@ pub fn run() {
             greet,
             engine_version,
             compare_documents,
+            start_batch_compare,
             load_settings,
             save_settings
         ])

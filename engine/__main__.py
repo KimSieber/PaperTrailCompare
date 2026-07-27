@@ -32,10 +32,15 @@ import sys
 import time
 from typing import Optional
 
+from datetime import datetime
+from pathlib import Path
+
 from engine import __version__
+from engine.batch_processor import batch_compare
+from engine.models import PairResult
 from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile, ValidationError, load_profile
-from engine.report_generator import generate_report
+from engine.report_generator import generate_batch_report, generate_report
 from engine.text_comparator import compare
 
 
@@ -105,6 +110,51 @@ def _run_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_batch(args: argparse.Namespace) -> int:
+    """Streamt pro verarbeitetem Paar sofort eine JSON-Zeile auf stdout
+    (statt erst am Ende die gesamte Ausgabe zu puffern) - die Tauri-Shell
+    liest den Sidecar-Prozess dafür zeilenweise (spawn statt output()) und
+    emittiert je Zeile ein Tauri-Event Richtung Frontend (Live-Progress,
+    siehe prompt_batch_verarbeitung.md). Die abschließende 'done'-Zeile
+    trägt den Pfad des Batch-Report-PDFs (report_generator.generate_batch_report).
+    """
+    profile: Optional[Profile] = None
+    if args.profile:
+        try:
+            profile = load_profile(args.profile)
+        except ValidationError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    def on_progress(index: int, total: int, pair_result: PairResult) -> None:
+        print(json.dumps({
+            "type": "progress",
+            "index": index,
+            "total": total,
+            "pair": dataclasses.asdict(pair_result),
+        }), flush=True)
+
+    try:
+        result = batch_compare(args.filelist, profile=profile, on_progress=on_progress)
+    except OSError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    output_dir = Path(args.output_dir)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    report_path = output_dir / f"Batch-Report_{timestamp}.pdf"
+    generate_batch_report(result, report_path)
+
+    print(json.dumps({
+        "type": "done",
+        "ok_count": result.ok_count,
+        "error_count": result.error_count,
+        "report_path": str(report_path),
+    }), flush=True)
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="papertrail-engine")
     parser.add_argument(
@@ -135,13 +185,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     compare_parser.set_defaults(func=_run_compare)
 
+    batch_parser = subparsers.add_parser(
+        "batch", help="Alle Dateipaare einer CSV-Dateiliste vergleichen"
+    )
+    batch_parser.add_argument("filelist", help="Pfad zur CSV-Dateiliste (ohne Kopfzeile: ref,cnd pro Zeile)")
+    batch_parser.add_argument(
+        "--output-dir", required=True, help="Verzeichnis für den Batch-Report (Batch-Report_<Zeitstempel>.pdf)"
+    )
+    batch_parser.add_argument(
+        "--profile",
+        default=None,
+        help="Pfad zu einem JSON-Vergleichsprofil (siehe 'compare --profile')",
+    )
+    batch_parser.set_defaults(func=_run_batch)
+
     args = parser.parse_args(argv)
 
     if args.version:
         print(f"papertrail-engine {__version__}")
         return 0
 
-    if args.command == "compare":
+    if args.command in ("compare", "batch"):
         return args.func(args)
 
     parser.print_help()

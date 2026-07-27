@@ -291,6 +291,62 @@ def test_compare_ruft_compare_mit_profile_compare_mode_auf(tmp_path, capsys, mon
     assert seen_modes == ["chars"]
 
 
+def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(tmp_path, capsys):
+    """`batch` streamt pro verarbeitetem Paar sofort eine JSON-Zeile auf
+    stdout (Grundlage für Live-Progress-Events der Tauri-Shell, siehe
+    prompt_batch_verarbeitung.md), gefolgt von einer abschließenden
+    'done'-Zeile mit Batch-Report-Pfad."""
+    filelist_path = FIXTURES / "TC-B-001" / "filelist.csv"
+
+    exit_code = main(["batch", str(filelist_path), "--output-dir", str(tmp_path)])
+
+    assert exit_code == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 11
+
+    progress_lines = [json.loads(line) for line in lines[:10]]
+    for i, payload in enumerate(progress_lines, start=1):
+        assert payload["type"] == "progress"
+        assert payload["index"] == i
+        assert payload["total"] == 10
+        assert payload["pair"]["status"] == "ok"
+        assert payload["pair"]["compare_result"]["has_delta"] is False
+
+    done_payload = json.loads(lines[-1])
+    assert done_payload["type"] == "done"
+    assert done_payload["ok_count"] == 10
+    assert done_payload["error_count"] == 0
+    report_path = Path(done_payload["report_path"])
+    assert report_path.exists()
+    assert report_path.parent == tmp_path
+
+
+def test_batch_mit_fehlender_datei_wird_pro_paar_protokolliert_tc_b_002(tmp_path, capsys):
+    filelist_path = FIXTURES / "TC-B-002" / "filelist.csv"
+
+    exit_code = main(["batch", str(filelist_path), "--output-dir", str(tmp_path)])
+
+    assert exit_code == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    progress_lines = [json.loads(line) for line in lines[:-1]]
+    error_pairs = [p for p in progress_lines if p["pair"]["status"] == "error"]
+    assert len(error_pairs) == 1
+    assert "doc_03_cnd.pdf" in error_pairs[0]["pair"]["error"]
+
+    done_payload = json.loads(lines[-1])
+    assert done_payload["ok_count"] == 4
+    assert done_payload["error_count"] == 1
+
+
+def test_batch_mit_ungueltiger_dateiliste_liefert_fehler_und_exit_code(tmp_path, capsys):
+    exit_code = main(["batch", str(tmp_path / "does-not-exist.csv"), "--output-dir", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code != 0
+    assert captured.out == ""
+    assert captured.err != ""
+
+
 def test_version_flag(capsys):
     exit_code = main(["--version"])
 
