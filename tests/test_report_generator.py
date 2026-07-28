@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import fitz
+from reportlab.lib.units import mm
 
 from engine.models import BatchResult, PairResult
 from engine.pdf_extractor import extract_pages
@@ -370,6 +371,53 @@ def test_tc_r_002_batch_report_uebersicht_aller_vergleiche(tmp_path):
     assert "1" in text  # Delta-Anzahl von Paar 1
     assert "0" in text  # Delta-Anzahl von Paar 2
     assert "nicht gefunden" in text  # Fehlerstatus von Paar 3
+
+
+def test_tc_r_002_batch_report_lange_dateinamen_bleiben_im_satzspiegel(tmp_path):
+    """Punkt 3 (prompt_batch_fixes.md): sehr lange Dateinamen werden in der
+    Haupttabelle umgebrochen statt über den rechten Satzspiegel-Rand
+    hinauszulaufen (Satzspiegel: A4 abzüglich 20mm Rand je Seite, wie beim
+    Einzel-Report)."""
+    long_name = "sehr_" * 20 + "langer_dateiname_aus_altem_drucksystem.pdf"
+    batch_result = BatchResult(pairs=[
+        PairResult(
+            ref_path=f"pairs/{long_name}", cnd_path=f"pairs/{long_name}",
+            status="ok", compare_result=CompareResult(has_delta=False, deltas=[]),
+        ),
+    ])
+
+    output_path = tmp_path / "batch_report.pdf"
+    generate_batch_report(batch_result, output_path)
+
+    report = fitz.open(str(output_path))
+    right_edge = report[0].rect.width - 20 * mm
+    for page in report:
+        for x0, y0, x1, y1, *_ in page.get_text("words"):
+            assert x1 <= right_edge + 1, f"Wort ragt über den Satzspiegel hinaus: x1={x1}"
+    report.close()
+
+
+def test_tc_r_002_batch_report_wiederholt_tabellenkopf_auf_folgeseiten(tmp_path):
+    """Punkt 3: Tabellenkopf (Spaltenüberschriften) wird bei mehrseitigen
+    Batch-Reports auf jeder Folgeseite wiederholt."""
+    pairs = [
+        PairResult(
+            ref_path=f"pairs/doc_{i:03d}_ref.pdf", cnd_path=f"pairs/doc_{i:03d}_cnd.pdf",
+            status="ok", compare_result=CompareResult(has_delta=False, deltas=[]),
+        )
+        for i in range(1, 61)
+    ]
+    batch_result = BatchResult(pairs=pairs)
+
+    output_path = tmp_path / "batch_report.pdf"
+    generate_batch_report(batch_result, output_path)
+
+    report = fitz.open(str(output_path))
+    assert len(report) > 1
+    for page in report:
+        assert "Referenz" in page.get_text()
+        assert "Kandidat" in page.get_text()
+    report.close()
 
 
 def test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt(tmp_path):

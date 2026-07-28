@@ -132,7 +132,10 @@ def _truncate_end(text: str, max_len: int) -> str:
 
 
 def _build_summary_pdf_bytes(
-    title: str, intro_lines: List[str], table_data: List[List[str]]
+    title: str,
+    intro_lines: List[str],
+    table_data: List[List[str]],
+    col_widths: Optional[List[float]] = None,
 ) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -145,7 +148,12 @@ def _build_summary_pdf_bytes(
         story.append(Paragraph(line, _BODY_STYLE))
     if table_data:
         story.append(Spacer(1, 10))
-        table = Table(table_data, hAlign="LEFT")
+        # repeatRows=1 wiederholt die Kopfzeile auf jeder Folgeseite, wenn
+        # die Tabelle über mehrere Seiten umbricht (splitByRow=1, Default).
+        table = Table(
+            table_data, colWidths=col_widths, hAlign="LEFT",
+            repeatRows=1 if len(table_data) > 1 else 0,
+        )
         table.setStyle(_TABLE_STYLE)
         story.append(table)
     doc.build(story)
@@ -689,6 +697,9 @@ def generate_report(
     return output_path
 
 
+_BATCH_TABLE_COL_WIDTHS = [55 * mm, 55 * mm, 25 * mm, 35 * mm]
+
+
 def generate_batch_report(
     batch_result: BatchResult,
     output_path: Union[str, Path],
@@ -696,10 +707,18 @@ def generate_batch_report(
 ) -> Path:
     """Erzeugt eine Batch-Übersicht (TC-R-002): Kopfbereich mit
     Gesamtanzahl Dokumente, Laufzeit und Zeitpunkt, gefolgt von einer Zeile
-    pro Dateipaar mit Dateiname, Delta-Anzahl und Status."""
+    pro Dateipaar mit Dateiname, Delta-Anzahl und Status.
+
+    Zellen sind Paragraph-Objekte statt reiner Strings, damit lange
+    Dateinamen/Fehlertexte innerhalb der festen Spaltenbreiten umbrechen
+    statt über den Satzspiegel hinauszulaufen (Punkt 3, prompt_batch_fixes.md);
+    _build_summary_pdf_bytes wiederholt die Kopfzeile dafür auf Folgeseiten.
+    """
     output_path = Path(output_path)
 
-    table_rows = [["Referenz", "Kandidat", "Deltas", "Status"]]
+    table_rows = [
+        [Paragraph(f"<b>{c}</b>", _CELL_STYLE) for c in ["Referenz", "Kandidat", "Deltas", "Status"]]
+    ]
     for pair in batch_result.pairs:
         ref_name = Path(pair.ref_path).name
         cnd_name = Path(pair.cnd_path).name
@@ -709,7 +728,12 @@ def generate_batch_report(
         else:
             delta_count = "-"
             status_text = f"Fehler: {pair.error}"
-        table_rows.append([ref_name, cnd_name, delta_count, status_text])
+        table_rows.append([
+            Paragraph(html.escape(ref_name), _CELL_STYLE),
+            Paragraph(html.escape(cnd_name), _CELL_STYLE),
+            Paragraph(html.escape(delta_count), _CELL_STYLE),
+            Paragraph(html.escape(status_text), _CELL_STYLE),
+        ])
 
     intro = [
         f"Anzahl verarbeiteter Paare: {len(batch_result.pairs)}",
@@ -720,7 +744,8 @@ def generate_batch_report(
     ]
 
     summary_bytes = _build_summary_pdf_bytes(
-        "PaperTrail Compare – Batch-Report", intro, table_rows
+        "PaperTrail Compare – Batch-Report", intro, table_rows,
+        col_widths=_BATCH_TABLE_COL_WIDTHS,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
