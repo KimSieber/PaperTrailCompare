@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { MainPanel } from "../layout/MainPanel";
 import { FilePickerRow } from "../components/FilePickerRow";
+import { MiddleTruncate } from "../components/MiddleTruncate";
 import { useDragDropTarget } from "../hooks/useDragDropTarget";
 import type { BatchOutput, BatchPairResult, BatchProgressEvent } from "../types";
 
@@ -169,7 +170,13 @@ export function BatchView() {
             </div>
 
             <div className="max-h-96 overflow-y-auto rounded-md border border-slate-200">
-              <table className="w-full text-sm">
+              <table className="w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[38%]" />
+                  <col className="w-[38%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
                 <thead className="sticky top-0 bg-slate-50 text-left text-xs font-medium text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Referenz</th>
@@ -187,11 +194,15 @@ export function BatchView() {
                         key={`${pair.ref_path}-${pair.cnd_path}-${index}`}
                         className={isError ? "bg-red-50 text-red-800" : "text-slate-700"}
                       >
-                        <td className="truncate px-3 py-2">{fileName(pair.ref_path)}</td>
-                        <td className="truncate px-3 py-2">{fileName(pair.cnd_path)}</td>
+                        <td className="overflow-hidden px-3 py-2">
+                          <MiddleTruncate text={fileName(pair.ref_path)} />
+                        </td>
+                        <td className="overflow-hidden px-3 py-2">
+                          <MiddleTruncate text={fileName(pair.cnd_path)} />
+                        </td>
                         {isError ? (
-                          <td className="px-3 py-2" colSpan={2}>
-                            Fehler: {pair.error}
+                          <td className="overflow-hidden px-3 py-2" colSpan={2}>
+                            <MiddleTruncate text={`Fehler: ${pair.error}`} tailLength={16} />
                           </td>
                         ) : (
                           <>
