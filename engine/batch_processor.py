@@ -20,9 +20,11 @@ from engine.models import BatchResult, PairResult
 from engine.page_group_detector import extract_page_groups
 from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile
+from engine.report_generator import generate_report
 from engine.text_comparator import compare
 
 _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
+_FILENAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]")
 
 
 def read_filelist(filelist_path: Union[str, Path]) -> List[Tuple[str, str]]:
@@ -33,7 +35,34 @@ def read_filelist(filelist_path: Union[str, Path]) -> List[Tuple[str, str]]:
         return [(row[0], row[1]) for row in reader if row]
 
 
-def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> PairResult:
+def _sanitize_filename_part(name: str) -> str:
+    """Ersetzt alle Zeichen, die nicht auf jedem Zielbetriebssystem in
+    Dateinamen zulässig sind, durch Unterstriche - spiegelt
+    src-tauri/src/lib.rs::sanitize_filename_part, damit Einzel-Reports aus
+    Einzelvergleich und Batch demselben Namensschema folgen."""
+    return _FILENAME_SANITIZE_RE.sub("_", name)
+
+
+def _unique_report_path(report_dir: Path, ref_file: Path, cnd_file: Path) -> Path:
+    """Bildet den Ziel-Dateinamen für den Einzel-Report eines Batch-Paares
+    ({RefStem}_{CndStem}.pdf, siehe prompt_batch_fixes.md Punkt 1). Existiert
+    dieser Name bereits (Normalfall: nicht der Fall), wird ein Zähler
+    angehängt, damit kein bestehender Report überschrieben wird."""
+    base = f"{_sanitize_filename_part(ref_file.stem)}_{_sanitize_filename_part(cnd_file.stem)}"
+    candidate = report_dir / f"{base}.pdf"
+    counter = 2
+    while candidate.exists():
+        candidate = report_dir / f"{base}_{counter}.pdf"
+        counter += 1
+    return candidate
+
+
+def _compare_pair(
+    ref_path: str,
+    cnd_path: str,
+    profile: Optional[Profile],
+    report_dir: Optional[Union[str, Path]] = None,
+) -> PairResult:
     ref_file = Path(ref_path)
     cnd_file = Path(cnd_path)
 
@@ -67,17 +96,26 @@ def _compare_pair(ref_path: str, cnd_path: str, profile: Optional[Profile]) -> P
     )
     total_pages = max(len(ref_pages), len(cnd_pages))
 
+    if report_dir is not None:
+        report_path = _unique_report_path(Path(report_dir), ref_file, cnd_file)
+        generate_report(
+            result, ref_file, cnd_file, report_path,
+            profile=profile, region_warnings=region_warnings,
+        )
+
     return PairResult(
         ref_path=ref_path, cnd_path=cnd_path, status="ok",
         compare_result=result, total_pages=total_pages,
     )
 
 
-def _compare_pair_worker(args: Tuple[str, str, Optional[Profile]]) -> PairResult:
+def _compare_pair_worker(
+    args: Tuple[str, str, Optional[Profile], Optional[Union[str, Path]]]
+) -> PairResult:
     """Modul-Top-Level-Wrapper für multiprocessing.Pool.map – Pool benötigt
     eine picklebare, importierbare Funktion (keine Closure/Lambda)."""
-    ref_path, cnd_path, profile = args
-    return _compare_pair(ref_path, cnd_path, profile)
+    ref_path, cnd_path, profile, report_dir = args
+    return _compare_pair(ref_path, cnd_path, profile, report_dir)
 
 
 def batch_compare(
@@ -85,6 +123,7 @@ def batch_compare(
     profile: Optional[Profile] = None,
     workers: int = 1,
     on_progress: Optional[Callable[[int, int, PairResult], None]] = None,
+    report_dir: Optional[Union[str, Path]] = None,
 ) -> BatchResult:
     """Vergleicht alle Dateipaare aus einer CSV-Dateiliste.
 
@@ -103,6 +142,12 @@ def batch_compare(
     Callbacks weiterhin der Dateilisten-Reihenfolge (Pool.imap statt
     Pool.map), nicht notwendigerweise der tatsächlichen Fertigstellungs-
     reihenfolge der Worker-Prozesse.
+
+    report_dir erzeugt zusätzlich pro erfolgreich verglichenem Paar einen
+    Einzel-Report (analog zum Einzelvergleich, siehe report_generator.
+    generate_report) flach in diesem Verzeichnis - auch bei 0 Deltas.
+    Paare mit status="error" erzeugen keinen Einzel-Report (siehe
+    prompt_batch_fixes.md Punkt 1).
     """
     pairs = read_filelist(filelist_path)
     total = len(pairs)
@@ -110,7 +155,8 @@ def batch_compare(
     if workers > 1:
         with Pool(processes=workers) as pool:
             results_iter = pool.imap(
-                _compare_pair_worker, [(ref, cnd, profile) for ref, cnd in pairs]
+                _compare_pair_worker,
+                [(ref, cnd, profile, report_dir) for ref, cnd in pairs],
             )
             results = []
             for index, pair_result in enumerate(results_iter, start=1):
@@ -120,7 +166,7 @@ def batch_compare(
     else:
         results = []
         for index, (ref, cnd) in enumerate(pairs, start=1):
-            pair_result = _compare_pair(ref, cnd, profile)
+            pair_result = _compare_pair(ref, cnd, profile, report_dir)
             results.append(pair_result)
             if on_progress is not None:
                 on_progress(index, total, pair_result)

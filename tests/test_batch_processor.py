@@ -12,11 +12,79 @@ generate_tc_b_005).
 """
 from pathlib import Path
 
+from reportlab.pdfgen import canvas
+
 from engine.batch_processor import batch_compare, batch_compare_by_xmp, read_filelist, split_batch_pdf
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import ExcludeRegion, PageGroupPattern, Profile
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _write_single_page_pdf(path: Path, text: str) -> None:
+    c = canvas.Canvas(str(path))
+    c.drawString(72, 720, text)
+    c.save()
+
+
+def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path):
+    """report_dir sorgt dafür, dass batch_compare pro erfolgreich verglichenem
+    Paar einen Einzel-Report (analog zum Einzelvergleich) flach im gewählten
+    Ausgabeverzeichnis ablegt - auch bei 0 Deltas (siehe prompt_batch_fixes.md,
+    Punkt 1)."""
+    filelist_path = FIXTURES / "TC-B-001" / "filelist.csv"
+    report_dir = tmp_path / "reports"
+    report_dir.mkdir()
+
+    result = batch_compare(filelist_path, report_dir=report_dir)
+
+    assert result.ok_count == 10
+    report_files = sorted(report_dir.glob("*.pdf"))
+    assert len(report_files) == 10
+    names = {p.name for p in report_files}
+    assert "doc_01_ref_doc_01_cnd.pdf" in names
+    assert "doc_10_ref_doc_10_cnd.pdf" in names
+
+
+def test_batch_compare_erzeugt_keinen_einzel_report_fuer_fehlerpaare(tmp_path):
+    filelist_path = FIXTURES / "TC-B-002" / "filelist.csv"
+    report_dir = tmp_path / "reports"
+    report_dir.mkdir()
+
+    result = batch_compare(filelist_path, report_dir=report_dir)
+
+    assert result.ok_count == 4
+    assert result.error_count == 1
+    report_files = sorted(report_dir.glob("*.pdf"))
+    assert len(report_files) == 4
+    assert not any("doc_03" in p.name for p in report_files)
+
+
+def test_batch_compare_haengt_zaehler_an_bei_namenskollision(tmp_path):
+    """Zwei CSV-Zeilen mit identischem Referenz-/Kandidat-Dateinamen (aber
+    unterschiedlichem Verzeichnis) dürfen sich beim Einzel-Report nicht
+    gegenseitig überschreiben (siehe prompt_batch_fixes.md, Punkt 1)."""
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    for d in (dir_a, dir_b):
+        _write_single_page_pdf(d / "ref.pdf", "Text A")
+        _write_single_page_pdf(d / "cnd.pdf", "Text A")
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(
+        f"{dir_a / 'ref.pdf'},{dir_a / 'cnd.pdf'}\n{dir_b / 'ref.pdf'},{dir_b / 'cnd.pdf'}\n",
+        encoding="utf-8",
+    )
+    report_dir = tmp_path / "reports"
+    report_dir.mkdir()
+
+    result = batch_compare(filelist_path, report_dir=report_dir)
+
+    assert result.ok_count == 2
+    report_files = sorted(p.name for p in report_dir.glob("*.pdf"))
+    assert report_files == ["ref_cnd.pdf", "ref_cnd_2.pdf"]
 
 
 def test_read_filelist_ohne_kopfzeile(tmp_path):

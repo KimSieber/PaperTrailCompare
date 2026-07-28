@@ -320,6 +320,11 @@ def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(t
     assert report_path.exists()
     assert report_path.parent == tmp_path
 
+    # Punkt 1 (prompt_batch_fixes.md): pro Paar zusätzlich ein Einzel-Report
+    # flach im selben --output-dir, nicht nur der Batch-Report.
+    individual_reports = [p for p in tmp_path.glob("*.pdf") if p != report_path]
+    assert len(individual_reports) == 10
+
 
 def test_batch_mit_fehlender_datei_wird_pro_paar_protokolliert_tc_b_002(tmp_path, capsys):
     filelist_path = FIXTURES / "TC-B-002" / "filelist.csv"

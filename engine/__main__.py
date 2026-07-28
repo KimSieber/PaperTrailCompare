@@ -117,6 +117,10 @@ def _run_batch(args: argparse.Namespace) -> int:
     emittiert je Zeile ein Tauri-Event Richtung Frontend (Live-Progress,
     siehe prompt_batch_verarbeitung.md). Die abschließende 'done'-Zeile
     trägt den Pfad des Batch-Report-PDFs (report_generator.generate_batch_report).
+
+    Pro erfolgreich verglichenem Paar entsteht zusätzlich ein Einzel-Report
+    flach in --output-dir (batch_compare(report_dir=...), siehe
+    prompt_batch_fixes.md Punkt 1) - vorher lagen dort nur der Batch-Report.
     """
     profile: Optional[Profile] = None
     if args.profile:
@@ -134,15 +138,19 @@ def _run_batch(args: argparse.Namespace) -> int:
             "pair": dataclasses.asdict(pair_result),
         }), flush=True)
 
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     start = time.perf_counter()
     try:
-        result = batch_compare(args.filelist, profile=profile, on_progress=on_progress)
+        result = batch_compare(
+            args.filelist, profile=profile, on_progress=on_progress, report_dir=output_dir,
+        )
     except OSError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     duration_seconds = time.perf_counter() - start
 
-    output_dir = Path(args.output_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     report_path = output_dir / f"Batch-Report_{timestamp}.pdf"
     generate_batch_report(result, report_path, duration_seconds=duration_seconds)
