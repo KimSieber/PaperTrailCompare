@@ -373,6 +373,87 @@ def test_tc_r_002_batch_report_uebersicht_aller_vergleiche(tmp_path):
     assert "nicht gefunden" in text  # Fehlerstatus von Paar 3
 
 
+def test_tc_r_002_batch_report_kennzahlen_kacheln_erfolgsquote_und_seiten_gesamt(tmp_path):
+    """Punkt 4 (prompt_batch_fixes.md): Kennzahlen-Kacheln im Kopfbereich
+    zeigen u.a. Erfolgsquote in % und Gesamtzahl verarbeiteter Seiten."""
+    ok_result = CompareResult(has_delta=False, deltas=[])
+    batch_result = BatchResult(pairs=[
+        PairResult(
+            ref_path="pairs/doc_01_ref.pdf", cnd_path="pairs/doc_01_cnd.pdf",
+            status="ok", compare_result=ok_result, total_pages=2,
+        ),
+        PairResult(
+            ref_path="pairs/doc_02_ref.pdf", cnd_path="pairs/doc_02_cnd.pdf",
+            status="ok", compare_result=ok_result, total_pages=3,
+        ),
+        PairResult(
+            ref_path="pairs/doc_03_ref.pdf", cnd_path="pairs/doc_03_cnd.pdf",
+            status="ok", compare_result=ok_result, total_pages=1,
+        ),
+        PairResult(
+            ref_path="pairs/doc_04_ref.pdf", cnd_path="pairs/doc_04_cnd.pdf",
+            status="error", error="Datei(en) nicht gefunden: doc_04_cnd.pdf",
+        ),
+    ])
+
+    output_path = tmp_path / "batch_report.pdf"
+    generate_batch_report(batch_result, output_path, duration_seconds=5.0)
+
+    report = fitz.open(str(output_path))
+    text = report[0].get_text()
+    report.close()
+
+    assert "4" in text  # Dateipaare gesamt
+    assert "3" in text  # Erfolgreich
+    assert "75 %" in text  # Erfolgsquote (3 von 4)
+    assert "6" in text  # Seiten gesamt (2+3+1)
+    assert "5.0 s" in text or "5,0 s" in text  # Laufzeit
+
+
+def test_tc_r_002_batch_report_zeigt_verwendetes_profil(tmp_path):
+    batch_result = BatchResult(pairs=[
+        PairResult(
+            ref_path="pairs/doc_01_ref.pdf", cnd_path="pairs/doc_01_cnd.pdf",
+            status="ok", compare_result=CompareResult(has_delta=False, deltas=[]), total_pages=1,
+        ),
+    ])
+
+    output_path = tmp_path / "batch_report.pdf"
+    generate_batch_report(
+        batch_result, output_path,
+        profile=Profile(version="2.0"), profile_path="mein_profil.json",
+    )
+
+    report = fitz.open(str(output_path))
+    text = report[0].get_text()
+    report.close()
+
+    assert "mein_profil.json" in text
+    assert "2.0" in text
+
+
+def test_tc_r_002_batch_report_fehlerpaar_zeigt_fehlertext_statt_zahlenwerten(tmp_path):
+    """Punkt 4: Fehlerpaare werden nur in der Haupttabelle markiert (Fehler-
+    hinweis statt Delta-Anzahl/Übereinstimmung), keine eigene Fehlersektion."""
+    batch_result = BatchResult(pairs=[
+        PairResult(
+            ref_path="pairs/doc_01_ref.pdf", cnd_path="pairs/doc_01_cnd.pdf",
+            status="error", error="Datei(en) nicht gefunden: doc_01_cnd.pdf",
+        ),
+    ])
+
+    output_path = tmp_path / "batch_report.pdf"
+    generate_batch_report(batch_result, output_path)
+
+    report = fitz.open(str(output_path))
+    text = "".join(page.get_text() for page in report)
+    report.close()
+
+    assert "nicht gefunden" in text
+    assert "Fehlerliste" not in text
+    assert "Fehlerdetails" not in text
+
+
 def test_tc_r_002_batch_report_lange_dateinamen_bleiben_im_satzspiegel(tmp_path):
     """Punkt 3 (prompt_batch_fixes.md): sehr lange Dateinamen werden in der
     Haupttabelle umgebrochen statt über den rechten Satzspiegel-Rand

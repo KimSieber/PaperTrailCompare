@@ -21,7 +21,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from engine import __version__
-from engine.models import BatchResult
+from engine.models import BatchResult, PairResult
 from engine.profile_loader import Profile
 from engine.text_comparator import CompareResult
 
@@ -77,16 +77,25 @@ _TILE_ACCENT_HEIGHT = 3.5
 _TILE_CORNER_RADIUS = 4
 
 
-def _build_kpi_tile(label: str, value: str, accent_color, value_color=colors.black) -> Table:
+def _build_kpi_tile(
+    label: str, value: str, accent_color, value_color=colors.black, value_font_size: int = 16
+) -> Table:
     """Baut eine einzelne Kennzahlen-Kachel: farbiger Akzentstreifen oben,
-    heller Hintergrund, dünner Rahmen, Label klein/grau + Wert groß/fett."""
+    heller Hintergrund, dünner Rahmen, Label klein/grau + Wert groß/fett.
+
+    value_font_size kleiner als der Default erlaubt eine kleinere Schrift
+    mit zweizeiligem Umbruch (größere Wertzeile) für textlastige Werte wie
+    einen Profil-Dateinamen, die in der Standardgröße nicht in die schmale
+    Kachelbreite passen würden (Punkt 4, prompt_batch_fixes.md)."""
     value_style = ParagraphStyle(
-        f"tile_value_{id(value_color)}", parent=_TILE_VALUE_STYLE, textColor=value_color
+        f"tile_value_{id(value_color)}_{value_font_size}", parent=_TILE_VALUE_STYLE,
+        textColor=value_color, fontSize=value_font_size, leading=value_font_size + 3,
     )
+    value_row_height = 20 if value_font_size >= 14 else 26
     tile = Table(
         [[""], [Paragraph(label, _TILE_LABEL_STYLE)], [Paragraph(value, value_style)]],
         colWidths=[40 * mm],
-        rowHeights=[_TILE_ACCENT_HEIGHT, 12, 20],
+        rowHeights=[_TILE_ACCENT_HEIGHT, 12, value_row_height],
         cornerRadii=[_TILE_CORNER_RADIUS] * 4,
     )
     tile.setStyle(TableStyle([
@@ -106,6 +115,77 @@ def _build_kpi_tile(label: str, value: str, accent_color, value_color=colors.bla
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     return tile
+
+
+_TILE_ROW_STYLE = TableStyle([
+    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+    ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+    ("TOPPADDING", (0, 0), (-1, -1), 0),
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ("RIGHTPADDING", (-1, 0), (-1, 0), 0),
+    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+])
+
+
+def _build_kpi_tile_row(tiles: List[Table]) -> Table:
+    """Reiht bis zu 4 Kennzahlen-Kacheln (siehe _build_kpi_tile) gleich
+    breit über die volle Satzspiegelbreite (170mm) auf - gemeinsam genutzt
+    von Einzel- und Batch-Report-Kopfbereich."""
+    tile_width = 170.0 / len(tiles) * mm
+    tile_table = Table([tiles], colWidths=[tile_width] * len(tiles))
+    tile_table.setStyle(_TILE_ROW_STYLE)
+    return tile_table
+
+
+def _build_report_header_table(title_html: str, badge_text: str, badge_fg, badge_bg) -> Table:
+    """Baut die Kopfzeile eines Reports: Logo (falls vorhanden) + Titel +
+    Status-Badge - gemeinsam genutzt von Einzel- und Batch-Report, damit
+    beide dieselbe Typografie/Farbgebung tragen (Punkt 4, prompt_batch_fixes.md)."""
+    badge_style = ParagraphStyle("badge", parent=_STYLES["Normal"], textColor=badge_fg, fontSize=9, alignment=1)
+    title_paragraph = Paragraph(title_html, _TITLE_STYLE)
+    badge_paragraph = Paragraph(badge_text, badge_style)
+
+    icon_flowable = _build_report_icon_flowable()
+    if icon_flowable is not None:
+        header_cells = [icon_flowable, title_paragraph, badge_paragraph]
+        header_col_widths = [22 * mm, 108 * mm, 40 * mm]
+        badge_col = 2
+    else:
+        header_cells = [title_paragraph, badge_paragraph]
+        header_col_widths = [130 * mm, 40 * mm]
+        badge_col = 1
+
+    header_table = Table([header_cells], colWidths=header_col_widths)
+    header_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BACKGROUND", (badge_col, 0), (badge_col, 0), badge_bg),
+        ("BOX", (badge_col, 0), (badge_col, 0), 0.5, badge_fg),
+        ("TOPPADDING", (badge_col, 0), (badge_col, 0), 6),
+        ("BOTTOMPADDING", (badge_col, 0), (badge_col, 0), 6),
+    ]))
+    return header_table
+
+
+def _build_hairline_table() -> Table:
+    """Dünne Trennlinie unter der Kopfzeile, volle Satzspiegelbreite -
+    gemeinsam genutzt von Einzel- und Batch-Report."""
+    return Table(
+        [[""]], colWidths=[170 * mm], rowHeights=[0.5],
+        style=TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.75, _COLOR_HAIRLINE)]),
+    )
+
+
+def _profile_label(profile: Optional[Profile], profile_path: Optional[Union[str, Path]]) -> str:
+    """Anzeigename des Vergleichsprofils für die Metadaten-/Kennzahlenanzeige
+    - gemeinsam genutzt von Einzel- und Batch-Report."""
+    if profile_path is not None:
+        label = Path(profile_path).name
+        if profile is not None:
+            label += f" (v{profile.version})"
+        return label
+    if profile is not None:
+        return f"v{profile.version}"
+    return "—"
 
 
 def _tool_version() -> str:
@@ -129,35 +209,6 @@ def _truncate_end(text: str, max_len: int) -> str:
     if len(text) <= max_len:
         return text
     return text[:max_len] + "…"
-
-
-def _build_summary_pdf_bytes(
-    title: str,
-    intro_lines: List[str],
-    table_data: List[List[str]],
-    col_widths: Optional[List[float]] = None,
-) -> bytes:
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=20 * mm, rightMargin=20 * mm,
-        topMargin=20 * mm, bottomMargin=20 * mm,
-    )
-    story = [Paragraph(title, _TITLE_STYLE), Spacer(1, 8)]
-    for line in intro_lines:
-        story.append(Paragraph(line, _BODY_STYLE))
-    if table_data:
-        story.append(Spacer(1, 10))
-        # repeatRows=1 wiederholt die Kopfzeile auf jeder Folgeseite, wenn
-        # die Tabelle über mehrere Seiten umbricht (splitByRow=1, Default).
-        table = Table(
-            table_data, colWidths=col_widths, hAlign="LEFT",
-            repeatRows=1 if len(table_data) > 1 else 0,
-        )
-        table.setStyle(_TABLE_STYLE)
-        story.append(table)
-    doc.build(story)
-    return buf.getvalue()
 
 
 def _build_report_icon_flowable() -> Optional[RLImage]:
@@ -210,35 +261,13 @@ def _build_summary_page_pdf_bytes(
     else:
         badge_text, badge_fg, badge_bg = "Keine Unterschiede", _COLOR_OK, _COLOR_BADGE_OK_BG
 
-    badge_style = ParagraphStyle("badge", parent=_STYLES["Normal"], textColor=badge_fg, fontSize=9, alignment=1)
-    title_paragraph = Paragraph(
+    story.append(_build_report_header_table(
         "Vergleichs-Zusammenfassung<br/><font size=9 color='#666666'>"
-        "PaperTrail Compare · Vergleichsreport</font>", _TITLE_STYLE,
-    )
-    badge_paragraph = Paragraph(badge_text, badge_style)
-
-    icon_flowable = _build_report_icon_flowable()
-    if icon_flowable is not None:
-        header_cells = [icon_flowable, title_paragraph, badge_paragraph]
-        header_col_widths = [22 * mm, 108 * mm, 40 * mm]
-        badge_col = 2
-    else:
-        header_cells = [title_paragraph, badge_paragraph]
-        header_col_widths = [130 * mm, 40 * mm]
-        badge_col = 1
-
-    header_table = Table([header_cells], colWidths=header_col_widths)
-    header_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BACKGROUND", (badge_col, 0), (badge_col, 0), badge_bg),
-        ("BOX", (badge_col, 0), (badge_col, 0), 0.5, badge_fg),
-        ("TOPPADDING", (badge_col, 0), (badge_col, 0), 6),
-        ("BOTTOMPADDING", (badge_col, 0), (badge_col, 0), 6),
-    ]))
-    story.append(header_table)
+        "PaperTrail Compare · Vergleichsreport</font>",
+        badge_text, badge_fg, badge_bg,
+    ))
     story.append(Spacer(1, 4))
-    story.append(Table([[""]], colWidths=[170 * mm], rowHeights=[0.5],
-                        style=TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.75, _COLOR_HAIRLINE)])))
+    story.append(_build_hairline_table())
     story.append(Spacer(1, 12))
 
     has_deltas = len(compare_result.deltas) > 0
@@ -254,19 +283,7 @@ def _build_summary_page_pdf_bytes(
             _COLOR_TILE_GREEN, _COLOR_TILE_VALUE_GREEN,
         ),
     ]
-    tile_row = []
-    for i, tile in enumerate(tiles):
-        tile_row.append(tile)
-    tile_table = Table([tile_row], colWidths=[42.5 * mm] * 4)
-    tile_table.setStyle(TableStyle([
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (-1, 0), (-1, 0), 0),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-    story.append(tile_table)
+    story.append(_build_kpi_tile_row(tiles))
     story.append(Spacer(1, 14))
 
     story.append(Paragraph("Seiten mit Deltas", _TILE_LABEL_STYLE))
@@ -301,14 +318,7 @@ def _build_summary_page_pdf_bytes(
     ))
     story.append(Spacer(1, 16))
 
-    if profile_path is not None:
-        profile_label = Path(profile_path).name
-        if profile is not None:
-            profile_label += f" (v{profile.version})"
-    elif profile is not None:
-        profile_label = f"v{profile.version}"
-    else:
-        profile_label = "—"
+    profile_label = _profile_label(profile, profile_path)
 
     region_count = len(profile.exclude_regions) if profile else 0
     if region_count == 0:
@@ -700,55 +710,135 @@ def generate_report(
 _BATCH_TABLE_COL_WIDTHS = [55 * mm, 55 * mm, 25 * mm, 35 * mm]
 
 
-def generate_batch_report(
-    batch_result: BatchResult,
-    output_path: Union[str, Path],
-    duration_seconds: Optional[float] = None,
-) -> Path:
-    """Erzeugt eine Batch-Übersicht (TC-R-002): Kopfbereich mit
-    Gesamtanzahl Dokumente, Laufzeit und Zeitpunkt, gefolgt von einer Zeile
-    pro Dateipaar mit Dateiname, Delta-Anzahl und Status.
+def _pair_match_percent(pair: PairResult) -> Optional[int]:
+    """Übereinstimmung in % je Paar - dieselbe Formel wie die
+    Zusammenfassungsseite des Einzel-Reports (Seiten ohne Delta / Gesamt-
+    seitenzahl) bzw. das GUI-Äquivalent in BatchView.tsx::matchPercent."""
+    if pair.status != "ok" or pair.compare_result is None or not pair.total_pages:
+        return None
+    delta_pages = {d.page for d in pair.compare_result.deltas}
+    match_ratio = (pair.total_pages - len(delta_pages)) / pair.total_pages
+    return round(match_ratio * 100)
 
-    Zellen sind Paragraph-Objekte statt reiner Strings, damit lange
-    Dateinamen/Fehlertexte innerhalb der festen Spaltenbreiten umbrechen
-    statt über den Satzspiegel hinauszulaufen (Punkt 3, prompt_batch_fixes.md);
-    _build_summary_pdf_bytes wiederholt die Kopfzeile dafür auf Folgeseiten.
-    """
-    output_path = Path(output_path)
 
+def _build_batch_table(batch_result: BatchResult) -> Table:
+    """Haupttabelle aller Paare (Referenz, Kandidat, Deltas, Übereinstimmung).
+    Fehlerpaare werden nur hier markiert (rote Zeile, Fehlertext über beide
+    Zahlenspalten hinweg statt Delta-Anzahl/Übereinstimmung) - keine eigene
+    Fehlersektion (Punkt 4, prompt_batch_fixes.md). Zellen sind Paragraph-
+    Objekte, damit lange Dateinamen/Fehlertexte innerhalb der festen
+    Spaltenbreiten umbrechen statt über den Satzspiegel hinauszulaufen
+    (Punkt 3); repeatRows=1 wiederholt die Kopfzeile auf Folgeseiten."""
     table_rows = [
-        [Paragraph(f"<b>{c}</b>", _CELL_STYLE) for c in ["Referenz", "Kandidat", "Deltas", "Status"]]
+        [Paragraph(f"<b>{c}</b>", _CELL_STYLE) for c in ["Referenz", "Kandidat", "Deltas", "Übereinstimmung"]]
     ]
-    for pair in batch_result.pairs:
+    style_commands = list(_TABLE_STYLE.getCommands())
+
+    for row_index, pair in enumerate(batch_result.pairs, start=1):
         ref_name = Path(pair.ref_path).name
         cnd_name = Path(pair.cnd_path).name
         if pair.status == "ok":
             delta_count = str(len(pair.compare_result.deltas)) if pair.compare_result else "0"
-            status_text = "OK"
+            percent = _pair_match_percent(pair)
+            match_text = f"{percent} %" if percent is not None else "—"
+            table_rows.append([
+                Paragraph(html.escape(ref_name), _CELL_STYLE),
+                Paragraph(html.escape(cnd_name), _CELL_STYLE),
+                Paragraph(delta_count, _CELL_STYLE),
+                Paragraph(match_text, _CELL_STYLE),
+            ])
         else:
-            delta_count = "-"
-            status_text = f"Fehler: {pair.error}"
-        table_rows.append([
-            Paragraph(html.escape(ref_name), _CELL_STYLE),
-            Paragraph(html.escape(cnd_name), _CELL_STYLE),
-            Paragraph(html.escape(delta_count), _CELL_STYLE),
-            Paragraph(html.escape(status_text), _CELL_STYLE),
-        ])
+            table_rows.append([
+                Paragraph(html.escape(ref_name), _CELL_STYLE),
+                Paragraph(html.escape(cnd_name), _CELL_STYLE),
+                Paragraph(html.escape(f"Fehler: {pair.error}"), _CELL_STYLE),
+                "",
+            ])
+            style_commands.append(("SPAN", (2, row_index), (3, row_index)))
+            style_commands.append(("BACKGROUND", (0, row_index), (-1, row_index), _COLOR_BADGE_DELTA_BG))
+            style_commands.append(("TEXTCOLOR", (0, row_index), (-1, row_index), _COLOR_DELTA))
 
-    intro = [
-        f"Anzahl verarbeiteter Paare: {len(batch_result.pairs)}",
-        f"Laufzeit: {duration_seconds:.2f} s" if duration_seconds is not None else "Laufzeit: —",
-        f"Zeitpunkt: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}",
-        f"Erfolgreich: {batch_result.ok_count}",
-        f"Fehler: {batch_result.error_count}",
-    ]
-
-    summary_bytes = _build_summary_pdf_bytes(
-        "PaperTrail Compare – Batch-Report", intro, table_rows,
-        col_widths=_BATCH_TABLE_COL_WIDTHS,
+    table = Table(
+        table_rows, colWidths=_BATCH_TABLE_COL_WIDTHS, hAlign="LEFT",
+        repeatRows=1 if len(table_rows) > 1 else 0,
     )
+    table.setStyle(TableStyle(style_commands))
+    return table
+
+
+def generate_batch_report(
+    batch_result: BatchResult,
+    output_path: Union[str, Path],
+    profile: Optional[Profile] = None,
+    profile_path: Optional[Union[str, Path]] = None,
+    duration_seconds: Optional[float] = None,
+) -> Path:
+    """Erzeugt den Batch-Report (TC-R-002) im Layout-Vokabular des Einzel-
+    Reports (Logo, Titel, Status-Badge, Kennzahlen-Kacheln - siehe
+    _build_report_header_table/_build_kpi_tile_row), gefolgt von der
+    Haupttabelle aller Paare (siehe _build_batch_table). Punkt 4,
+    prompt_batch_fixes.md."""
+    output_path = Path(output_path)
+
+    total = len(batch_result.pairs)
+    ok_count = batch_result.ok_count
+    error_count = batch_result.error_count
+    success_rate = (ok_count / total * 100) if total else 0.0
+    total_pages = sum(p.total_pages or 0 for p in batch_result.pairs)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=20 * mm, rightMargin=20 * mm,
+        topMargin=20 * mm, bottomMargin=20 * mm,
+    )
+    story: List = []
+
+    if error_count == 0:
+        badge_text, badge_fg, badge_bg = "Alle Paare OK", _COLOR_OK, _COLOR_BADGE_OK_BG
+    else:
+        badge_text, badge_fg, badge_bg = f"{error_count} Fehler", _COLOR_DELTA, _COLOR_BADGE_DELTA_BG
+
+    story.append(_build_report_header_table(
+        "Batch-Zusammenfassung<br/><font size=9 color='#666666'>"
+        "PaperTrail Compare · Batch-Report</font>",
+        badge_text, badge_fg, badge_bg,
+    ))
+    story.append(Spacer(1, 4))
+    story.append(_build_hairline_table())
+    story.append(Spacer(1, 12))
+
+    rate_accent = _COLOR_TILE_GREEN if error_count == 0 else _COLOR_TILE_ORANGE
+    rate_value_color = _COLOR_TILE_VALUE_GREEN if error_count == 0 else _COLOR_TILE_VALUE_ORANGE
+    error_accent = _COLOR_TILE_ORANGE if error_count else _COLOR_TILE_GREEN
+    error_value_color = _COLOR_TILE_VALUE_ORANGE if error_count else _COLOR_TILE_VALUE_GREEN
+
+    story.append(_build_kpi_tile_row([
+        _build_kpi_tile("Dateipaare gesamt", str(total), _COLOR_TILE_NEUTRAL),
+        _build_kpi_tile("Erfolgreich", str(ok_count), _COLOR_TILE_GREEN, _COLOR_TILE_VALUE_GREEN),
+        _build_kpi_tile("Fehler", str(error_count), error_accent, error_value_color),
+        _build_kpi_tile("Erfolgsquote", f"{success_rate:.0f} %", rate_accent, rate_value_color),
+    ]))
+    story.append(Spacer(1, 8))
+    story.append(_build_kpi_tile_row([
+        _build_kpi_tile("Seiten gesamt", str(total_pages), _COLOR_TILE_NEUTRAL),
+        _build_kpi_tile(
+            "Laufzeit", f"{duration_seconds:.1f} s" if duration_seconds is not None else "—",
+            _COLOR_TILE_NEUTRAL,
+        ),
+        _build_kpi_tile("Zeitpunkt", datetime.now().strftime("%d.%m.%Y %H:%M"), _COLOR_TILE_NEUTRAL),
+        _build_kpi_tile(
+            "Profil", _profile_label(profile, profile_path), _COLOR_TILE_NEUTRAL,
+            value_font_size=10,
+        ),
+    ]))
+    story.append(Spacer(1, 16))
+
+    story.append(_build_batch_table(batch_result))
+
+    doc.build(story)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_bytes(summary_bytes)
+    output_path.write_bytes(buf.getvalue())
 
     return output_path

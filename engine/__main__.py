@@ -153,7 +153,10 @@ def _run_batch(args: argparse.Namespace) -> int:
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     report_path = output_dir / f"Batch-Report_{timestamp}.pdf"
-    generate_batch_report(result, report_path, duration_seconds=duration_seconds)
+    generate_batch_report(
+        result, report_path, profile=profile, profile_path=args.profile,
+        duration_seconds=duration_seconds,
+    )
 
     print(json.dumps({
         "type": "done",
