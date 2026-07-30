@@ -43,7 +43,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
 
       # macOS: Tesseract + Sprachmodell (deu) + dylibbundler für die
       # Relozierung der Homebrew-Abhängigkeiten (siehe
@@ -60,6 +60,83 @@ jobs:
       - name: Install Tesseract (Windows)
         if: runner.os == 'Windows'
         run: choco install tesseract --version=5.3.3.20231005 -y
+
+      # Rein diagnostisch (siehe docs/windows-build-readiness.md, Risiken
+      # 1+2): erfasst das tatsächliche choco-Tesseract-Layout, BEVOR der
+      # Build laufen kann - damit diese Daten auch dann im Log stehen, wenn
+      # der spätere Sidecar-Build wegen genau dieser Annahmen fehlschlägt.
+      # continue-on-error, weil ein Diagnose-Schritt den Build nicht rot
+      # machen soll, egal was er vorfindet.
+      - name: Diagnose Tesseract layout
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Write-Host "=== (a) tesseract --version ==="
+          tesseract --version
+          Write-Host ""
+          Write-Host "=== (a) tesseract --list-langs ==="
+          tesseract --list-langs
+
+          Write-Host ""
+          Write-Host "=== (b) where.exe tesseract ==="
+          $hits = @((where.exe tesseract) -split "`r?`n" | Where-Object { $_ })
+          $hits | ForEach-Object { Write-Host $_ }
+
+          Write-Host ""
+          Write-Host "=== (c) Shim vs. real binary per hit ==="
+          Write-Host "Hinweis: ein Chocolatey-Shim ist KEIN Symlink - Path.resolve() in Python"
+          Write-Host "(siehe packaging/build_sidecar.py:_find_tessdata_deu) loest ihn NICHT auf."
+          foreach ($hit in $hits) {
+            Write-Host "-- $hit --"
+            $shimFile = "$hit.shim"
+            if (Test-Path $shimFile) {
+              Write-Host "  -> Chocolatey-Shim (Begleitdatei gefunden: $shimFile)"
+              Write-Host "  Shim-Inhalt (enthaelt den echten Zielpfad):"
+              Get-Content $shimFile | ForEach-Object { Write-Host "    $_" }
+            } else {
+              Write-Host "  -> Keine .shim-Begleitdatei - vermutlich echte Binary."
+              Write-Host "  Groesse: $((Get-Item $hit -ErrorAction SilentlyContinue).Length) Bytes"
+            }
+          }
+
+          Write-Host ""
+          Write-Host "=== (d) Rekursives Listing (max. Tiefe 3) der Tesseract-Installationswurzel ==="
+          foreach ($root in @("C:\Program Files\Tesseract-OCR", "C:\ProgramData\chocolatey\lib\tesseract")) {
+            if (Test-Path $root) {
+              Write-Host "-- $root --"
+              Get-ChildItem -Path $root -Recurse -Depth 3 |
+                ForEach-Object { Write-Host "  $($_.FullName.Substring($root.Length + 1))" }
+            } else {
+              Write-Host "-- $root -- (existiert nicht)"
+            }
+          }
+
+          Write-Host ""
+          Write-Host "=== (e) Suche nach *.traineddata (insb. deu.traineddata) ==="
+          $found = $false
+          foreach ($root in @("C:\Program Files\Tesseract-OCR", "C:\ProgramData\chocolatey\lib\tesseract")) {
+            if (Test-Path $root) {
+              Get-ChildItem -Path $root -Recurse -Filter "*.traineddata" -ErrorAction SilentlyContinue |
+                ForEach-Object {
+                  Write-Host "  gefunden: $($_.FullName)"
+                  if ($_.Name -eq "deu.traineddata") { $found = $true }
+                }
+            }
+          }
+          if ($found) {
+            Write-Host "deu.traineddata: GEFUNDEN (siehe Pfad(e) oben)"
+          } else {
+            Write-Host "deu.traineddata: NICHT GEFUNDEN unter den durchsuchten Wurzeln"
+          }
+
+          Write-Host ""
+          Write-Host "=== (f) TESSDATA_PREFIX ==="
+          if ($env:TESSDATA_PREFIX) {
+            Write-Host "TESSDATA_PREFIX=$env:TESSDATA_PREFIX"
+          } else {
+            Write-Host "TESSDATA_PREFIX ist nicht gesetzt."
+          }
 
       - name: Install Python build dependencies
         run: |
@@ -85,4 +162,4 @@ jobs:
             src-tauri/target/release/bundle/**/*.dmg
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.exe
-          if-no-files-found: warn
+          if-no-files-found: error
