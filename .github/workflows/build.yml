@@ -57,9 +57,58 @@ jobs:
       # zusätzlich deu.traineddata von
       # https://github.com/tesseract-ocr/tessdata herunterladen und ins
       # tessdata-Verzeichnis der Installation legen.
+      #
+      # choco schreibt sein Installationsverzeichnis zwar in den
+      # Maschinen-PATH, aber ein GitHub-Actions-Job liest die Umgebung nur
+      # einmal zu Job-Start ein - PATH-Änderungen, die WÄHREND des Jobs
+      # passieren, sieht kein späterer Step (siehe Fund aus dem ersten
+      # Windows-Lauf: TesseractNotFoundError im pytest-Step trotz
+      # erfolgreicher choco-Installation). Deshalb hier explizit prüfen, wo
+      # tesseract.exe tatsächlich gelandet ist, und das Verzeichnis über
+      # GITHUB_PATH an alle nachfolgenden Steps weiterreichen.
       - name: Install Tesseract (Windows)
         if: runner.os == 'Windows'
-        run: choco install tesseract --version=5.3.3.20231005 -y
+        shell: pwsh
+        run: |
+          # 'Continue' statt des pwsh-Defaults 'Stop': choco kann mit
+          # Exit-Code 3010 (Neustart ausstehend) enden, was pwsh sonst -
+          # abhängig von $PSNativeCommandUseErrorActionPreference - als
+          # terminierenden Fehler werten und die eigene Exit-Code-Prüfung
+          # unten nie erreichen lassen würde (dieselbe Fehlerklasse wie im
+          # Diagnose-Step, siehe dort).
+          $ErrorActionPreference = 'Continue'
+
+          choco install tesseract --version=5.3.3.20231005 -y
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0 -and $exitCode -ne 3010) {
+            Write-Error "choco install tesseract fehlgeschlagen (Exit-Code $exitCode)."
+            exit 1
+          }
+          Write-Host "choco install tesseract erfolgreich (Exit-Code $exitCode, 3010 = Neustart ausstehend)."
+
+          $candidates = @(
+            "C:\Program Files\Tesseract-OCR",
+            "C:\ProgramData\chocolatey\lib\tesseract",
+            "C:\ProgramData\chocolatey\bin"
+          )
+          foreach ($c in $candidates) {
+            if (Test-Path $c) {
+              Write-Host "Kandidat vorhanden: $c"
+            } else {
+              Write-Host "Kandidat nicht vorhanden: $c"
+            }
+          }
+
+          $tesseractExe = Get-ChildItem -Path $candidates -Recurse -Filter "tesseract.exe" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $tesseractExe) {
+            Write-Error "tesseract.exe wurde in keinem der bekannten Installationsverzeichnisse gefunden."
+            exit 1
+          }
+          $tesseractDir = $tesseractExe.DirectoryName
+          Write-Host "tesseract.exe gefunden unter: $($tesseractExe.FullName)"
+          Write-Host "Fuege PATH fuer nachfolgende Steps hinzu: $tesseractDir"
+          Add-Content -Path $env:GITHUB_PATH -Value $tesseractDir
 
       # Rein diagnostisch (siehe docs/windows-build-readiness.md, Risiken
       # 1+2): erfasst das tatsächliche choco-Tesseract-Layout, BEVOR der
@@ -72,16 +121,48 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
+          # $ErrorActionPreference = 'Stop' ist pwsh-Default unter GitHub
+          # Actions - eine einzelne fehlschlagende/fehlende Binary hätte
+          # sonst das gesamte Diagnose-Skript abgebrochen (siehe Fund aus
+          # dem ersten Windows-Lauf: "tesseract --version" schlug mit
+          # CommandNotFoundException fehl, Abschnitte (b)-(f) liefen nie).
+          # 'Continue' allein reicht nicht für CommandNotFoundException
+          # (die wird unabhängig von $ErrorActionPreference als
+          # Engine-Exception geworfen) - deshalb zusätzlich jeden nativen
+          # Aufruf einzeln in try/catch kapseln. continue-on-error: true
+          # bleibt als zweite Absicherung bestehen; exit 0 am Ende
+          # verhindert zusätzlich, dass ein von der letzten nativen
+          # Anweisung übrig gebliebener nicht-null $LASTEXITCODE den Step
+          # fehlschlagen lässt.
+          $ErrorActionPreference = 'Continue'
+
           Write-Host "=== (a) tesseract --version ==="
-          tesseract --version
+          try {
+            tesseract --version
+          } catch {
+            Write-Host "tesseract --version fehlgeschlagen: $_"
+          }
           Write-Host ""
           Write-Host "=== (a) tesseract --list-langs ==="
-          tesseract --list-langs
+          try {
+            tesseract --list-langs
+          } catch {
+            Write-Host "tesseract --list-langs fehlgeschlagen: $_"
+          }
 
           Write-Host ""
           Write-Host "=== (b) where.exe tesseract ==="
-          $hits = @((where.exe tesseract) -split "`r?`n" | Where-Object { $_ })
-          $hits | ForEach-Object { Write-Host $_ }
+          $hits = @()
+          try {
+            $hits = @((where.exe tesseract) -split "`r?`n" | Where-Object { $_ })
+          } catch {
+            Write-Host "where.exe tesseract fehlgeschlagen: $_"
+          }
+          if ($hits.Count -eq 0) {
+            Write-Host "Keine Treffer fuer 'tesseract' im PATH."
+          } else {
+            $hits | ForEach-Object { Write-Host $_ }
+          }
 
           Write-Host ""
           Write-Host "=== (c) Shim vs. real binary per hit ==="
@@ -137,6 +218,8 @@ jobs:
           } else {
             Write-Host "TESSDATA_PREFIX ist nicht gesetzt."
           }
+
+          exit 0
 
       - name: Install Python build dependencies
         run: |
