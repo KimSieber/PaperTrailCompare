@@ -291,12 +291,12 @@ def test_compare_ruft_compare_mit_profile_compare_mode_auf(tmp_path, capsys, mon
     assert seen_modes == ["chars"]
 
 
-def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(tmp_path, capsys):
+def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(tmp_path, capsys, local_filelist):
     """`batch` streamt pro verarbeitetem Paar sofort eine JSON-Zeile auf
     stdout (Grundlage für Live-Progress-Events der Tauri-Shell, siehe
     prompt_batch_verarbeitung.md), gefolgt von einer abschließenden
     'done'-Zeile mit Batch-Report-Pfad."""
-    filelist_path = FIXTURES / "TC-B-001" / "filelist.csv"
+    filelist_path = local_filelist("TC-B-001", 10)
 
     exit_code = main(["batch", str(filelist_path), "--output-dir", str(tmp_path)])
 
@@ -326,8 +326,8 @@ def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(t
     assert len(individual_reports) == 10
 
 
-def test_batch_mit_fehlender_datei_wird_pro_paar_protokolliert_tc_b_002(tmp_path, capsys):
-    filelist_path = FIXTURES / "TC-B-002" / "filelist.csv"
+def test_batch_mit_fehlender_datei_wird_pro_paar_protokolliert_tc_b_002(tmp_path, capsys, local_filelist):
+    filelist_path = local_filelist("TC-B-002", 5)
 
     exit_code = main(["batch", str(filelist_path), "--output-dir", str(tmp_path)])
 

@@ -27,12 +27,12 @@ def _write_single_page_pdf(path: Path, text: str) -> None:
     c.save()
 
 
-def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path):
+def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path, local_filelist):
     """report_dir sorgt dafür, dass batch_compare pro erfolgreich verglichenem
     Paar einen Einzel-Report (analog zum Einzelvergleich) flach im gewählten
     Ausgabeverzeichnis ablegt - auch bei 0 Deltas (siehe prompt_batch_fixes.md,
     Punkt 1)."""
-    filelist_path = FIXTURES / "TC-B-001" / "filelist.csv"
+    filelist_path = local_filelist("TC-B-001", 10)
     report_dir = tmp_path / "reports"
     report_dir.mkdir()
 
@@ -46,8 +46,8 @@ def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path)
     assert "doc_10_ref_doc_10_cnd.pdf" in names
 
 
-def test_batch_compare_erzeugt_keinen_einzel_report_fuer_fehlerpaare(tmp_path):
-    filelist_path = FIXTURES / "TC-B-002" / "filelist.csv"
+def test_batch_compare_erzeugt_keinen_einzel_report_fuer_fehlerpaare(tmp_path, local_filelist):
+    filelist_path = local_filelist("TC-B-002", 5)
     report_dir = tmp_path / "reports"
     report_dir.mkdir()
 
@@ -104,7 +104,7 @@ def test_read_filelist_ohne_kopfzeile(tmp_path):
     ]
 
 
-def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf():
+def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf(local_filelist):
     """on_progress(index, total, pair_result) wird nach jedem verarbeiteten
     Paar aufgerufen - Grundlage für Live-Progress-Events Richtung GUI
     (siehe prompt_batch_verarbeitung.md)."""
@@ -113,7 +113,7 @@ def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf():
     def on_progress(index, total, pair_result):
         calls.append((index, total, pair_result))
 
-    result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv", on_progress=on_progress)
+    result = batch_compare(local_filelist("TC-B-001", 10), on_progress=on_progress)
 
     assert len(calls) == 10
     assert [c[0] for c in calls] == list(range(1, 11))
@@ -121,18 +121,18 @@ def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf():
     assert [c[2] for c in calls] == result.pairs
 
 
-def test_batch_compare_liefert_total_pages_pro_paar_fuer_uebereinstimmungs_prozent():
+def test_batch_compare_liefert_total_pages_pro_paar_fuer_uebereinstimmungs_prozent(local_filelist):
     """total_pages (max. Seitenzahl von Referenz/Kandidat) ist Grundlage für
     die Übereinstimmungs-Prozentanzeige je Zeile in der Batch-GUI (siehe
     prompt_batch_verarbeitung.md)."""
-    result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv")
+    result = batch_compare(local_filelist("TC-B-001", 10))
 
     for pair in result.pairs:
         assert pair.total_pages == 1
 
 
-def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet():
-    result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv")
+def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet(local_filelist):
+    result = batch_compare(local_filelist("TC-B-001", 10))
 
     assert len(result.pairs) == 10
     assert result.ok_count == 10
@@ -142,8 +142,8 @@ def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet():
         assert pair.compare_result.has_delta is False
 
 
-def test_tc_b_002_fehlende_datei_wird_protokolliert_rest_verarbeitet():
-    result = batch_compare(FIXTURES / "TC-B-002" / "filelist.csv")
+def test_tc_b_002_fehlende_datei_wird_protokolliert_rest_verarbeitet(local_filelist):
+    result = batch_compare(local_filelist("TC-B-002", 5))
 
     assert len(result.pairs) == 5
     assert result.ok_count == 4
@@ -208,8 +208,8 @@ def test_tc_b_004_batch_pdf_splitting_per_seitengruppen_pattern(tmp_path):
         assert f"Betrag: {i * 10},00 EUR" in pages[0]
 
 
-def test_tc_b_005_parallelverarbeitung_im_batch():
-    result = batch_compare(FIXTURES / "TC-B-005" / "filelist.csv", workers=4)
+def test_tc_b_005_parallelverarbeitung_im_batch(local_filelist):
+    result = batch_compare(local_filelist("TC-B-005", 100, digits=3), workers=4)
 
     assert len(result.pairs) == 100
     assert result.ok_count == 100
@@ -223,9 +223,10 @@ def test_tc_b_005_parallelverarbeitung_im_batch():
         assert pair.compare_result.has_delta is False
 
 
-def test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis():
-    sequential = batch_compare(FIXTURES / "TC-B-005" / "filelist.csv", workers=1)
-    parallel = batch_compare(FIXTURES / "TC-B-005" / "filelist.csv", workers=4)
+def test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis(local_filelist):
+    filelist_path = local_filelist("TC-B-005", 100, digits=3)
+    sequential = batch_compare(filelist_path, workers=1)
+    parallel = batch_compare(filelist_path, workers=4)
 
     assert [p.status for p in sequential.pairs] == [p.status for p in parallel.pairs]
     assert [p.ref_path for p in sequential.pairs] == [p.ref_path for p in parallel.pairs]
@@ -235,7 +236,7 @@ def test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis():
     )
 
 
-def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypatch):
+def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypatch, local_filelist):
     """Referenz- und Kandidat-Datei müssen mit ihrer jeweils eigenen role
     an extract_pages_for_profile übergeben werden - sonst würde ein
     vergessener Default den Kandidaten fälschlich mit der
@@ -250,7 +251,7 @@ def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypa
 
     monkeypatch.setattr(batch_processor_module, "extract_pages_for_profile", fake_extract)
 
-    batch_compare(FIXTURES / "TC-B-001" / "filelist.csv")
+    batch_compare(local_filelist("TC-B-001", 10))
 
     assert seen_roles
     for _, role in seen_roles:
@@ -285,7 +286,7 @@ def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path)
     assert any(delta.page == 2 for delta in pair.compare_result.deltas)
 
 
-def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch):
+def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch, local_filelist):
     """Verdrahtungstest: profile.compare_mode muss bei batch_compare an
     text_comparator.compare durchgereicht werden, nicht nur im Profil
     geladen/validiert werden."""
@@ -301,7 +302,7 @@ def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch)
     monkeypatch.setattr(batch_processor_module, "compare", spy_compare)
 
     profile = Profile(version="1.0", compare_mode="chars")
-    result = batch_compare(FIXTURES / "TC-B-001" / "filelist.csv", profile=profile)
+    result = batch_compare(local_filelist("TC-B-001", 10), profile=profile)
 
     assert result.ok_count == 10
     assert seen_modes == ["chars"] * 10

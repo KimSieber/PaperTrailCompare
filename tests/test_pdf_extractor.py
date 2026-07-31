@@ -111,9 +111,22 @@ def test_extract_pages_for_profile_mode_off_ignoriert_enabled_flag():
     assert pages[1].strip() == ""  # Seite ohne Textlayer bleibt leer ohne OCR
 
 
-def test_extract_pages_for_profile_mode_candidate_unabhaengig_von_reference():
+def test_extract_pages_for_profile_mode_candidate_unabhaengig_von_reference(monkeypatch):
     """mode_reference und mode_candidate sind unabhängig voneinander
-    einstellbar (Kernanforderung: Referenz per OCR, Kandidat nativ)."""
+    einstellbar (Kernanforderung: Referenz per OCR, Kandidat nativ).
+
+    OCR-Aufruf wird gemockt (siehe engine.ocr_extractor._ocr_page) - ein
+    Layer-1-Unit-Test darf nicht von einer installierten Tesseract-Binary
+    abhängen. "Lieferdatum" auf Seite 2 stammt hier bewusst aus dem
+    gemockten Rückgabewert, nicht aus echter Bilderkennung."""
+    import engine.ocr_extractor as ocr_extractor
+
+    monkeypatch.setattr(
+        ocr_extractor.pytesseract,
+        "image_to_string",
+        lambda image, lang=None: "Lieferdatum: 25.07.2026",
+    )
+
     profile = Profile(
         version="1.0",
         ocr=OcrConfig(mode_reference="fallback", mode_candidate="off"),

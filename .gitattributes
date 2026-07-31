@@ -1,0 +1,14 @@
+# Ohne diese Datei entscheidet Git anhand einer Heuristik (NUL-Byte in den
+# ersten 8000 Bytes), ob eine Datei binär ist. Kleine, von reportlab
+# erzeugte Test-Fixture-PDFs unterschreiten das oft - Git behandelt sie
+# dann als Text und wendet unter Windows CRLF-Konvertierung an, was die
+# PDF-Struktur zerstört (siehe Portabilitäts-Review, H2: zwei
+# page_group_detector-Tests scheiterten im Windows-CI mit
+# "PdfminerException: Unexpected EOF"). Bestehende Blobs im Repo sind davon
+# nicht betroffen - das wirkt sich erst auf zukünftige Checkouts aus.
+* text=auto eol=lf
+
+*.pdf binary
+*.png binary
+*.ico binary
+*.icns binary
