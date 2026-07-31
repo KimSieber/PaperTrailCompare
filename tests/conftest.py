@@ -5,11 +5,34 @@ Arbeitsverzeichnis, aus dem pytest aufgerufen wird - Voraussetzung dafür,
 dass die Testsuite unabhängig vom Aufrufverzeichnis läuft (siehe
 Portabilitäts-Review, H1).
 """
+import os
 from pathlib import Path
 
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
+_VENDORED_TESSDATA = Path(__file__).parent.parent / "vendor" / "tessdata"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def vendored_tessdata_prefix():
+    """Zeigt Tesseract für die gesamte Testsession auf das vendorte
+    deu.traineddata statt auf ein zufällig vorhandenes System-Sprachpaket -
+    die Tests dürfen auf jeder Maschine mit Tesseract-Binary laufen,
+    unabhängig davon, welche Sprachen dort installiert sind (z.B.
+    Windows-CI: Chocolatey liefert die Binary, aber kein deu-Sprachmodell).
+
+    TESSDATA_PREFIX zeigt hier bewusst auf den tessdata-Ordner selbst,
+    nicht dessen Elternverzeichnis - konsistent mit
+    engine.ocr_extractor._configure_bundled_tesseract, das für Tesseract 5
+    denselben Ordner setzt."""
+    previous = os.environ.get("TESSDATA_PREFIX")
+    os.environ["TESSDATA_PREFIX"] = str(_VENDORED_TESSDATA)
+    yield
+    if previous is None:
+        os.environ.pop("TESSDATA_PREFIX", None)
+    else:
+        os.environ["TESSDATA_PREFIX"] = previous
 
 
 @pytest.fixture

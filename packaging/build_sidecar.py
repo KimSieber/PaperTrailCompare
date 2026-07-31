@@ -60,7 +60,17 @@ def _find_tessdata_deu(tesseract_symlink: Path) -> Path:
     das über die aufgelöste Binary zu erraten würde in die falsche Cellar-
     Formula (tesseract statt tesseract-lang) zeigen. Der unaufgelöste
     PATH-Symlink (<prefix>/bin/tesseract) liegt dagegen zuverlässig direkt
-    unter <prefix>."""
+    unter <prefix>.
+
+    Die vendorte Kopie (vendor/tessdata/deu.traineddata) hat auf jeder
+    Plattform Vorrang vor der Systemsuche, damit der Build nicht davon
+    abhängt, was Chocolatey/Homebrew gerade mitliefern. Der Pfad wird über
+    REPO_ROOT aufgelöst, nicht über das Arbeitsverzeichnis, damit das
+    Skript unabhängig vom Aufrufort funktioniert."""
+    vendored = REPO_ROOT / "vendor" / "tessdata" / "deu.traineddata"
+    if vendored.is_file():
+        return vendored.resolve()
+
     candidates = []
     env_prefix = os.environ.get("TESSDATA_PREFIX")
     if env_prefix:
