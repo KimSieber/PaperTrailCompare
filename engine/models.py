@@ -1,3 +1,10 @@
+# file:    engine/models.py
+# purpose: Layer-neutral result data models (PairResult, BatchResult) shared
+#          by batch_processor and report_generator without cross-imports.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Schichtneutrale Ergebnis-Datenmodelle für Batch-Verarbeitung und Reporting.
 
 Analog zu text_comparator.CompareResult: reine Datenklassen ohne eigene

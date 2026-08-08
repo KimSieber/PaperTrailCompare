@@ -1,3 +1,11 @@
+# file:    tests/test_ocr_extractor.py
+# purpose: Tests TC-O-001 and TC-O-002 for engine.ocr_extractor. Covers
+#          full-page OCR, mixed-PDF fallback mode, and exclude-region masking
+#          on rasterized images.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Testfälle TC-O-001 (P1) und TC-O-002 (P2) für engine.ocr_extractor.
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 5.

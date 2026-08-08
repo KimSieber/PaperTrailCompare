@@ -1,3 +1,11 @@
+# file:    tests/test_region_filter.py
+# purpose: Tests TC-E-001 to TC-E-003 for engine.region_filter. Covers
+#          single-region exclusion, page-scoped exclusion, and multi-region
+#          scenarios with counter-proof tests.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Testfälle TC-E-001, TC-E-002 (P1) und TC-E-003 (P2) für engine.region_filter.
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 3.

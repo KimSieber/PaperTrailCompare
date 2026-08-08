@@ -1,3 +1,11 @@
+# file:    tests/test_page_group_detector.py
+# purpose: Tests TC-G-001 to TC-G-003 for engine.page_group_detector.
+#          Covers pattern-based page group identification, group filtering,
+#          and groups with differing page counts.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Testfälle TC-G-001, TC-G-002 (P1) und TC-G-003 (P2) für
 engine.page_group_detector.
 

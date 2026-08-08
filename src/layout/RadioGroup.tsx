@@ -1,3 +1,12 @@
+/**
+ * @file    src/layout/RadioGroup.tsx
+ * @purpose Reusable radio button group component for settings with more
+ *          than two options (e.g. compare mode selection).
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 interface RadioOption<T extends string> {
   value: T;
   label: string;

@@ -1,3 +1,12 @@
+/**
+ * @file    src/layout/MainPanel.tsx
+ * @purpose Reusable main content panel wrapper with title and description
+ *          heading for all views.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import type { ReactNode } from "react";
 
 interface MainPanelProps {

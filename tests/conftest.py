@@ -1,3 +1,11 @@
+# file:    tests/conftest.py
+# purpose: Shared pytest fixtures: FIXTURES path resolution, vendored
+#          Tesseract language data setup, and local_filelist helper for
+#          platform-independent CSV file list generation.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Gemeinsame Test-Hilfsmittel für tests/.
 
 FIXTURES löst relativ zum Speicherort dieser Datei auf, nicht relativ zum

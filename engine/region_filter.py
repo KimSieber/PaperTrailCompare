@@ -1,3 +1,11 @@
+# file:    engine/region_filter.py
+# purpose: Coordinate-based exclusion of page regions from comparison.
+#          Re-exports Region from pdf_extractor and provides a standalone
+#          extraction function with region filtering (TC-E-001 ff.).
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Koordinatenbasierter Ausschluss definierter Seitenbereiche vom Vergleich.
 
 Regionen werden in PyMuPDF-Koordinaten angegeben (Ursprung oben links, y

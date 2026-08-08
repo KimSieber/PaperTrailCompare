@@ -1,3 +1,11 @@
+# file:    engine/report_generator.py
+# purpose: Generates single-comparison and batch PDF/HTML reports with
+#          delta highlighting, side-by-side page views, KPI tiles, and
+#          detail tables. Uses PyMuPDF for marking and ReportLab for layout.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Erzeugt Delta-markierte Einzel-Reports und Batch-Übersichts-Reports.
 
 Primäres Format: PDF (Architekturentscheidung #4). Markierung der Delta-

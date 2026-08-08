@@ -1,3 +1,13 @@
+/**
+ * @file    src/hooks/useDragDropTarget.ts
+ * @purpose Custom React hook for Tauri-native drag-and-drop file handling.
+ *          Uses self-calibrating Y-offset detection to map drop coordinates
+ *          to the correct target element.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import { useEffect, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 

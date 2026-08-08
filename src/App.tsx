@@ -1,3 +1,12 @@
+/**
+ * @file    src/App.tsx
+ * @purpose Root component with sidebar navigation and view switching
+ *          (single comparison, batch, settings).
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import { useState } from "react";
 import { Sidebar } from "./layout/Sidebar";
 import { SingleComparisonView } from "./views/SingleComparisonView";

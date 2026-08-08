@@ -1,3 +1,12 @@
+/**
+ * @file    src/layout/Toggle.tsx
+ * @purpose Reusable toggle switch component for boolean settings (e.g.
+ *          whitespace tolerance on/off).
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 interface ToggleProps {
   label: string;
   description?: string;

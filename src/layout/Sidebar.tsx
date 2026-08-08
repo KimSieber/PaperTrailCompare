@@ -1,3 +1,12 @@
+/**
+ * @file    src/layout/Sidebar.tsx
+ * @purpose Navigation sidebar with view selection buttons (single, batch,
+ *          settings) and active-state highlighting.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import type { ReactElement } from "react";
 import type { ViewKey } from "../types";
 import { CompareIcon, QueueIcon, SettingsIcon } from "./icons";

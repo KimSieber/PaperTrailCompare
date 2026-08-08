@@ -1,3 +1,10 @@
+# file:    engine/__init__.py
+# purpose: Package marker and single source of truth for the engine version
+#          string (__version__), used by CLI --version and report metadata.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Python Core Engine (siehe CLAUDE.md, Abschnitt 4).
 
 __version__ ist die einzige Quelle für die Tool-Version - fest im

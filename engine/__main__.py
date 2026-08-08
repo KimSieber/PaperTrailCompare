@@ -1,3 +1,11 @@
+# file:    engine/__main__.py
+# purpose: CLI entry point for the Python Core Engine sidecar process.
+#          Provides the "compare" and "batch" subcommands invoked by the
+#          Tauri shell via local IPC (no network socket).
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """CLI-Einstiegspunkt der Python Core Engine.
 
 Wird von der Tauri-Shell als Sidecar-Prozess gestartet (lokales IPC über

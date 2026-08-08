@@ -1,3 +1,11 @@
+# file:    tests/test_main.py
+# purpose: Tests for the CLI entry point engine/__main__.py. Verifies JSON
+#          output, exit codes, profile handling, role-based extraction, and
+#          end-to-end exclude-region wiring.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+# 
 """Testfälle für den `compare`-Unterbefehl des CLI-Einstiegspunkts engine/__main__.py.
 
 Der Sidecar-Prozess (Architekturentscheidung #1) wird von der Tauri-Shell über

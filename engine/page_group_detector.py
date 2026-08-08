@@ -1,3 +1,11 @@
+# file:    engine/page_group_detector.py
+# purpose: Detects document boundaries within a batch PDF using regex
+#          patterns on the first line of each page. Used by batch_processor
+#          for PDF splitting (TC-B-004, TC-G-001 ff.).
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+# 
 """Erkennt Seitengruppen (einzelne Dokumente) innerhalb eines Batch-PDFs
 anhand von Such-Patterns – z.B. um Rechnungen/Mahnungen in einer großen
 Sammel-PDF-Datei voneinander abzugrenzen.

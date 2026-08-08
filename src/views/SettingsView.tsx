@@ -1,3 +1,13 @@
+/**
+ * @file    src/views/SettingsView.tsx
+ * @purpose Settings view for comparison profiles (whitespace tolerance,
+ *          compare mode), engine sidecar health check, and future profile
+ *          management UI.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MainPanel } from "../layout/MainPanel";

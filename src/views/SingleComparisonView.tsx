@@ -1,3 +1,13 @@
+/**
+ * @file    src/views/SingleComparisonView.tsx
+ * @purpose Single document comparison view. Provides drag-and-drop file
+ *          selection for reference/candidate PDFs and displays comparison
+ *          results with delta details and report links.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";

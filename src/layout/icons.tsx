@@ -1,4 +1,12 @@
 /**
+ * @file    src/layout/icons.tsx
+ * @purpose SVG icon components used in the sidebar and throughout the UI.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
+/**
  * Handgezeichnete, minimale Icon-Set (kein Icon-Package als zusätzliche
  * Abhängigkeit) – bewusst reduziert für den seriösen B2B-Look.
  */

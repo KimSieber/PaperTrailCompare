@@ -1,3 +1,13 @@
+/**
+ * @file    src/views/BatchView.tsx
+ * @purpose Batch comparison view. Manages CSV file list selection, live
+ *          progress display via Tauri events, and batch result summary
+ *          with per-pair status and report access.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";

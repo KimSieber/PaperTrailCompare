@@ -1,3 +1,11 @@
+# file:    engine/batch_processor.py
+# purpose: Batch comparison of PDF document pairs from a CSV file list,
+#          XMP-based pairing, or page-group-based splitting of large PDFs.
+#          Generates per-pair reports and aggregated batch results.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Massenvergleich von Dokumentenpaaren: per Dateiliste (CSV) oder per
 XMP-Metadaten (Document-ID).
 

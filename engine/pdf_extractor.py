@@ -1,3 +1,11 @@
+# file:    engine/pdf_extractor.py
+# purpose: PDF text extraction with column-aware sorting, table linearization
+#          (pdfplumber), spacewidth calibration for Type3 fonts, and exclude-
+#          region filtering. Central extraction entry point for all compare paths.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """PDF-Textextraktion: liefert pro Seite einen normalisierten Text-String,
 passend als Eingabe für engine.text_comparator.compare().
 
