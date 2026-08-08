@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+/**
+ * @file    packaging/prepare_sidecar.mjs
+ * @purpose Generates the dev-mode sidecar wrapper shell script that calls
+ *          the local Python interpreter instead of a PyInstaller binary.
+ *          Development-only; replaced by the real build for distribution.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 // Einziger Einstiegspunkt, über den tauri.conf.json den Sidecar-Slot
 // (src-tauri/binaries/papertrail-engine-<target-triple>) befüllt - für
 // Dev UND Release, damit nie wieder manuell zwischen Dev-Wrapper und

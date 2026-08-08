@@ -1,3 +1,11 @@
+# file:    engine/ocr_extractor.py
+# purpose: OCR text extraction via Tesseract (pytesseract). Supports full-
+#          page OCR, fallback mode (OCR only for pages without native text),
+#          and exclude-region masking on rasterized page images.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """OCR-Texterkennung für gescannte bzw. als Grafik hinterlegte PDF-Seiten.
 
 Rasterisiert jede Seite via PyMuPDF und erkennt den Text via Tesseract 5

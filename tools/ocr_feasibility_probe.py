@@ -1,3 +1,11 @@
+# file:    tools/ocr_feasibility_probe.py
+# purpose: Feasibility probe comparing native text extraction against
+#          Tesseract OCR output on individual PDF pages to evaluate OCR
+#          quality for specific document types.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Machbarkeitsnachweis: OCR (Tesseract/deu) vs. native Textextraktion
 auf der Type3-ohne-ToUnicode Referenzdatei aus TC_REAL.
 

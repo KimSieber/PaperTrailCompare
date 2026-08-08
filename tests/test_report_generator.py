@@ -1,3 +1,11 @@
+# file:    tests/test_report_generator.py
+# purpose: Integration tests TC-R-001 to TC-R-005 for engine.report_generator.
+#          Covers delta marking, batch reports, no-delta reports, HTML format,
+#          rotated pages, and edge cases.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Testfälle TC-R-001, TC-R-002 (P1) und TC-R-003, TC-R-004 (P2) für
 engine.report_generator.
 

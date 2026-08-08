@@ -1,3 +1,12 @@
+/**
+ * @file    vite.config.ts
+ * @purpose Vite build configuration for the React/TypeScript frontend,
+ *          including the Tauri and Tailwind CSS plugins.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";

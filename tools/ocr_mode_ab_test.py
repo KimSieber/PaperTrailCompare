@@ -1,3 +1,10 @@
+# file:    tools/ocr_mode_ab_test.py
+# purpose: A/B test comparing delta counts between different OCR mode
+#          configurations (off/fallback/force) on real document pairs.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Entscheidungsmessung: native Extraktion vs. OCR-Force für Referenz/
 Kandidat auf den TC_REAL-Dateien, mit dem neuen ocr.mode_reference/
 mode_candidate.

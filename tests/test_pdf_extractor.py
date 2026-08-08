@@ -1,3 +1,11 @@
+# file:    tests/test_pdf_extractor.py
+# purpose: Tests for engine.pdf_extractor including TC-X-001/002 (native
+#          extraction), TC-T-007/008 (columns, tables), spacewidth
+#          calibration, and exclude-region integration.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Testfälle für engine.pdf_extractor.
 
 TC-X-001/002: eigene P1-Basistests für native Textextraktion – die

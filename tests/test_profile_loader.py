@@ -1,3 +1,11 @@
+# file:    tests/test_profile_loader.py
+# purpose: Tests TC-P-001 to TC-P-003 for engine.profile_loader. Covers
+#          valid profile loading, validation error paths, CLI overrides,
+#          OCR mode settings, and compare_mode handling.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """P1-Testfälle TC-P-001 und TC-P-002 für engine.profile_loader.
 
 Quelle: doc/PaperTrailCompare_Testspezifikation.docx, Abschnitt 6.

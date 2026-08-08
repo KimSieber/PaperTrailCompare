@@ -1,3 +1,11 @@
+# file:    tests/test_privacy_compliance.py
+# purpose: Automated compliance tests TC-S-001 (no network access during
+#          processing) and TC-S-002 (no leftover temporary files). TC-S-003
+#          is a manual test documented in docs/manual-tests.md.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Automatisierte Datenschutz-/Compliance-Testfälle TC-S-001 und TC-S-002.
 
 TC-S-003 (Standalone-Betrieb ohne Serverinstallation) ist laut

@@ -1,3 +1,11 @@
+// file:    src-tauri/src/lib.rs
+// purpose: Tauri command handlers for the desktop shell: document comparison,
+//          batch processing, settings persistence, and sidecar process
+//          management. All GUI-to-engine communication flows through here.
+// author:  Kim Sieber
+// created: YYYY-MM-DD
+// changed: 2026-08-09
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};

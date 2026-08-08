@@ -1,3 +1,11 @@
+# file:    tests/test_batch_processor.py
+# purpose: Integration tests TC-B-001 to TC-B-005 for engine.batch_processor.
+#          Covers file-list batch, error handling, XMP pairing, PDF splitting,
+#          and parallel processing.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Testfälle TC-B-001 bis TC-B-003 (P1) und TC-B-004, TC-B-005 (P2) für
 engine.batch_processor.
 

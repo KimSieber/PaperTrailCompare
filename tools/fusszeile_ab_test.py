@@ -1,3 +1,18 @@
+# file:    tools/ocr_feasibility_probe.py
+# purpose: Feasibility probe comparing native text extraction against
+#          Tesseract OCR output on individual PDF pages to evaluate OCR
+#          quality for specific document types.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
+# file:    tools/fusszeile_ab_test.py
+# purpose: Diagnostic script for analyzing footer text block positions
+#          across multiple PDF pages to determine exclude-region coordinates.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Vergleich Lauf 1 (nur normalize_whitespace) vs. Lauf 2 (mit
 Fusszeilen-/Randmarken-Ausschluss profiles/test_fusszeile.json) auf den
 TC_REAL-Dateien.

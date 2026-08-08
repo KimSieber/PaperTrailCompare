@@ -1,3 +1,11 @@
+# file:    tools/diag_deltas.py
+# purpose: Diagnostic tool for inspecting PDF extraction details: delta
+#          analysis, rawdict inspection, font encoding checks, spacewidth
+#          calibration reports, and TEXT_INHIBIT_SPACES cross-checks.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Diagnose-Skript für das Fußzeilen-Delta-Ticket (Leerzeichen-Toleranz).
 
 NUR zur Analyse auf einem realen Dateipaar beim Kunden - liest ausschließlich

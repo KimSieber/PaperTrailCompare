@@ -1,3 +1,11 @@
+# file:    tests/generate_fixtures.py
+# purpose: Generates all synthetic test fixture PDFs (via reportlab) for the
+#          test suite. Fixtures are living specifications — never use real
+#          customer documents as test data.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """
 PaperTrail Compare – Fixture Generator
 =======================================

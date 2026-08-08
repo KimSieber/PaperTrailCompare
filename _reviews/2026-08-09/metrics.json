@@ -1,0 +1,2337 @@
+{
+  "meta": {
+    "generated": "2026-08-09",
+    "scope": "/Users/kim/Dropbox/Dev/GitHub/PaperTrailCompare",
+    "generator": "review_metrics.py 0.1",
+    "instruction_version": "1.0"
+  },
+  "totals": {
+    "files": 47,
+    "loc": 6166,
+    "kloc": 6.166,
+    "physical_lines": 9533,
+    "functions": 355,
+    "types": 30,
+    "constants": 34,
+    "declarations": 419
+  },
+  "by_language": {
+    "python": {
+      "files": 29,
+      "loc": 5195,
+      "functions": 303
+    },
+    "javascript": {
+      "files": 1,
+      "loc": 37,
+      "functions": 4
+    },
+    "typescript": {
+      "files": 17,
+      "loc": 934,
+      "functions": 48
+    }
+  },
+  "files": [
+    {
+      "file": "conftest.py",
+      "language": "python",
+      "loc": 0,
+      "functions": 0,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "none"
+      }
+    },
+    {
+      "file": "engine/__init__.py",
+      "language": "python",
+      "loc": 1,
+      "functions": 0,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/__main__.py",
+      "language": "python",
+      "loc": 164,
+      "functions": 4,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "language": "python",
+      "loc": 166,
+      "functions": 9,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/models.py",
+      "language": "python",
+      "loc": 21,
+      "functions": 2,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/ocr_extractor.py",
+      "language": "python",
+      "loc": 85,
+      "functions": 5,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/page_group_detector.py",
+      "language": "python",
+      "loc": 36,
+      "functions": 2,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "language": "python",
+      "loc": 301,
+      "functions": 21,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/profile_loader.py",
+      "language": "python",
+      "loc": 130,
+      "functions": 2,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/region_filter.py",
+      "language": "python",
+      "loc": 31,
+      "functions": 2,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/report_generator.py",
+      "language": "python",
+      "loc": 566,
+      "functions": 18,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "language": "python",
+      "loc": 203,
+      "functions": 11,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "language": "python",
+      "loc": 158,
+      "functions": 9,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "packaging/prepare_sidecar.mjs",
+      "language": "javascript",
+      "loc": 37,
+      "functions": 4,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/App.tsx",
+      "language": "typescript",
+      "loc": 18,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/components/FilePickerRow.tsx",
+      "language": "typescript",
+      "loc": 44,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/components/MiddleTruncate.tsx",
+      "language": "typescript",
+      "loc": 16,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "language": "typescript",
+      "loc": 90,
+      "functions": 12,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/layout/MainPanel.tsx",
+      "language": "typescript",
+      "loc": 17,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/layout/PlaceholderPanel.tsx",
+      "language": "typescript",
+      "loc": 10,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/layout/RadioGroup.tsx",
+      "language": "typescript",
+      "loc": 56,
+      "functions": 0,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/layout/Sidebar.tsx",
+      "language": "typescript",
+      "loc": 52,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/layout/Toggle.tsx",
+      "language": "typescript",
+      "loc": 33,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/layout/icons.tsx",
+      "language": "typescript",
+      "loc": 40,
+      "functions": 4,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/main.tsx",
+      "language": "typescript",
+      "loc": 9,
+      "functions": 0,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/types.ts",
+      "language": "typescript",
+      "loc": 36,
+      "functions": 0,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "language": "typescript",
+      "loc": 219,
+      "functions": 13,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/views/SettingsView.tsx",
+      "language": "typescript",
+      "loc": 137,
+      "functions": 4,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "language": "typescript",
+      "loc": 134,
+      "functions": 8,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "src/vite-env.d.ts",
+      "language": "typescript",
+      "loc": 0,
+      "functions": 0,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/conftest.py",
+      "language": "python",
+      "loc": 26,
+      "functions": 3,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "language": "python",
+      "loc": 802,
+      "functions": 36,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "language": "python",
+      "loc": 184,
+      "functions": 19,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_main.py",
+      "language": "python",
+      "loc": 228,
+      "functions": 23,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_ocr_extractor.py",
+      "language": "python",
+      "loc": 60,
+      "functions": 4,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_page_group_detector.py",
+      "language": "python",
+      "loc": 38,
+      "functions": 3,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "language": "python",
+      "loc": 251,
+      "functions": 27,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_privacy_compliance.py",
+      "language": "python",
+      "loc": 37,
+      "functions": 3,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "language": "python",
+      "loc": 164,
+      "functions": 19,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_region_filter.py",
+      "language": "python",
+      "loc": 52,
+      "functions": 4,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "language": "python",
+      "loc": 338,
+      "functions": 17,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "language": "python",
+      "loc": 251,
+      "functions": 32,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "language": "python",
+      "loc": 737,
+      "functions": 22,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tools/fusszeile_ab_test.py",
+      "language": "python",
+      "loc": 45,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tools/ocr_feasibility_probe.py",
+      "language": "python",
+      "loc": 77,
+      "functions": 4,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "tools/ocr_mode_ab_test.py",
+      "language": "python",
+      "loc": 43,
+      "functions": 1,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    },
+    {
+      "file": "vite.config.ts",
+      "language": "typescript",
+      "loc": 23,
+      "functions": 0,
+      "encoding": {
+        "has_bom": false,
+        "utf8_valid": true,
+        "line_ending": "lf"
+      }
+    }
+  ],
+  "function_inventory": [
+    {
+      "file": "engine/__main__.py",
+      "line": 47,
+      "name": "_run_compare"
+    },
+    {
+      "file": "engine/__main__.py",
+      "line": 113,
+      "name": "_run_batch"
+    },
+    {
+      "file": "engine/__main__.py",
+      "line": 133,
+      "name": "on_progress"
+    },
+    {
+      "file": "engine/__main__.py",
+      "line": 171,
+      "name": "main"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 30,
+      "name": "read_filelist"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 38,
+      "name": "_sanitize_filename_part"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 46,
+      "name": "_unique_report_path"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 60,
+      "name": "_compare_pair"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 112,
+      "name": "_compare_pair_worker"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 121,
+      "name": "batch_compare"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 177,
+      "name": "split_batch_pdf"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 217,
+      "name": "_read_document_id"
+    },
+    {
+      "file": "engine/batch_processor.py",
+      "line": 232,
+      "name": "batch_compare_by_xmp"
+    },
+    {
+      "file": "engine/models.py",
+      "line": 35,
+      "name": "ok_count"
+    },
+    {
+      "file": "engine/models.py",
+      "line": 39,
+      "name": "error_count"
+    },
+    {
+      "file": "engine/ocr_extractor.py",
+      "line": 23,
+      "name": "_configure_bundled_tesseract"
+    },
+    {
+      "file": "engine/ocr_extractor.py",
+      "line": 48,
+      "name": "_mask_regions_on_image"
+    },
+    {
+      "file": "engine/ocr_extractor.py",
+      "line": 71,
+      "name": "extract_text_via_ocr"
+    },
+    {
+      "file": "engine/ocr_extractor.py",
+      "line": 97,
+      "name": "_ocr_page"
+    },
+    {
+      "file": "engine/ocr_extractor.py",
+      "line": 110,
+      "name": "extract_pages_with_ocr_fallback"
+    },
+    {
+      "file": "engine/page_group_detector.py",
+      "line": 26,
+      "name": "_match_group_name"
+    },
+    {
+      "file": "engine/page_group_detector.py",
+      "line": 33,
+      "name": "extract_page_groups"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 87,
+      "name": "overlaps"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 97,
+      "name": "filter_blocks_by_regions"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 109,
+      "name": "get_text_blocks"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 121,
+      "name": "sort_blocks_columns"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 127,
+      "name": "join_block_text"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 132,
+      "name": "_extract_page_text_columns"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 142,
+      "name": "_linearize_tables"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 154,
+      "name": "_iter_rawdict_lines"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 170,
+      "name": "_flatten_line_chars"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 180,
+      "name": "_collect_font_measurements"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 187,
+      "name": "bucket"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 210,
+      "name": "_calibrate_from_gaps"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 247,
+      "name": "calibrate_spacewidths"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 298,
+      "name": "_reconstruct_line_text"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 334,
+      "name": "get_text_blocks_reconstructed"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 355,
+      "name": "_extract_page_text_columns_reconstructed"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 367,
+      "name": "_warn_if_table_page_has_regions"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 383,
+      "name": "_extract_pages_reconstructed"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 413,
+      "name": "extract_pages"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 444,
+      "name": "_effective_ocr_mode"
+    },
+    {
+      "file": "engine/pdf_extractor.py",
+      "line": 458,
+      "name": "extract_pages_for_profile"
+    },
+    {
+      "file": "engine/profile_loader.py",
+      "line": 93,
+      "name": "load_profile"
+    },
+    {
+      "file": "engine/profile_loader.py",
+      "line": 199,
+      "name": "apply_overrides"
+    },
+    {
+      "file": "engine/region_filter.py",
+      "line": 32,
+      "name": "extract_pages_excluding_regions"
+    },
+    {
+      "file": "engine/region_filter.py",
+      "line": 51,
+      "name": "regions_from_profile"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 80,
+      "name": "_build_kpi_tile"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 130,
+      "name": "_build_kpi_tile_row"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 140,
+      "name": "_build_report_header_table"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 169,
+      "name": "_build_hairline_table"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 178,
+      "name": "_profile_label"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 191,
+      "name": "_tool_version"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 204,
+      "name": "_truncate_end"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 214,
+      "name": "_build_report_icon_flowable"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 232,
+      "name": "_build_summary_page_pdf_bytes"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 357,
+      "name": "_build_delta_detail_pdf_bytes"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 401,
+      "name": "_find_delta_rects"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 468,
+      "name": "_place_source_page"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 528,
+      "name": "_build_side_by_side_document"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 575,
+      "name": "_generate_report_html"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 615,
+      "name": "generate_report"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 713,
+      "name": "_pair_match_percent"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 724,
+      "name": "_build_batch_table"
+    },
+    {
+      "file": "engine/report_generator.py",
+      "line": 769,
+      "name": "generate_batch_report"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 46,
+      "name": "normalize_text"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 63,
+      "name": "_words_with_pages"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 75,
+      "name": "_chars_with_pages"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 119,
+      "name": "_page_for_offset"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 131,
+      "name": "_char_range_to_text"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 155,
+      "name": "_is_whitespace_only_difference"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 169,
+      "name": "_compare_words"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 200,
+      "name": "_merge_fragmented_opcodes"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 251,
+      "name": "_compare_hybrid"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 303,
+      "name": "_compare_chars"
+    },
+    {
+      "file": "engine/text_comparator.py",
+      "line": 344,
+      "name": "compare"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 37,
+      "name": "_target_triple"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 45,
+      "name": "_find_system_tesseract"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 56,
+      "name": "_find_tessdata_deu"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 93,
+      "name": "_stage_tesseract_macos"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 132,
+      "name": "_stage_tesseract_windows"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 151,
+      "name": "_stage_tesseract"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 166,
+      "name": "_run_pyinstaller"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 192,
+      "name": "_self_check"
+    },
+    {
+      "file": "packaging/build_sidecar.py",
+      "line": 213,
+      "name": "main"
+    },
+    {
+      "file": "packaging/prepare_sidecar.mjs",
+      "line": 25,
+      "name": "run"
+    },
+    {
+      "file": "packaging/prepare_sidecar.mjs",
+      "line": 27,
+      "name": "if"
+    },
+    {
+      "file": "packaging/prepare_sidecar.mjs",
+      "line": 38,
+      "name": "resolvePython"
+    },
+    {
+      "file": "packaging/prepare_sidecar.mjs",
+      "line": 49,
+      "name": "if"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 8,
+      "name": "App"
+    },
+    {
+      "file": "src/components/FilePickerRow.tsx",
+      "line": 13,
+      "name": "FilePickerRow"
+    },
+    {
+      "file": "src/components/MiddleTruncate.tsx",
+      "line": 17,
+      "name": "MiddleTruncate"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 38,
+      "name": "preventDefault"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 54,
+      "name": "resolveDropTarget"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 55,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 56,
+      "name": "for"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 59,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 66,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 79,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 85,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 90,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 96,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 100,
+      "name": "if"
+    },
+    {
+      "file": "src/hooks/useDragDropTarget.ts",
+      "line": 104,
+      "name": "if"
+    },
+    {
+      "file": "src/layout/MainPanel.tsx",
+      "line": 9,
+      "name": "MainPanel"
+    },
+    {
+      "file": "src/layout/PlaceholderPanel.tsx",
+      "line": 6,
+      "name": "PlaceholderPanel"
+    },
+    {
+      "file": "src/layout/Sidebar.tsx",
+      "line": 22,
+      "name": "Sidebar"
+    },
+    {
+      "file": "src/layout/Toggle.tsx",
+      "line": 10,
+      "name": "Toggle"
+    },
+    {
+      "file": "src/layout/icons.tsx",
+      "line": 7,
+      "name": "Base"
+    },
+    {
+      "file": "src/layout/icons.tsx",
+      "line": 21,
+      "name": "CompareIcon"
+    },
+    {
+      "file": "src/layout/icons.tsx",
+      "line": 31,
+      "name": "QueueIcon"
+    },
+    {
+      "file": "src/layout/icons.tsx",
+      "line": 41,
+      "name": "SettingsIcon"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 16,
+      "name": "matchPercent"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 17,
+      "name": "if"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 25,
+      "name": "fileName"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 29,
+      "name": "BatchView"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 43,
+      "name": "if"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 46,
+      "name": "if"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 54,
+      "name": "pickCsv"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 60,
+      "name": "if"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 65,
+      "name": "pickOutputDir"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 67,
+      "name": "if"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 72,
+      "name": "handleStart"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 99,
+      "name": "handleOpenReport"
+    },
+    {
+      "file": "src/views/BatchView.tsx",
+      "line": 100,
+      "name": "if"
+    },
+    {
+      "file": "src/views/SettingsView.tsx",
+      "line": 29,
+      "name": "SettingsView"
+    },
+    {
+      "file": "src/views/SettingsView.tsx",
+      "line": 45,
+      "name": "handleNormalizeWhitespaceChange"
+    },
+    {
+      "file": "src/views/SettingsView.tsx",
+      "line": 57,
+      "name": "handleCompareModeChange"
+    },
+    {
+      "file": "src/views/SettingsView.tsx",
+      "line": 69,
+      "name": "checkEngine"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 12,
+      "name": "SingleComparisonView"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 25,
+      "name": "if"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 28,
+      "name": "if"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 36,
+      "name": "pickFile"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 42,
+      "name": "if"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 47,
+      "name": "handleCompare"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 66,
+      "name": "handleOpenReport"
+    },
+    {
+      "file": "src/views/SingleComparisonView.tsx",
+      "line": 67,
+      "name": "if"
+    },
+    {
+      "file": "tests/conftest.py",
+      "line": 18,
+      "name": "vendored_tessdata_prefix"
+    },
+    {
+      "file": "tests/conftest.py",
+      "line": 39,
+      "name": "local_filelist"
+    },
+    {
+      "file": "tests/conftest.py",
+      "line": 54,
+      "name": "_make"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 75,
+      "name": "fixture_dir"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 81,
+      "name": "simple_pdf"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 102,
+      "name": "write_readme"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 127,
+      "name": "generate_tc_x_001"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 145,
+      "name": "generate_tc_x_002"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 168,
+      "name": "generate_tc_t_001"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 198,
+      "name": "generate_tc_t_002"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 238,
+      "name": "generate_tc_t_003"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 284,
+      "name": "generate_tc_t_004"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 321,
+      "name": "generate_tc_t_005"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 358,
+      "name": "generate_tc_t_006"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 393,
+      "name": "generate_tc_t_007"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 398,
+      "name": "draw_two_column"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 440,
+      "name": "generate_tc_t_008"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 509,
+      "name": "generate_tc_e_001_002"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 517,
+      "name": "draw_page_with_date"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 585,
+      "name": "generate_tc_e_003"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 591,
+      "name": "draw"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 665,
+      "name": "generate_tc_g_001_002"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 668,
+      "name": "make_batch_pdf"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 747,
+      "name": "generate_tc_g_003"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 769,
+      "name": "build"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 808,
+      "name": "_render_text_as_scanned_page"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 837,
+      "name": "generate_tc_o_001"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 863,
+      "name": "generate_tc_o_002"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 909,
+      "name": "generate_tc_p_001_002"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 977,
+      "name": "generate_tc_b_001_003"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1041,
+      "name": "make_pdf_with_xmp"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1088,
+      "name": "generate_tc_b_004"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1119,
+      "name": "generate_tc_b_005"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1156,
+      "name": "generate_tc_s_001_002"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1193,
+      "name": "generate_tc_r_001"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1219,
+      "name": "generate_tc_r_001_seitenumbruch"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1250,
+      "name": "generate_tc_r_005_rotierte_seite"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1286,
+      "name": "generate_tc_t_009_sperrsatz_ohne_leerzeichen"
+    },
+    {
+      "file": "tests/generate_fixtures.py",
+      "line": 1362,
+      "name": "main"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 24,
+      "name": "_write_single_page_pdf"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 30,
+      "name": "test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 49,
+      "name": "test_batch_compare_erzeugt_keinen_einzel_report_fuer_fehlerpaare"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 63,
+      "name": "test_batch_compare_haengt_zaehler_an_bei_namenskollision"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 90,
+      "name": "test_read_filelist_ohne_kopfzeile"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 107,
+      "name": "test_batch_compare_ruft_on_progress_nach_jedem_paar_auf"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 113,
+      "name": "on_progress"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 124,
+      "name": "test_batch_compare_liefert_total_pages_pro_paar_fuer_uebereinstimmungs_prozent"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 134,
+      "name": "test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 145,
+      "name": "test_tc_b_002_fehlende_datei_wird_protokolliert_rest_verarbeitet"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 162,
+      "name": "test_tc_b_003_batch_per_xmp_metadaten_document_id"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 187,
+      "name": "test_tc_b_004_batch_pdf_splitting_per_seitengruppen_pattern"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 211,
+      "name": "test_tc_b_005_parallelverarbeitung_im_batch"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 226,
+      "name": "test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 239,
+      "name": "test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 246,
+      "name": "fake_extract"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 264,
+      "name": "test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 289,
+      "name": "test_batch_compare_reicht_profile_compare_mode_an_compare_durch"
+    },
+    {
+      "file": "tests/test_batch_processor.py",
+      "line": 298,
+      "name": "spy_compare"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 27,
+      "name": "_write_single_page_pdf"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 33,
+      "name": "test_compare_json_ohne_delta"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 45,
+      "name": "test_compare_json_mit_deltas"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 59,
+      "name": "test_compare_ohne_json_flag_liefert_lesbare_zusammenfassung"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 69,
+      "name": "test_compare_ohne_json_flag_zeigt_delta_anzahl"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 79,
+      "name": "test_compare_mit_fehlender_datei_liefert_fehler_und_exit_code"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 91,
+      "name": "test_compare_mit_report_flag_erzeugt_pdf_und_json_feld"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 106,
+      "name": "test_compare_mit_ungueltigem_report_pfad_liefert_fehler_und_exit_code"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 125,
+      "name": "test_compare_ohne_report_flag_kein_report_path_im_json"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 136,
+      "name": "test_compare_mit_report_ohne_json_zeigt_pfad_in_zusammenfassung"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 150,
+      "name": "test_compare_mit_profile_flag_normalize_whitespace_unterdrueckt_delta"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 171,
+      "name": "test_compare_mit_ungueltigem_profile_liefert_fehler_und_exit_code"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 187,
+      "name": "test_compare_ruft_extraktion_mit_korrekter_role_fuer_ref_und_cnd_auf"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 196,
+      "name": "fake_extract"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 214,
+      "name": "test_compare_mit_profile_exclude_regions_end_to_end_tc_e_001"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 245,
+      "name": "test_compare_mit_profile_compare_mode_chars_end_to_end"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 266,
+      "name": "test_compare_ruft_compare_mit_profile_compare_mode_auf"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 275,
+      "name": "spy_compare"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 294,
+      "name": "test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 329,
+      "name": "test_batch_mit_fehlender_datei_wird_pro_paar_protokolliert_tc_b_002"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 346,
+      "name": "test_batch_mit_ungueltiger_dateiliste_liefert_fehler_und_exit_code"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 355,
+      "name": "test_version_flag"
+    },
+    {
+      "file": "tests/test_main.py",
+      "line": 362,
+      "name": "test_ohne_argumente_zeigt_hilfe"
+    },
+    {
+      "file": "tests/test_ocr_extractor.py",
+      "line": 46,
+      "name": "test_mask_regions_on_image_faerbt_region_weiss_bei_passender_seite"
+    },
+    {
+      "file": "tests/test_ocr_extractor.py",
+      "line": 61,
+      "name": "test_mask_regions_on_image_wirkt_nur_auf_die_definierte_seite"
+    },
+    {
+      "file": "tests/test_ocr_extractor.py",
+      "line": 77,
+      "name": "test_tc_o_001_gescannten_text_via_ocr_erkennen"
+    },
+    {
+      "file": "tests/test_ocr_extractor.py",
+      "line": 92,
+      "name": "test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text"
+    },
+    {
+      "file": "tests/test_page_group_detector.py",
+      "line": 30,
+      "name": "test_tc_g_001_seitengruppe_per_such_pattern_identifizieren"
+    },
+    {
+      "file": "tests/test_page_group_detector.py",
+      "line": 43,
+      "name": "test_tc_g_002_nur_bestimmte_seitengruppen_vergleichen"
+    },
+    {
+      "file": "tests/test_page_group_detector.py",
+      "line": 53,
+      "name": "test_tc_g_003_seitengruppen_mit_unterschiedlichem_seitenumfang"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 35,
+      "name": "test_tc_x_001_nativen_text_aus_einseitigem_pdf_extrahieren"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 42,
+      "name": "test_tc_x_002_text_aus_mehrseitigem_pdf_seitenweise_extrahieren"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 51,
+      "name": "test_tc_t_007_mehrspaltiger_text_korrekte_lesereihenfolge"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 69,
+      "name": "test_extract_pages_for_profile_ohne_profil_wie_extract_pages"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 76,
+      "name": "test_extract_pages_for_profile_ocr_deaktiviert_wie_extract_pages"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 88,
+      "name": "test_extract_pages_for_profile_ocr_aktiviert_nutzt_fallback"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 101,
+      "name": "test_extract_pages_for_profile_mode_off_ignoriert_enabled_flag"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 114,
+      "name": "test_extract_pages_for_profile_mode_candidate_unabhaengig_von_reference"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 152,
+      "name": "test_extract_pages_for_profile_mode_force_liest_auch_native_seiten_per_ocr"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 171,
+      "name": "test_extract_pages_for_profile_dpi_wird_an_ocr_durchgereicht"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 177,
+      "name": "fake_fallback"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 194,
+      "name": "_make_rawdict_chars"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 200,
+      "name": "_make_line"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 204,
+      "name": "test_calibrate_from_gaps_findet_klaren_sprung"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 214,
+      "name": "test_calibrate_from_gaps_lehnt_gleichmaessige_verteilung_ab"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 222,
+      "name": "test_calibrate_from_gaps_lehnt_zu_wenige_messwerte_ab"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 228,
+      "name": "test_calibrate_spacewidths_nutzt_echte_leerzeichen_wenn_vorhanden"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 243,
+      "name": "test_reconstruct_line_text_setzt_wortgrenzen_bei_belastbarer_kalibrierung"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 262,
+      "name": "test_reconstruct_line_text_erhaelt_echte_leerzeichen_unveraendert"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 279,
+      "name": "test_reconstruct_line_text_faellt_bei_fehlender_kalibrierung_auf_native_zurueck"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 294,
+      "name": "test_tc_t_009_sperrsatz_ohne_leerzeichen_faellt_sicher_auf_native_zurueck"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 308,
+      "name": "test_tc_t_009_normales_dokument_bleibt_unter_reconstruct_unveraendert"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 320,
+      "name": "test_tc_t_008_tabellenerkennung_kein_falsches_delta"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 341,
+      "name": "test_exclude_regions_wirkt_ueber_extract_pages_for_profile_tc_e_001"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 364,
+      "name": "test_exclude_regions_gilt_nur_fuer_definierte_seite_tc_e_002"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 382,
+      "name": "test_exclude_regions_auf_tabellenseite_erzeugt_warnung_statt_stiller_wirkungslosigkeit"
+    },
+    {
+      "file": "tests/test_pdf_extractor.py",
+      "line": 402,
+      "name": "test_exclude_regions_wirkt_auch_unter_text_extraction_reconstruct"
+    },
+    {
+      "file": "tests/test_privacy_compliance.py",
+      "line": 24,
+      "name": "test_tc_s_001_keine_netzwerkverbindung_waehrend_verarbeitung"
+    },
+    {
+      "file": "tests/test_privacy_compliance.py",
+      "line": 30,
+      "name": "_blocked"
+    },
+    {
+      "file": "tests/test_privacy_compliance.py",
+      "line": 54,
+      "name": "test_tc_s_002_temporaere_dateien_werden_bereinigt"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 20,
+      "name": "test_tc_p_001_valides_json_profil_laden"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 45,
+      "name": "test_tc_p_002_invalides_json_profil_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 52,
+      "name": "test_tc_p_003_cli_parameter_ueberschreibt_profilwert"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 68,
+      "name": "test_apply_overrides_none_werte_lassen_profil_unveraendert"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 83,
+      "name": "test_load_profile_datei_nicht_gefunden_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 88,
+      "name": "test_load_profile_json_kein_objekt_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 96,
+      "name": "test_load_profile_fehlendes_pflichtfeld_version_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 104,
+      "name": "test_load_profile_ungueltiges_report_format_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 114,
+      "name": "test_load_profile_text_extraction_default_ist_native"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 123,
+      "name": "test_load_profile_ungueltiger_text_extraction_wert_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 141,
+      "name": "test_load_profile_fehlendes_feld_in_region_oder_gruppe_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 151,
+      "name": "test_load_profile_ocr_defaults_ohne_ocr_feld"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 165,
+      "name": "test_load_profile_ocr_mode_reference_und_candidate_getrennt_einstellbar"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 193,
+      "name": "test_load_profile_ungueltiger_ocr_modus_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 203,
+      "name": "test_load_profile_ocr_dpi_nicht_positiv_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 213,
+      "name": "test_load_profile_compare_mode_default_ist_words"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 222,
+      "name": "test_load_profile_compare_mode_chars_wird_uebernommen"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 233,
+      "name": "test_load_profile_ungueltiger_compare_mode_wirft_validation_error"
+    },
+    {
+      "file": "tests/test_profile_loader.py",
+      "line": 243,
+      "name": "test_load_profile_compare_mode_hybrid_wird_uebernommen"
+    },
+    {
+      "file": "tests/test_region_filter.py",
+      "line": 22,
+      "name": "test_tc_e_001_region_vom_vergleich_ausschliessen"
+    },
+    {
+      "file": "tests/test_region_filter.py",
+      "line": 40,
+      "name": "test_tc_e_002_region_ausschluss_gilt_nur_fuer_definierte_seite"
+    },
+    {
+      "file": "tests/test_region_filter.py",
+      "line": 68,
+      "name": "test_tc_e_003_mehrere_ausschluss_regionen"
+    },
+    {
+      "file": "tests/test_region_filter.py",
+      "line": 85,
+      "name": "test_tc_e_003_ohne_regionen_ergeben_sich_deltas"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 28,
+      "name": "test_tc_r_001_delta_markierung_im_einzel_report"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 84,
+      "name": "test_tc_r_001_seitenumbruch_referenz_markierung_mit_fallback"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 128,
+      "name": "test_tc_r_005_rotierte_seite_wird_unverzerrt_eingebettet_und_delta_korrekt_positioniert"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 173,
+      "name": "test_generate_report_ignoriert_leeren_text_und_seite_ausserhalb_dokument"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 191,
+      "name": "test_tc_r_003_detaillierter_report_kein_delta"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 225,
+      "name": "test_ocr_verwendet_zeigt_tatsaechlichen_laufzeitwert_nicht_profil_flag"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 245,
+      "name": "test_ausgeschlossene_regionen_zeigt_angewendet_ohne_warnungen"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 266,
+      "name": "test_ausgeschlossene_regionen_zeigt_warnung_bei_nicht_vollstaendiger_anwendung"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 289,
+      "name": "test_tc_r_004_report_format_konfigurierbar_html"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 318,
+      "name": "test_generate_report_html_ohne_delta"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 336,
+      "name": "test_tc_r_002_batch_report_uebersicht_aller_vergleiche"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 376,
+      "name": "test_tc_r_002_batch_report_kennzahlen_kacheln_erfolgsquote_und_seiten_gesamt"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 413,
+      "name": "test_tc_r_002_batch_report_zeigt_verwendetes_profil"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 435,
+      "name": "test_tc_r_002_batch_report_fehlerpaar_zeigt_fehlertext_statt_zahlenwerten"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 457,
+      "name": "test_tc_r_002_batch_report_lange_dateinamen_bleiben_im_satzspiegel"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 481,
+      "name": "test_tc_r_002_batch_report_wiederholt_tabellenkopf_auf_folgeseiten"
+    },
+    {
+      "file": "tests/test_report_generator.py",
+      "line": 504,
+      "name": "test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 14,
+      "name": "test_tc_t_001_identische_texte_kein_delta"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 24,
+      "name": "test_tc_t_002_silbentrennung_am_zeilenende_normalisieren"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 34,
+      "name": "test_normalize_text_silbentrennung_wird_zusammengefuehrt"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 41,
+      "name": "test_normalize_text_isolierter_bindestrich_nach_zeilenumbruch_bleibt_erhalten"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 48,
+      "name": "test_normalize_text_bindestrich_mit_leerzeichen_davor_bleibt_erhalten"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 54,
+      "name": "test_isolierter_gedankenstrich_ergibt_kein_falsches_delta"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 68,
+      "name": "test_tc_t_003_unterschiedlicher_seitenumbruch_gleicher_text"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 78,
+      "name": "test_tc_t_004_echter_textunterschied_ergibt_delta"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 93,
+      "name": "test_tc_t_005_leerzeichennormalisierung"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 103,
+      "name": "test_tc_t_006_case_sensitivity_ignoriert_bei_case_insensitive"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 113,
+      "name": "test_tc_t_006_case_sensitivity_delta_bei_case_sensitive"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 123,
+      "name": "test_tc_t_009_ocr_wort_trennfehler_wird_bei_normalize_whitespace_ignoriert"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 136,
+      "name": "test_tc_t_009_echter_unterschied_bleibt_trotz_normalize_whitespace_delta"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 150,
+      "name": "test_tc_t_009_ocr_wort_trennfehler_ohne_normalize_whitespace_bleibt_delta"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 162,
+      "name": "test_ocr_used_wird_in_compare_result_uebernommen"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 172,
+      "name": "test_compare_mode_chars_ignoriert_fragmentierte_wortgrenzen"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 187,
+      "name": "test_compare_mode_chars_erkennt_echten_unterschied"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 201,
+      "name": "test_compare_mode_chars_liefert_lesbaren_text_mit_leerzeichen"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 216,
+      "name": "test_compare_mode_chars_seitenzuordnung_bezieht_sich_auf_kandidat"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 229,
+      "name": "test_compare_mode_chars_case_sensitive_wird_respektiert"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 237,
+      "name": "test_compare_mode_hybrid_ignoriert_fragmentierte_wortgrenzen"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 248,
+      "name": "test_compare_mode_hybrid_erkennt_echten_unterschied"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 258,
+      "name": "test_compare_mode_hybrid_fasst_fragmentierung_ueber_zufallstreffer_zusammen"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 287,
+      "name": "test_compare_mode_hybrid_zwei_woerter_gleich_bleibt_grenze"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 300,
+      "name": "test_compare_mode_hybrid_case_sensitive_wird_respektiert"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 308,
+      "name": "test_compare_mode_ungueltiger_wert_wirft_value_error"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 313,
+      "name": "test_compare_mode_chars_ignoriert_normalize_whitespace_flag"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 351,
+      "name": "_build_synthetic_pages"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 362,
+      "name": "test_compare_mode_chars_qualitaetstest_grosses_dokument_autojunk"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 371,
+      "name": "edit_page"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 430,
+      "name": "test_compare_mode_hybrid_qualitaetstest_grosses_dokument"
+    },
+    {
+      "file": "tests/test_text_comparator.py",
+      "line": 442,
+      "name": "edit_page"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 64,
+      "name": "_char_inventory"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 78,
+      "name": "_print_deltas"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 118,
+      "name": "_print_footer_buckets"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 139,
+      "name": "_page_render_summary"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 157,
+      "name": "_find_char_run"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 200,
+      "name": "_find_char_run_lenient"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 250,
+      "name": "_inspect_char_run"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 301,
+      "name": "_cross_check_extractions"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 332,
+      "name": "_inspect_word"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 373,
+      "name": "_print_char_run_ab"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 412,
+      "name": "_cross_check_encoding"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 453,
+      "name": "_analyze_fonts"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 505,
+      "name": "_inspect_encoding"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 558,
+      "name": "_flatten_rawdict"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 572,
+      "name": "_find_rawdict_run"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 599,
+      "name": "_inspect_rawdict"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 727,
+      "name": "_count_real_spaces"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 749,
+      "name": "_flow_text_samples"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 776,
+      "name": "_print_inhibit_samples"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 809,
+      "name": "_check_inhibit_spaces"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 846,
+      "name": "_calibration_report"
+    },
+    {
+      "file": "tools/diag_deltas.py",
+      "line": 878,
+      "name": "main"
+    },
+    {
+      "file": "tools/fusszeile_ab_test.py",
+      "line": 28,
+      "name": "main"
+    },
+    {
+      "file": "tools/ocr_feasibility_probe.py",
+      "line": 29,
+      "name": "render_page"
+    },
+    {
+      "file": "tools/ocr_feasibility_probe.py",
+      "line": 38,
+      "name": "ocr_page"
+    },
+    {
+      "file": "tools/ocr_feasibility_probe.py",
+      "line": 45,
+      "name": "report_terms"
+    },
+    {
+      "file": "tools/ocr_feasibility_probe.py",
+      "line": 51,
+      "name": "main"
+    },
+    {
+      "file": "tools/ocr_mode_ab_test.py",
+      "line": 33,
+      "name": "main"
+    }
+  ],
+  "rule_18_candidates": [],
+  "notes": [
+    "LoC is logical: blank and comment-only lines excluded.",
+    "Function detection is regex-based and may over- or under-detect; verify the inventory before trusting the denominator.",
+    "Judgment-based denominators (error paths, entry points, resource acquisitions, critical paths, endpoints) are NOT in this file."
+  ]
+}

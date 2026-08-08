@@ -1,3 +1,11 @@
+# file:    engine/text_comparator.py
+# purpose: Core comparison logic: normalizes extracted PDF text (hyphenation,
+#          whitespace) and compares via difflib in three modes (words, chars,
+#          hybrid). Returns CompareResult with page-level Delta positions.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Vergleichskern: normalisiert und vergleicht extrahierten PDF-Text.
 
 Nimmt pro Dokument eine Liste von Seitentexten entgegen (ein String pro Seite),

@@ -1,3 +1,11 @@
+# file:    tests/test_text_comparator.py
+# purpose: Unit tests TC-T-001 to TC-T-009 for engine.text_comparator.
+#          Covers normalization, hyphenation, page breaks, case sensitivity,
+#          whitespace tolerance, and all three compare modes (words/chars/hybrid).
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Testfälle TC-T-001 bis TC-T-006 für engine.text_comparator.
 
 TC-T-007 (Mehrspaltigkeit) und TC-T-008 (Tabellenerkennung) betreffen die

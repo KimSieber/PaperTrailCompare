@@ -1,3 +1,11 @@
+# file:    packaging/build_sidecar.py
+# purpose: Builds the PyInstaller sidecar executable for the Python Core
+#          Engine, including Tesseract staging, target-triple naming, and
+#          self-checks (version output, minimum file size).
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+
 """Baut den echten PyInstaller-Sidecar für die Engine (siehe CLAUDE.md
 Architekturentscheidung #2) und legt ihn unter
 src-tauri/binaries/papertrail-engine-<target-triple>[.exe] ab - exakt der

@@ -1,3 +1,12 @@
+/**
+ * @file    src/components/FilePickerRow.tsx
+ * @purpose File picker row component for selecting reference and candidate
+ *          PDF files via dialog or drag-and-drop.
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 export interface FilePickerRowProps {
   label: string;
   path: string;

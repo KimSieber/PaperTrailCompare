@@ -1,3 +1,11 @@
+# file:    engine/profile_loader.py
+# purpose: Loads and validates JSON comparison profiles into type-safe
+#          configuration objects (Profile, ExcludeRegion, OcrConfig,
+#          PageGroupPattern). Raises ValidationError on invalid input.
+# author:  Kim Sieber
+# created: YYYY-MM-DD
+# changed: 2026-08-09
+# 
 """Lädt und validiert JSON-Vergleichsprofile zu typsicheren Konfigurationsobjekten.
 
 Bildet mindestens die laut Projektbeschreibung geforderten Konfigurations-

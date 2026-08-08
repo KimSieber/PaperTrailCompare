@@ -1,3 +1,12 @@
+/**
+ * @file    src/types.ts
+ * @purpose Shared TypeScript type definitions mirroring the Rust/Python data
+ *          models (Delta, CompareResult, BatchPairResult, Profile, etc.).
+ * @author  Kim Sieber
+ * @created YYYY-MM-DD
+ * @changed 2026-08-09
+ */
+
 export type ViewKey = "single" | "batch" | "settings";
 
 /** Entspricht 1:1 engine.text_comparator.Delta / src-tauri Delta-Struct. */
