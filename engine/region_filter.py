@@ -63,6 +63,6 @@ def regions_from_profile(profile: Profile) -> List[Region]:
     vornimmt. Nützlich für Aufrufer, die die Regionen unabhängig von
     extract_pages_for_profile benötigen (z.B. eigene Diagnose-Skripte)."""
     return [
-        Region(page=r.page, x=r.x, y=r.y, w=r.width, h=r.height)
+        Region(page=r.page, x=r.x, y=r.y, w=r.width, h=r.height, page_from=r.page_from)
         for r in profile.exclude_regions
     ]
