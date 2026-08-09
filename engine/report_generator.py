@@ -30,7 +30,7 @@ from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, S
 
 from engine import __version__
 from engine.models import BatchResult, PairResult
-from engine.profile_loader import Profile
+from engine.profile_loader import ExcludeRegion, OcrConfig, Profile
 from engine.text_comparator import CompareResult
 
 _ASSETS_DIR = Path(__file__).parent / "assets"
@@ -196,6 +196,31 @@ def _profile_label(profile: Optional[Profile], profile_path: Optional[Union[str,
     return "—"
 
 
+def _bool_label(value: bool) -> str:
+    """Ja/Nein-Anzeige für boolesche Profil-Einstellungen im Summary."""
+    return "Ja" if value else "Nein"
+
+
+def _region_page_label(region: ExcludeRegion) -> str:
+    """Seitenbereichs-Anzeige für die Regionen-Tabelle: konkrete Seite,
+    "Alle Seiten" (page=0) oder "Ab Seite N" (page_from) - siehe
+    pdf_extractor._region_applies_to_page für die zugehörige Matching-
+    Logik."""
+    if region.page is not None:
+        return "Alle Seiten" if region.page == 0 else f"Seite {region.page}"
+    return f"Ab Seite {region.page_from}"
+
+
+def _ocr_mode_display(ocr: OcrConfig, mode_value: Optional[str]) -> str:
+    """Effektiver OCR-Modus für die Anzeige, ohne von pdf_extractor zu
+    importieren (dieselbe Fallback-Logik wie
+    pdf_extractor._effective_ocr_mode, hier nur für role-unabhängige
+    Anzeige verkürzt)."""
+    if mode_value is not None:
+        return mode_value
+    return "fallback" if ocr.enabled else "off"
+
+
 def _tool_version() -> str:
     """Fest eingebettete Version (engine.__version__) statt
     importlib.metadata.version() zur Laufzeit - letzteres setzt
@@ -328,19 +353,42 @@ def _build_summary_page_pdf_bytes(
 
     profile_label = _profile_label(profile, profile_path)
 
-    region_count = len(profile.exclude_regions) if profile else 0
-    if region_count == 0:
-        region_display = "0"
-    elif region_warnings:
-        region_display = f"{region_count} (!) nicht vollständig angewendet, siehe Log"
-    else:
-        region_display = f"{region_count} (angewendet)"
+    # "Profil-Einstellungen": alle vergleichsrelevanten Profilfelder statt
+    # nur des Profilnamens (siehe Block 3) - auch ohne Profil werden die
+    # tatsächlich geltenden Engine-Defaults gezeigt (siehe engine.__main__).
+    profile_settings_rows = [
+        ["Profil", profile_label],
+        ["Vergleichsmodus", profile.compare_mode if profile else "words"],
+        ["Groß-/Kleinschreibung", _bool_label(profile.case_sensitive if profile else True)],
+        ["Leerzeichen-Toleranz", _bool_label(profile.normalize_whitespace if profile else False)],
+        ["Textextraktion", profile.text_extraction if profile else "native"],
+    ]
+    if profile is not None and profile.ocr.enabled:
+        profile_settings_rows.append(
+            ["OCR Referenz", _ocr_mode_display(profile.ocr, profile.ocr.mode_reference)]
+        )
+        profile_settings_rows.append(
+            ["OCR Kandidat", _ocr_mode_display(profile.ocr, profile.ocr.mode_candidate)]
+        )
+
+    story.append(Paragraph("Profil-Einstellungen", _TILE_LABEL_STYLE))
+    story.append(Spacer(1, 4))
+    profile_settings_table = Table(
+        [[Paragraph(f"<b>{html.escape(label)}</b>", _CELL_STYLE), Paragraph(html.escape(str(value)), _CELL_STYLE)]
+         for label, value in profile_settings_rows],
+        colWidths=[55 * mm, 115 * mm],
+    )
+    profile_settings_table.setStyle(TableStyle([
+        ("LINEBELOW", (0, 0), (-1, -1), 0.5, _COLOR_HAIRLINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.append(profile_settings_table)
+    story.append(Spacer(1, 14))
 
     meta_rows = [
         ["Referenz-Datei", ref_pdf_path.name],
         ["Kandidat-Datei", cnd_pdf_path.name],
-        ["Vergleichsprofil", profile_label],
-        ["Ausgeschlossene Regionen", region_display],
         ["OCR verwendet", "Ja" if compare_result.ocr_was_used else "Nein"],
         ["Verarbeitungsdauer", f"{duration_seconds:.2f} s" if duration_seconds is not None else "—"],
         ["Vergleichsdatum", datetime.now().strftime("%d.%m.%Y %H:%M:%S")],
@@ -357,6 +405,33 @@ def _build_summary_page_pdf_bytes(
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
     story.append(meta_table)
+
+    # "Ausgeschlossene Regionen": detaillierte Tabelle statt reinem Zähler
+    # (siehe Block 3) - nur wenn tatsächlich Regionen konfiguriert sind.
+    if profile is not None and profile.exclude_regions:
+        story.append(Spacer(1, 14))
+        story.append(Paragraph("Ausgeschlossene Regionen", _TILE_LABEL_STYLE))
+        story.append(Spacer(1, 4))
+        region_rows = [["Seitenbereich", "x", "y", "Breite", "Höhe"]] + [
+            [
+                _region_page_label(region),
+                f"{region.x:g}", f"{region.y:g}", f"{region.width:g}", f"{region.height:g}",
+            ]
+            for region in profile.exclude_regions
+        ]
+        region_table = Table(region_rows, colWidths=[45 * mm] + [30 * mm] * 4)
+        region_table.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.5, _COLOR_HAIRLINE),
+            ("BACKGROUND", (0, 0), (-1, 0), _COLOR_HAIRLINE),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        story.append(region_table)
+        if region_warnings:
+            story.append(Spacer(1, 6))
+            for warning in region_warnings:
+                story.append(Paragraph(html.escape(warning), _BODY_STYLE))
 
     doc.build(story)
     return buf.getvalue()

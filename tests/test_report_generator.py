@@ -251,9 +251,9 @@ def test_ocr_verwendet_zeigt_tatsaechlichen_laufzeitwert_nicht_profil_flag(tmp_p
 
 
 def test_ausgeschlossene_regionen_zeigt_angewendet_ohne_warnungen(tmp_path):
-    """Anforderung (c): der Zähler soll erkennbar machen, ob die Regionen
-    tatsächlich angewendet wurden, nicht nur die konfigurierte Anzahl -
-    ohne region_warnings gilt "angewendet"."""
+    """Die Regionen-Tabelle im Summary muss die konfigurierte Region zeigen;
+    ohne region_warnings darf kein Warnhinweis erscheinen (siehe Block 3:
+    detaillierte Auflistung statt reinem Zähler)."""
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
 
@@ -267,31 +267,115 @@ def test_ausgeschlossene_regionen_zeigt_angewendet_ohne_warnungen(tmp_path):
     summary_text = report[0].get_text()
     report.close()
 
-    assert "angewendet" in summary_text
-    assert "nicht vollständig" not in summary_text
+    assert "Ausgeschlossene Regionen" in summary_text
+    assert "Seite 1" in summary_text
+    assert "Tabellenerkennung" not in summary_text
 
 
 def test_ausgeschlossene_regionen_zeigt_warnung_bei_nicht_vollstaendiger_anwendung(tmp_path):
     """Mit region_warnings (z.B. Tabellenseite, siehe
-    pdf_extractor._warn_if_table_page_has_regions) muss der Report das
-    sichtbar machen, statt weiter nur die konfigurierte Anzahl zu zeigen."""
+    pdf_extractor._warn_if_table_page_has_regions) muss der Report den
+    tatsächlichen Warnhinweis unter der Regionen-Tabelle anzeigen."""
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
 
     result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
     profile = Profile(version="1.0", exclude_regions=[ExcludeRegion(page=1, x=0, y=0, width=10, height=10)])
+    warning_text = "Seite 1: Ausschluss-Region(en) konnten wegen Tabellenerkennung nicht angewendet werden."
 
     output_path = tmp_path / "report.pdf"
     generate_report(
         result, ref_path, cnd_path, output_path, profile=profile,
-        region_warnings=["Seite 1: Ausschluss-Region(en) konnten wegen Tabellenerkennung nicht angewendet werden."],
+        region_warnings=[warning_text],
     )
 
     report = fitz.open(str(output_path))
     summary_text = report[0].get_text()
     report.close()
 
-    assert "nicht vollständig" in summary_text
+    assert warning_text in summary_text
+
+
+def test_summary_page_shows_profile_settings(tmp_path):
+    """Profil-Einstellungen-Sektion muss abweichende (nicht-default) Werte
+    aus dem Profil anzeigen, nicht nur einen Profilnamen (siehe Block 3)."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    profile = Profile(
+        version="1.0",
+        case_sensitive=False,
+        compare_mode="hybrid",
+        normalize_whitespace=True,
+    )
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    report = fitz.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Profil-Einstellungen" in summary_text
+    assert "Vergleichsmodus\nhybrid" in summary_text
+    assert "Groß-/Kleinschreibung\nNein" in summary_text
+    assert "Leerzeichen-Toleranz\nJa" in summary_text
+    assert "Textextraktion\nnative" in summary_text
+
+
+def test_summary_page_shows_exclude_regions_detail(tmp_path):
+    """Die Regionen-Tabelle muss die Seitenbereichs-Anzeige für alle drei
+    Varianten korrekt darstellen: konkrete Seite, "Alle Seiten" (page=0)
+    und "Ab Seite N" (page_from)."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[
+            ExcludeRegion(page=1, x=0, y=0, width=10, height=10),
+            ExcludeRegion(page=0, x=0, y=0, width=20, height=20),
+            ExcludeRegion(page_from=2, x=0, y=0, width=30, height=30),
+        ],
+    )
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    report = fitz.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Seite 1" in summary_text
+    assert "Alle Seiten" in summary_text
+    assert "Ab Seite 2" in summary_text
+
+
+def test_summary_page_without_profile_shows_defaults(tmp_path):
+    """Ohne Profil müssen die tatsächlich geltenden Engine-Defaults gezeigt
+    werden (siehe engine.__main__: case_sensitive=True,
+    normalize_whitespace=False, compare_mode="words"), nicht nur ein
+    leerer Profil-Platzhalter."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path)
+
+    report = fitz.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Profil-Einstellungen" in summary_text
+    assert "Vergleichsmodus\nwords" in summary_text
+    assert "Groß-/Kleinschreibung\nJa" in summary_text
+    assert "Leerzeichen-Toleranz\nNein" in summary_text
+    assert "Textextraktion\nnative" in summary_text
+    assert "Ausgeschlossene Regionen" not in summary_text
 
 
 def test_tc_r_004_report_format_konfigurierbar_html(tmp_path):
