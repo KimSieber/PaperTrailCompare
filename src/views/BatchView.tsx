@@ -16,6 +16,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { MainPanel } from "../layout/MainPanel";
 import { FilePickerRow } from "../components/FilePickerRow";
 import { MiddleTruncate } from "../components/MiddleTruncate";
+import { ProfileSelect } from "../components/ProfileSelect";
 import { useDragDropTarget } from "../hooks/useDragDropTarget";
 import type { BatchOutput, BatchPairResult, BatchProgressEvent } from "../types";
 
@@ -39,6 +40,7 @@ function fileName(path: string): string {
 export function BatchView() {
   const [csvPath, setCsvPath] = useState("");
   const [outputDir, setOutputDir] = useState("");
+  const [profileName, setProfileName] = useState("");
   const [rows, setRows] = useState<BatchPairResult[]>([]);
   const [progress, setProgress] = useState({ index: 0, total: 0 });
   const [loading, setLoading] = useState(false);
@@ -96,6 +98,7 @@ export function BatchView() {
       const output = await invoke<BatchOutput>("start_batch_compare", {
         filelistPath: csvPath,
         outputDir,
+        profileName: profileName || undefined,
       });
       setDoneResult(output);
     } catch (err) {
@@ -126,6 +129,8 @@ export function BatchView() {
       description="Massenvergleich per Dateiliste (CSV ohne Kopfzeile: Referenzdatei,Kandidatendatei)."
     >
       <div className="max-w-3xl space-y-6">
+        <ProfileSelect value={profileName} onChange={setProfileName} />
+
         <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
           <FilePickerRow
             label="Dateiliste"

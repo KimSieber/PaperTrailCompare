@@ -6,11 +6,9 @@
       "Bash(python -m pytest *)",
       "Bash(python3 -m pytest *)",
       "Bash(python -m pytest *)",
-      
       "Bash(pip install *)",
       "Bash(pip show *)",
       "Bash(pip list*)",
-
       "Bash(git status*)",
       "Bash(git log*)",
       "Bash(git diff*)",
@@ -18,11 +16,9 @@
       "Bash(git commit *)",
       "Bash(git branch*)",
       "Bash(git fetch*)",
-
       "Bash(mkdir *)",
       "Bash(ls*)",
       "Bash(cat *)",
-
       "Bash(npm install*)",
       "Bash(npm run *)",
       "Bash(rm -rf *)",
@@ -30,14 +26,8 @@
       "Bash(rm -rf /)",
       "Bash(rm -rf ~)",
       "Read(./.env)",
-      "Read(./.env.*)"
-    ],
-    "ask": [
-      "Bash(git push *)",
-      "Bash(git pull *)",
-      "Bash(git merge *)",
-      "Bash(git reset *)",
-      "Bash(git checkout *)"
+      "Read(./.env.*)",
+      "Bash(cargo check *)"
     ],
     "deny": [
       "Bash(git push --force*)",
@@ -47,6 +37,13 @@
       "Bash(wget *)",
       "Read(**/*.key)",
       "Read(**/*.pem)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git merge *)",
+      "Bash(git reset *)",
+      "Bash(git checkout *)"
     ]
   }
 }

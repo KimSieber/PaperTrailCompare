@@ -1,7 +1,9 @@
 /**
  * @file    src/types.ts
  * @purpose Shared TypeScript type definitions mirroring the Rust/Python data
- *          models (Delta, CompareResult, BatchPairResult, Profile, etc.).
+ *          models (Delta, CompareResult, BatchPairResult, etc.). Profile
+ *          selection works with plain filename strings (see SettingsView,
+ *          SingleComparisonView, BatchView) - no dedicated type needed.
  * @author  Kim Sieber
  * @created YYYY-MM-DD
  * @changed 2026-08-09
@@ -46,15 +48,4 @@ export interface BatchOutput {
   ok_count: number;
   error_count: number;
   report_path: string;
-}
-
-/** Entspricht engine.profile_loader.Profile.compare_mode - siehe dortigen
- * Docstring für die fachliche Begründung der drei Werte. */
-export type CompareMode = "words" | "chars" | "hybrid";
-
-/** Ausschnitt von engine.profile_loader.Profile, der über die GUI editierbar ist. */
-export interface Profile {
-  version: string;
-  normalize_whitespace: boolean;
-  compare_mode: CompareMode;
 }

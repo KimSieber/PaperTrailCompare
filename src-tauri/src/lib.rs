@@ -1,7 +1,8 @@
 // file:    src-tauri/src/lib.rs
 // purpose: Tauri command handlers for the desktop shell: document comparison,
-//          batch processing, settings persistence, and sidecar process
-//          management. All GUI-to-engine communication flows through here.
+//          batch processing, profile directory/dropdown management, and
+//          sidecar process management. All GUI-to-engine communication
+//          flows through here.
 // author:  Kim Sieber
 // created: YYYY-MM-DD
 // changed: 2026-08-09
@@ -38,85 +39,97 @@ struct CompareOutput {
     report_path: Option<String>,
 }
 
-/// Entspricht dem Ausschnitt von engine.profile_loader.Profile, der über den
-/// Einstellungen-Reiter editierbar ist. `version` wird von load_profile()
-/// als Pflichtfeld verlangt (siehe engine/profile_loader.py).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Profile {
-    version: String,
-    #[serde(default = "default_normalize_whitespace")]
-    normalize_whitespace: bool,
-    #[serde(default = "default_compare_mode")]
-    compare_mode: String,
+/// Persistierte App-Konfiguration (nicht zu verwechseln mit einem
+/// engine.profile_loader.Profile - das ist ein Vergleichsprofil, dies hier
+/// ist reine Tauri-Shell-Konfiguration). Liegt als app_config.json im
+/// App-Konfigurationsverzeichnis, siehe app_config_path.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct AppConfig {
+    profile_directory: Option<String>,
 }
 
-/// GUI-Default für den Einstellungen-Toggle "Leerzeichen-Toleranz": greift
-/// sowohl beim allerersten Start (keine profile.json vorhanden) als auch,
-/// falls eine vorhandene profile.json das Feld nicht enthält. Bewusst
-/// getrennt vom CLI-/engine.profile_loader.Profile-Default (False, dort
-/// weiterhin opt-in).
-fn default_normalize_whitespace() -> bool {
-    true
-}
-
-/// Default für compare_mode ("words" | "chars" | "hybrid", siehe
-/// engine.profile_loader.Profile.compare_mode) - hier bewusst NICHT von der
-/// Engine-Default abweichend (anders als normalize_whitespace oben): es
-/// gibt keinen Grund, den GUI-Standard von "words" abweichen zu lassen.
-fn default_compare_mode() -> String {
-    "words".to_string()
-}
-
-impl Default for Profile {
-    fn default() -> Self {
-        Profile {
-            version: "1.0".to_string(),
-            normalize_whitespace: default_normalize_whitespace(),
-            compare_mode: default_compare_mode(),
-        }
-    }
-}
-
-/// Pfad der persistierten Profildatei im App-Konfigurationsverzeichnis
+/// Pfad der persistierten App-Konfiguration im App-Konfigurationsverzeichnis
 /// (macOS: ~/Library/Application Support/<bundle-id>/, Windows:
-/// %APPDATA%/<bundle-id>/). Diese Datei wird per --profile an den
-/// Sidecar-Prozess übergeben, siehe compare_documents.
-fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+/// %APPDATA%/<bundle-id>/). Bewusst ein eigener Dateiname (nicht
+/// "profile.json") - das war früher ein engine-Vergleichsprofil, hier geht
+/// es nur um das konfigurierte Profilverzeichnis.
+fn app_config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join("profile.json"))
+    Ok(dir.join("app_config.json"))
 }
 
-/// Lädt die persistierten Einstellungen; liefert Defaults, falls noch keine
-/// Profildatei existiert (z.B. beim allerersten Programmstart).
-#[tauri::command]
-fn load_settings(app: tauri::AppHandle) -> Result<Profile, String> {
-    let path = settings_path(&app)?;
+/// Lädt die persistierte App-Konfiguration; liefert Defaults (kein
+/// Profilverzeichnis konfiguriert), falls noch keine app_config.json
+/// existiert (z.B. beim allerersten Programmstart).
+fn read_app_config(app: &tauri::AppHandle) -> Result<AppConfig, String> {
+    let path = app_config_path(app)?;
     if !path.exists() {
-        return Ok(Profile::default());
+        return Ok(AppConfig::default());
     }
     let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
     serde_json::from_str(&raw).map_err(|e| e.to_string())
 }
 
-/// Persistiert die Einstellungen aus dem Einstellungen-Reiter als JSON-Profil
-/// (engine/profile_loader.py-kompatibel). Die GUI übergibt bei jedem Aufruf
-/// den vollständigen Einstellungsstand (beide Felder), nicht nur das gerade
-/// geänderte - save_settings schreibt profile.json jedes Mal komplett neu.
+/// Liefert das konfigurierte Profilverzeichnis (Settings-Reiter: Text-Feld +
+/// "Durchsuchen..."-Button), oder None, falls noch keins gewählt wurde.
 #[tauri::command]
-fn save_settings(
-    app: tauri::AppHandle,
-    normalize_whitespace: bool,
-    compare_mode: String,
-) -> Result<(), String> {
-    let path = settings_path(&app)?;
-    let profile = Profile {
-        version: "1.0".to_string(),
-        normalize_whitespace,
-        compare_mode,
+fn get_profile_directory(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    Ok(read_app_config(&app)?.profile_directory)
+}
+
+/// Persistiert das gewählte Profilverzeichnis in app_config.json.
+#[tauri::command]
+fn set_profile_directory(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let config_path = app_config_path(&app)?;
+    let config = AppConfig {
+        profile_directory: Some(path),
     };
-    let json = serde_json::to_string_pretty(&profile).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())
+    let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    std::fs::write(&config_path, json).map_err(|e| e.to_string())
+}
+
+/// Listet alle .json-Dateinamen (ohne Pfad) im konfigurierten
+/// Profilverzeichnis - Grundlage für das Profil-Dropdown in Einzel- und
+/// Batch-Vergleich. Liefert eine leere Liste, falls kein Verzeichnis
+/// konfiguriert ist oder es nicht (mehr) existiert, statt einen Fehler zu
+/// werfen - das Dropdown zeigt in dem Fall einfach nur "Kein Profil".
+#[tauri::command]
+fn list_profiles(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let Some(dir) = read_app_config(&app)?.profile_directory else {
+        return Ok(Vec::new());
+    };
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
+        .filter_map(|entry| entry.file_name().to_str().map(|s| s.to_string()))
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+/// Konstruiert den vollen Profilpfad aus dem konfigurierten Profilverzeichnis
+/// und dem in der GUI gewählten Dateinamen - None, falls kein Profil
+/// ausgewählt wurde (Dropdown = "Kein Profil"), dann greifen die
+/// Engine-Defaults (siehe engine/__main__.py).
+fn resolve_profile_path(
+    app: &tauri::AppHandle,
+    profile_name: &Option<String>,
+) -> Result<Option<PathBuf>, String> {
+    let Some(name) = profile_name else {
+        return Ok(None);
+    };
+    if name.is_empty() {
+        return Ok(None);
+    }
+    let Some(dir) = read_app_config(app)?.profile_directory else {
+        return Err("Kein Profilverzeichnis konfiguriert".to_string());
+    };
+    Ok(Some(Path::new(&dir).join(name)))
 }
 
 /// Verzeichnis für Vergleichs-Reports unterhalb der Dokumente des Nutzers
@@ -161,6 +174,7 @@ async fn compare_documents(
     app: tauri::AppHandle,
     ref_path: String,
     cnd_path: String,
+    profile_name: Option<String>,
 ) -> Result<CompareOutput, String> {
     let dir = reports_dir(&app)?;
 
@@ -186,8 +200,7 @@ async fn compare_documents(
         "--report".to_string(),
         report_path_str.clone(),
     ];
-    let profile_path = settings_path(&app)?;
-    if profile_path.exists() {
+    if let Some(profile_path) = resolve_profile_path(&app, &profile_name)? {
         cli_args.push("--profile".to_string());
         cli_args.push(profile_path.to_string_lossy().to_string());
     }
@@ -265,6 +278,7 @@ async fn start_batch_compare(
     app: tauri::AppHandle,
     filelist_path: String,
     output_dir: String,
+    profile_name: Option<String>,
 ) -> Result<BatchOutput, String> {
     let sidecar = app
         .shell()
@@ -277,8 +291,7 @@ async fn start_batch_compare(
         "--output-dir".to_string(),
         output_dir,
     ];
-    let profile_path = settings_path(&app)?;
-    if profile_path.exists() {
+    if let Some(profile_path) = resolve_profile_path(&app, &profile_name)? {
         cli_args.push("--profile".to_string());
         cli_args.push(profile_path.to_string_lossy().to_string());
     }
@@ -369,8 +382,9 @@ pub fn run() {
             engine_version,
             compare_documents,
             start_batch_compare,
-            load_settings,
-            save_settings
+            get_profile_directory,
+            set_profile_directory,
+            list_profiles
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
