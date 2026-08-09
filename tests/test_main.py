@@ -25,6 +25,7 @@ Fixtures: tests/fixtures/TC-T-001 (kein Delta), tests/fixtures/TC-R-001
 import json
 from pathlib import Path
 
+from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from engine.__main__ import main
@@ -36,6 +37,34 @@ def _write_single_page_pdf(path: Path, text: str) -> None:
     c = canvas.Canvas(str(path))
     c.drawString(72, 720, text)
     c.save()
+
+
+def _write_image_pdf(path: Path, text: str) -> None:
+    """Rendert `text` via Pillow auf eine seitengroße Bitmap (kein
+    Textlayer) und bettet diese in ein einseitiges PDF ein - analog zu
+    tests/generate_fixtures.py::_render_text_as_scanned_page, deren
+    Auflösung/Fontgröße sich bereits als zuverlässig für Tesseract erwiesen
+    hat. Erfordert echtes OCR zur Extraktion (kein nativer Text)."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    px_w, px_h = 1600, 2262  # ~ A4 bei 200dpi, wie generate_fixtures.py
+    img = Image.new("RGB", (px_w, px_h), color="white")
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 60)
+    except OSError:
+        font = ImageFont.load_default()
+
+    draw.text((120, 150), text, fill="black", font=font)
+
+    img_path = path.with_suffix(".png")
+    img.save(img_path)
+
+    c = canvas.Canvas(str(path), pagesize=A4)
+    c.drawImage(str(img_path), 0, 0, width=A4[0], height=A4[1])
+    c.showPage()
+    c.save()
+    img_path.unlink()
 
 
 def test_compare_json_ohne_delta(capsys):
@@ -297,6 +326,122 @@ def test_compare_ruft_compare_mit_profile_compare_mode_auf(tmp_path, capsys, mon
 
     assert exit_code == 0
     assert seen_modes == ["chars"]
+
+
+def test_compare_mit_profile_case_sensitive_false_end_to_end(tmp_path, capsys):
+    """case_sensitive=false muss über die CLI wirken: ein reiner
+    Groß-/Kleinschreibungsunterschied darf dann kein Delta mehr ergeben."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_single_page_pdf(ref_path, "Die Rechnung wurde versendet.")
+    _write_single_page_pdf(cnd_path, "die rechnung wurde versendet.")
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0", "case_sensitive": False}), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+    assert payload["deltas"] == []
+
+
+def test_compare_ohne_case_sensitive_false_liefert_delta_bei_grossKleinschreibung(tmp_path, capsys):
+    """Gegenprobe: ohne case_sensitive=false (Default = True) muss derselbe
+    Groß-/Kleinschreibungsunterschied als Delta erkannt werden."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_single_page_pdf(ref_path, "Die Rechnung wurde versendet.")
+    _write_single_page_pdf(cnd_path, "die rechnung wurde versendet.")
+
+    exit_code = main(["compare", str(ref_path), str(cnd_path), "--json"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is True
+
+
+def test_compare_mit_profile_text_extraction_reconstruct_end_to_end(tmp_path, capsys):
+    """text_extraction="reconstruct" muss über die CLI wirken, ohne den
+    Vergleich zu verändern, wenn Referenz und Kandidat identisch sind."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_single_page_pdf(ref_path, "Der Vertrag gilt ab sofort.")
+    _write_single_page_pdf(cnd_path, "Der Vertrag gilt ab sofort.")
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0", "text_extraction": "reconstruct"}), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+    assert payload["deltas"] == []
+
+
+def test_compare_reicht_text_extraction_reconstruct_an_extract_pages_for_profile(tmp_path, capsys, monkeypatch):
+    """Verdrahtungstest: profile.text_extraction muss über extract_pages_for_profile
+    ankommen (als Attribut des übergebenen profile-Objekts), nicht nur im
+    Profil geladen/validiert werden (dasselbe Muster wie die vorherige
+    Verdrahtungslücke bei exclude_regions)."""
+    from engine.pdf_extractor import extract_pages_for_profile as real_extract
+
+    seen_profiles = []
+
+    def fake_extract(pdf_path, profile, role="reference", warnings=None):
+        seen_profiles.append(profile)
+        return real_extract(pdf_path, profile, role=role, warnings=warnings)
+
+    import engine.__main__ as main_module
+
+    monkeypatch.setattr(main_module, "extract_pages_for_profile", fake_extract)
+
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps({"version": "1.0", "text_extraction": "reconstruct"}), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    assert len(seen_profiles) == 2
+    assert all(profile.text_extraction == "reconstruct" for profile in seen_profiles)
+
+
+def test_compare_mit_ocr_mode_reference_force_end_to_end(tmp_path, capsys):
+    """ocr.mode_reference="force" muss über die CLI wirken: die Referenz
+    ist ein Scan-PDF (kein nativer Text), der Kandidat enthält denselben
+    Text nativ - der OCR-gelesene Referenztext muss mit dem nativen
+    Kandidatentext übereinstimmen, sodass kein Delta entsteht."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_image_pdf(ref_path, "Tesseract OCR Pruefung")
+    _write_single_page_pdf(cnd_path, "Tesseract OCR Pruefung")
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "ocr": {"enabled": True, "mode_reference": "force", "mode_candidate": "off", "dpi": 300},
+        }),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
 
 
 def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(tmp_path, capsys, local_filelist):

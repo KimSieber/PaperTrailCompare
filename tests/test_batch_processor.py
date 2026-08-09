@@ -20,11 +20,12 @@ generate_tc_b_005).
 """
 from pathlib import Path
 
+from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from engine.batch_processor import batch_compare, batch_compare_by_xmp, read_filelist, split_batch_pdf
 from engine.pdf_extractor import extract_pages
-from engine.profile_loader import ExcludeRegion, PageGroupPattern, Profile
+from engine.profile_loader import ExcludeRegion, OcrConfig, PageGroupPattern, Profile
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -33,6 +34,34 @@ def _write_single_page_pdf(path: Path, text: str) -> None:
     c = canvas.Canvas(str(path))
     c.drawString(72, 720, text)
     c.save()
+
+
+def _write_image_pdf(path: Path, text: str) -> None:
+    """Rendert `text` via Pillow auf eine seitengroße Bitmap (kein
+    Textlayer) und bettet diese in ein einseitiges PDF ein - analog zu
+    tests/generate_fixtures.py::_render_text_as_scanned_page, deren
+    Auflösung/Fontgröße sich bereits als zuverlässig für Tesseract erwiesen
+    hat. Erfordert echtes OCR zur Extraktion (kein nativer Text)."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    px_w, px_h = 1600, 2262  # ~ A4 bei 200dpi, wie generate_fixtures.py
+    img = Image.new("RGB", (px_w, px_h), color="white")
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 60)
+    except OSError:
+        font = ImageFont.load_default()
+
+    draw.text((120, 150), text, fill="black", font=font)
+
+    img_path = path.with_suffix(".png")
+    img.save(img_path)
+
+    c = canvas.Canvas(str(path), pagesize=A4)
+    c.drawImage(str(img_path), 0, 0, width=A4[0], height=A4[1])
+    c.showPage()
+    c.save()
+    img_path.unlink()
 
 
 def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path, local_filelist):
@@ -292,6 +321,101 @@ def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path)
     assert pair.status == "ok"
     assert pair.compare_result.has_delta is True
     assert any(delta.page == 2 for delta in pair.compare_result.deltas)
+
+
+def test_batch_compare_mit_profile_case_sensitive_false_end_to_end(tmp_path):
+    """case_sensitive=false muss über den Produktivpfad batch_compare
+    wirken: ein reiner Groß-/Kleinschreibungsunterschied darf dann kein
+    Delta mehr ergeben."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_single_page_pdf(ref_path, "Die Rechnung wurde versendet.")
+    _write_single_page_pdf(cnd_path, "die rechnung wurde versendet.")
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(version="1.0", case_sensitive=False)
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    pair = result.pairs[0]
+    assert pair.status == "ok"
+    assert pair.compare_result.has_delta is False
+    assert pair.compare_result.deltas == []
+
+
+def test_batch_compare_mit_profile_normalize_whitespace_end_to_end(tmp_path):
+    """normalize_whitespace=true muss über den Produktivpfad batch_compare
+    wirken: ein reiner Leerzeichen-Trennfehler darf dann kein Delta mehr
+    ergeben."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_single_page_pdf(ref_path, "Die Vertragsbedingungen gelten sofort.")
+    _write_single_page_pdf(cnd_path, "Die Vertrags bedingungen gelten sofort.")
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(version="1.0", normalize_whitespace=True)
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    pair = result.pairs[0]
+    assert pair.status == "ok"
+    assert pair.compare_result.has_delta is False
+
+
+def test_batch_compare_reicht_text_extraction_reconstruct_durch(monkeypatch, local_filelist):
+    """Verdrahtungstest: profile.text_extraction muss bei batch_compare über
+    extract_pages_for_profile ankommen (als Attribut des übergebenen
+    profile-Objekts), nicht nur im Profil geladen/validiert werden."""
+    from engine.pdf_extractor import extract_pages_for_profile as real_extract
+
+    seen_profiles = []
+
+    def fake_extract(pdf_path, profile, role="reference", warnings=None):
+        seen_profiles.append(profile)
+        return real_extract(pdf_path, profile, role=role, warnings=warnings)
+
+    import engine.batch_processor as batch_processor_module
+
+    monkeypatch.setattr(batch_processor_module, "extract_pages_for_profile", fake_extract)
+
+    profile = Profile(version="1.0", text_extraction="reconstruct")
+    result = batch_compare(local_filelist("TC-B-001", 10), profile=profile)
+
+    assert result.ok_count == 10
+    assert len(seen_profiles) == 20
+    assert all(p.text_extraction == "reconstruct" for p in seen_profiles)
+
+
+def test_batch_compare_mit_ocr_mode_reference_force_end_to_end(tmp_path):
+    """ocr.mode_reference="force" muss über den Produktivpfad batch_compare
+    wirken: die Referenz ist ein Scan-PDF (kein nativer Text), der Kandidat
+    enthält denselben Text nativ - der OCR-gelesene Referenztext muss mit
+    dem nativen Kandidatentext übereinstimmen, sodass kein Delta entsteht."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_image_pdf(ref_path, "Tesseract OCR Pruefung")
+    _write_single_page_pdf(cnd_path, "Tesseract OCR Pruefung")
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(
+        version="1.0",
+        ocr=OcrConfig(enabled=True, mode_reference="force", mode_candidate="off", dpi=300),
+    )
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    pair = result.pairs[0]
+    assert pair.status == "ok"
+    assert pair.compare_result.has_delta is False
 
 
 def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch, local_filelist):
