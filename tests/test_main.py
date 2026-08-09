@@ -444,6 +444,46 @@ def test_compare_mit_ocr_mode_reference_force_end_to_end(tmp_path, capsys):
     assert payload["has_delta"] is False
 
 
+def test_compare_mit_profile_exclude_region_page_zero_end_to_end(tmp_path, capsys):
+    """exclude_regions mit page=0 ("alle Seiten") muss über die CLI wirken:
+    ein Kopfbereich, der sich auf jeder Seite zwischen ref und cnd
+    unterscheidet, darf dann auf keiner Seite als Delta erscheinen."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+
+    c = canvas.Canvas(str(ref_path))
+    for n in (1, 2):
+        c.drawString(30, 750, f"Ref-Header Seite {n}")
+        c.drawString(30, 400, f"Body Seite {n} unveraendert.")
+        c.showPage()
+    c.save()
+
+    c = canvas.Canvas(str(cnd_path))
+    for n in (1, 2):
+        c.drawString(30, 750, f"Cnd-Header Seite {n}")
+        c.drawString(30, 400, f"Body Seite {n} unveraendert.")
+        c.showPage()
+    c.save()
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [{"page": 0, "x": 0, "y": 0, "width": 250, "height": 80}],
+        }),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+    assert payload["deltas"] == []
+
+
 def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(tmp_path, capsys, local_filelist):
     """`batch` streamt pro verarbeitetem Paar sofort eine JSON-Zeile auf
     stdout (Grundlage für Live-Progress-Events der Tauri-Shell, siehe

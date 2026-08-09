@@ -53,6 +53,18 @@ def _configure_bundled_tesseract() -> None:
 _configure_bundled_tesseract()
 
 
+def _region_applies_to_page(region, page_num: int) -> bool:
+    """Duck-typed Kopie von pdf_extractor._region_applies_to_page (page=0 =
+    alle Seiten, page_from=N = ab Seite N) - absichtlich ohne Import, um
+    keine Modulabhängigkeit auf pdf_extractor.Region einzugehen (siehe
+    _mask_regions_on_image)."""
+    if region.page is not None:
+        return region.page == 0 or region.page == page_num
+    if region.page_from is not None:
+        return page_num >= region.page_from
+    return False
+
+
 def _mask_regions_on_image(
     image: "Image.Image", page_num: int, regions: Optional[Sequence], dpi: int
 ) -> "Image.Image":
@@ -65,7 +77,7 @@ def _mask_regions_on_image(
     Modulabhängigkeit auf pdf_extractor.Region einzugehen."""
     if not regions:
         return image
-    page_regions = [r for r in regions if r.page == page_num]
+    page_regions = [r for r in regions if _region_applies_to_page(r, page_num)]
     if not page_regions:
         return image
     scale = dpi / 72
@@ -146,7 +158,7 @@ def extract_pages_with_ocr_fallback(
             page_num = page_index + 1
             native_text = page.get_text().strip()
             if native_text:
-                if regions and any(r.page == page_num for r in regions):
+                if regions and any(_region_applies_to_page(r, page_num) for r in regions):
                     from engine.pdf_extractor import filter_blocks_by_regions, get_text_blocks, join_block_text
                     blocks = filter_blocks_by_regions(get_text_blocks(page), page_num, regions)
                     pages_text.append(join_block_text(blocks))

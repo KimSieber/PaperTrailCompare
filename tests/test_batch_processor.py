@@ -418,6 +418,45 @@ def test_batch_compare_mit_ocr_mode_reference_force_end_to_end(tmp_path):
     assert pair.compare_result.has_delta is False
 
 
+def test_batch_compare_mit_profile_exclude_region_page_from_end_to_end(tmp_path):
+    """exclude_regions mit page_from muss über den Produktivpfad batch_compare
+    wirken: ein Kopfbereich, der sich ab Seite 2 unterscheidet, wird ab
+    dort ausgeschlossen - der Unterschied auf Seite 1 bleibt als Delta
+    erhalten."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+
+    c = canvas.Canvas(str(ref_path))
+    for n in (1, 2, 3):
+        c.drawString(30, 750, f"Ref-Header Seite {n}")
+        c.drawString(30, 400, f"Body Seite {n} unveraendert.")
+        c.showPage()
+    c.save()
+
+    c = canvas.Canvas(str(cnd_path))
+    for n in (1, 2, 3):
+        c.drawString(30, 750, f"Cnd-Header Seite {n}")
+        c.drawString(30, 400, f"Body Seite {n} unveraendert.")
+        c.showPage()
+    c.save()
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[ExcludeRegion(page_from=2, x=0, y=0, width=250, height=80)],
+    )
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    pair = result.pairs[0]
+    assert pair.status == "ok"
+    assert pair.compare_result.has_delta is True
+    assert {delta.page for delta in pair.compare_result.deltas} == {1}
+
+
 def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch, local_filelist):
     """Verdrahtungstest: profile.compare_mode muss bei batch_compare an
     text_comparator.compare durchgereicht werden, nicht nur im Profil

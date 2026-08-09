@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 import fitz
+from reportlab.pdfgen import canvas
 
 from engine.pdf_extractor import (
     SpacewidthCalibration,
@@ -426,3 +427,112 @@ def test_exclude_regions_wirkt_auch_unter_text_extraction_reconstruct():
 
     assert result.has_delta is False
     assert result.deltas == []
+
+
+# Kopfregion (fitz-Koordinaten, Ursprung oben links): x=0, y=0, w=250, h=80
+# -> Reportlab-y (Ursprung unten links, Standard-Letter-Seite 612x792pt)
+# liegt bei drawString(30, 750) innerhalb dieses Bandes (712-792).
+_MULTI_PAGE_HEADER_REGION = dict(x=0, y=0, width=250, height=80)
+# Fußregion: fitz y=700..800 -> Reportlab-y 0..92, drawString(30, 50) liegt
+# innerhalb dieses Bandes.
+_MULTI_PAGE_FOOTER_REGION = dict(x=0, y=700, width=612, height=100)
+
+
+def _write_multi_page_pdf(path: Path, pages: list) -> None:
+    """Erzeugt ein N-seitiges PDF; jede Seite bekommt einen Kopfbereich
+    (oben, innerhalb von _MULTI_PAGE_HEADER_REGION) und einen Fußbereich
+    (unten, innerhalb von _MULTI_PAGE_FOOTER_REGION) mit unterscheidbarem
+    Text, sowie einen unveränderten Fließtext-Body dazwischen."""
+    c = canvas.Canvas(str(path))
+    for index, (header, footer) in enumerate(pages, start=1):
+        c.drawString(30, 750, header)
+        c.drawString(30, 400, f"Body Seite {index} unveraendert.")
+        c.drawString(30, 50, footer)
+        c.showPage()
+    c.save()
+
+
+def test_exclude_region_page_zero_applies_to_all_pages(tmp_path):
+    """ExcludeRegion(page=0, ...) muss die Kopfregion auf allen Seiten
+    ausschließen, obwohl sie sich zwischen ref und cnd auf jeder Seite
+    unterscheidet."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_multi_page_pdf(ref_path, [
+        (f"Ref-Header Seite {n}", "Fusszeile gleich") for n in range(1, 4)
+    ])
+    _write_multi_page_pdf(cnd_path, [
+        (f"Cnd-Header Seite {n}", "Fusszeile gleich") for n in range(1, 4)
+    ])
+
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[ExcludeRegion(page=0, **_MULTI_PAGE_HEADER_REGION)],
+    )
+
+    ref_pages, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
+    cnd_pages, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is False
+    assert result.deltas == []
+
+
+def test_exclude_region_page_from_applies_from_given_page(tmp_path):
+    """ExcludeRegion(page_from=2, ...) muss die Kopfregion ab Seite 2 bis
+    zum Dokumentende ausschließen - der Unterschied auf Seite 1 muss aber
+    weiterhin als Delta erkannt werden."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_multi_page_pdf(ref_path, [
+        (f"Ref-Header Seite {n}", "Fusszeile gleich") for n in range(1, 4)
+    ])
+    _write_multi_page_pdf(cnd_path, [
+        (f"Cnd-Header Seite {n}", "Fusszeile gleich") for n in range(1, 4)
+    ])
+
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[ExcludeRegion(page_from=2, **_MULTI_PAGE_HEADER_REGION)],
+    )
+
+    ref_pages, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
+    cnd_pages, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is True
+    assert {delta.page for delta in result.deltas} == {1}
+
+
+def test_exclude_region_page_zero_and_page_from_combined(tmp_path):
+    """Ein page=0-Region (Kopfbereich, wirkt auf allen Seiten) und ein
+    page_from=2-Region (Fußbereich, wirkt ab Seite 2) müssen beide korrekt
+    und unabhängig voneinander angewendet werden: der Kopf-Unterschied
+    verschwindet überall, der Fuß-Unterschied nur ab Seite 2 - auf Seite 1
+    bleibt der Fuß-Unterschied als Delta bestehen."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_multi_page_pdf(ref_path, [
+        (f"Ref-Header Seite {n}", f"Ref-Footer Seite {n}") for n in range(1, 4)
+    ])
+    _write_multi_page_pdf(cnd_path, [
+        (f"Cnd-Header Seite {n}", f"Cnd-Footer Seite {n}") for n in range(1, 4)
+    ])
+
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[
+            ExcludeRegion(page=0, **_MULTI_PAGE_HEADER_REGION),
+            ExcludeRegion(page_from=2, **_MULTI_PAGE_FOOTER_REGION),
+        ],
+    )
+
+    ref_pages, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
+    cnd_pages, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
+
+    result = compare(ref_pages, cnd_pages)
+
+    assert result.has_delta is True
+    assert {delta.page for delta in result.deltas} == {1}

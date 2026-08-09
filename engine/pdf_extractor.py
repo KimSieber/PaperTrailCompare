@@ -103,13 +103,27 @@ class Region:
         )
 
 
+def _region_applies_to_page(region: Region, page_num: int) -> bool:
+    """Wildcard-Matching für Ausschluss-Regionen: page=0 wirkt auf jeder
+    Seite, page=N nur auf Seite N, page_from=N auf Seite N bis
+    Dokumentende. Zentrale Stelle für dieses Matching - wird von jedem Ort
+    genutzt, der Regionen einer Seite zuordnet (filter_blocks_by_regions,
+    _warn_if_table_page_has_regions, ocr_extractor._mask_regions_on_image
+    und der Fallback-Gate in extract_pages_with_ocr_fallback)."""
+    if region.page is not None:
+        return region.page == 0 or region.page == page_num
+    if region.page_from is not None:
+        return page_num >= region.page_from
+    return False  # sollte nach load_profile-Validierung nicht vorkommen
+
+
 def filter_blocks_by_regions(
     blocks: Sequence[TextBlock], page_num: int, regions: Sequence[Region]
 ) -> List[TextBlock]:
     """Entfernt Textblöcke, die eine für page_num definierte Region
     überlappen (TC-E-001: Ausschluss, TC-E-002: nur für die definierte
     Seite). Regionen für andere Seiten bleiben wirkungslos."""
-    page_regions = [r for r in regions if r.page == page_num]
+    page_regions = [r for r in regions if _region_applies_to_page(r, page_num)]
     if not page_regions:
         return list(blocks)
     return [b for b in blocks if not any(r.overlaps(b[:4]) for r in page_regions)]
@@ -382,7 +396,7 @@ def _warn_if_table_page_has_regions(
     Batch) geben das an Log/Report weiter."""
     if warnings is None:
         return
-    if any(r.page == page_num for r in regions):
+    if any(_region_applies_to_page(r, page_num) for r in regions):
         warnings.append(
             f"Seite {page_num}: Ausschluss-Region(en) konnten wegen Tabellenerkennung "
             "nicht angewendet werden."
@@ -515,7 +529,7 @@ def extract_pages_for_profile(
     regions: List[Region] = []
     if profile is not None:
         regions = [
-            Region(page=r.page, x=r.x, y=r.y, w=r.width, h=r.height)
+            Region(page=r.page, x=r.x, y=r.y, w=r.width, h=r.height, page_from=r.page_from)
             for r in profile.exclude_regions
         ]
         mode = _effective_ocr_mode(profile.ocr, role)
