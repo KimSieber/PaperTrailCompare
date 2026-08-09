@@ -257,3 +257,134 @@ def test_load_profile_compare_mode_hybrid_wird_uebernommen(tmp_path):
     profile = load_profile(profile_path)
 
     assert profile.compare_mode == "hybrid"
+
+
+def test_load_profile_exclude_region_page_zero_all_pages(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [{"page": 0, "x": 0, "y": 0, "width": 100, "height": 50}],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert len(profile.exclude_regions) == 1
+    region = profile.exclude_regions[0]
+    assert region.page == 0
+    assert region.page_from is None
+
+
+def test_load_profile_exclude_region_page_from(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [{"page_from": 2, "x": 0, "y": 0, "width": 100, "height": 50}],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert len(profile.exclude_regions) == 1
+    region = profile.exclude_regions[0]
+    assert region.page is None
+    assert region.page_from == 2
+
+
+def test_load_profile_exclude_region_page_and_page_from_both_set_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [
+                {"page": 1, "page_from": 2, "x": 0, "y": 0, "width": 100, "height": 50}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_exclude_region_neither_page_nor_page_from_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [{"x": 0, "y": 0, "width": 100, "height": 50}],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_exclude_region_page_negative_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [{"page": -1, "x": 0, "y": 0, "width": 100, "height": 50}],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_exclude_region_page_from_zero_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [{"page_from": 0, "x": 0, "y": 0, "width": 100, "height": 50}],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_exclude_region_page_from_negative_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [{"page_from": -1, "x": 0, "y": 0, "width": 100, "height": 50}],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_combined_regions_mixed_page_types(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "exclude_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50},
+                {"page": 0, "x": 10, "y": 10, "width": 20, "height": 20},
+                {"page_from": 3, "x": 5, "y": 5, "width": 30, "height": 30},
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert len(profile.exclude_regions) == 3
+    region_1, region_all, region_from = profile.exclude_regions
+    assert region_1.page == 1 and region_1.page_from is None
+    assert region_all.page == 0 and region_all.page_from is None
+    assert region_from.page is None and region_from.page_from == 3

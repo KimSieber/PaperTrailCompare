@@ -91,6 +91,7 @@ class Region:
     y: float
     w: float
     h: float
+    page_from: Optional[int] = None  # ab Seite N bis Dokumentende (siehe Block 2 Matching)
 
     def overlaps(self, bbox: Sequence[float]) -> bool:
         x0, y0, x1, y1 = bbox
