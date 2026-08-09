@@ -1,8 +1,10 @@
 /**
  * @file    src/views/SettingsView.tsx
- * @purpose Settings view for comparison profiles (whitespace tolerance,
- *          compare mode), engine sidecar health check, and future profile
- *          management UI.
+ * @purpose Settings view for profile directory configuration and engine
+ *          sidecar health check. Comparison profiles (JSON files) are
+ *          selected per-comparison via the dropdown in SingleComparisonView/
+ *          BatchView, not edited here - this view only manages where the
+ *          engine should look for them.
  * @author  Kim Sieber
  * @created YYYY-MM-DD
  * @changed 2026-08-09
@@ -10,67 +12,29 @@
 
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { MainPanel } from "../layout/MainPanel";
-import { PlaceholderPanel } from "../layout/PlaceholderPanel";
-import { RadioGroup } from "../layout/RadioGroup";
-import { Toggle } from "../layout/Toggle";
-import type { CompareMode, Profile } from "../types";
-
-const COMPARE_MODE_OPTIONS: { value: CompareMode; label: string; description: string }[] = [
-  {
-    value: "words",
-    label: "words — Standardvergleich",
-    description: "Voreinstellung. Vergleicht auf Wortebene.",
-  },
-  {
-    value: "hybrid",
-    label: "hybrid — toleriert zerrissene Wortgrenzen",
-    description:
-      "Empfohlen bei Dokumenten aus älteren Drucksystemen, bei denen Wörter durch die PDF-Erzeugung fälschlich mit Leerzeichen zerrissen werden.",
-  },
-  {
-    value: "chars",
-    label: "chars — ignoriert Leerzeichen vollständig",
-    description:
-      "Vergleicht zeichenweise ohne jegliche Wortgrenzen. Kann bei ansonsten stark abweichenden Dokumenten viele kleine, verstreute Unterschiede erzeugen - in diesem Fall ist hybrid vorzuziehen.",
-  },
-];
 
 export function SettingsView() {
   const [engineStatus, setEngineStatus] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [checking, setChecking] = useState(false);
-  const [normalizeWhitespace, setNormalizeWhitespace] = useState(true);
-  const [compareMode, setCompareMode] = useState<CompareMode>("words");
+  const [profileDirectory, setProfileDirectory] = useState<string>("");
 
   useEffect(() => {
-    invoke<Profile>("load_settings")
-      .then((profile) => {
-        setNormalizeWhitespace(profile.normalize_whitespace);
-        setCompareMode(profile.compare_mode);
-      })
+    invoke<string | null>("get_profile_directory")
+      .then((dir) => setProfileDirectory(dir ?? ""))
       .catch((err) => setError(String(err)));
   }, []);
 
-  async function handleNormalizeWhitespaceChange(checked: boolean) {
-    setNormalizeWhitespace(checked);
-    try {
-      await invoke("save_settings", {
-        normalizeWhitespace: checked,
-        compareMode,
-      });
-    } catch (err) {
-      setError(String(err));
+  async function pickProfileDirectory() {
+    const path = await open({ multiple: false, directory: true });
+    if (typeof path !== "string") {
+      return;
     }
-  }
-
-  async function handleCompareModeChange(mode: CompareMode) {
-    setCompareMode(mode);
     try {
-      await invoke("save_settings", {
-        normalizeWhitespace,
-        compareMode: mode,
-      });
+      await invoke("set_profile_directory", { path });
+      setProfileDirectory(path);
     } catch (err) {
       setError(String(err));
     }
@@ -95,7 +59,7 @@ export function SettingsView() {
   return (
     <MainPanel
       title="Einstellungen"
-      description="Vergleichsprofile, Lizenz und Engine-Status."
+      description="Profilverzeichnis, Lizenz und Engine-Status."
     >
       <div className="space-y-6">
         <section className="rounded-lg border border-slate-200 bg-white p-5">
@@ -127,32 +91,29 @@ export function SettingsView() {
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Vergleich</h2>
-          <div className="mt-4">
-            <Toggle
-              label="Leerzeichen-Toleranz"
-              description="Ignoriert Unterschiede, die nur durch zusätzliche oder fehlende Leerzeichen innerhalb von Wörtern entstehen (z.B. durch OCR-Fehler bei gescannten Dokumenten)."
-              checked={normalizeWhitespace}
-              onChange={handleNormalizeWhitespaceChange}
-            />
-          </div>
-          <div className="mt-6 border-t border-slate-100 pt-5">
-            <RadioGroup
-              name="compare-mode"
-              label="Vergleichsmodus"
-              description="Bestimmt, auf welcher Ebene Referenz- und Kandidat-Text verglichen werden."
-              value={compareMode}
-              options={COMPARE_MODE_OPTIONS}
-              onChange={handleCompareModeChange}
-            />
-          </div>
-        </section>
+          <h2 className="text-sm font-semibold text-slate-900">Vergleichsprofile</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Verzeichnis mit den JSON-Vergleichsprofilen. Alle darin
+            gefundenen .json-Dateien stehen im Einzel- und Batch-Vergleich
+            über das Profil-Dropdown zur Auswahl.
+          </p>
 
-        <section>
-          <h2 className="mb-2 text-sm font-semibold text-slate-900">
-            Vergleichsprofile
-          </h2>
-          <PlaceholderPanel label="Profil-Verwaltung (JSON) folgt." />
+          <div className="mt-4 flex items-center gap-3">
+            <input
+              type="text"
+              readOnly
+              value={profileDirectory}
+              placeholder="Kein Profilverzeichnis ausgewählt"
+              className="flex-1 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+            />
+            <button
+              type="button"
+              onClick={pickProfileDirectory}
+              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Durchsuchen…
+            </button>
+          </div>
         </section>
       </div>
     </MainPanel>

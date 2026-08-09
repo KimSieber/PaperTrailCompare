@@ -14,6 +14,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { MainPanel } from "../layout/MainPanel";
 import { FilePickerRow } from "../components/FilePickerRow";
+import { ProfileSelect } from "../components/ProfileSelect";
 import { useDragDropTarget } from "../hooks/useDragDropTarget";
 import type { CompareResult } from "../types";
 
@@ -22,6 +23,7 @@ type DropTarget = "reference" | "candidate";
 export function SingleComparisonView() {
   const [refPath, setRefPath] = useState("");
   const [cndPath, setCndPath] = useState("");
+  const [profileName, setProfileName] = useState("");
   const [result, setResult] = useState<CompareResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,7 @@ export function SingleComparisonView() {
       const compareResult = await invoke<CompareResult>("compare_documents", {
         refPath,
         cndPath,
+        profileName: profileName || undefined,
       });
       setResult(compareResult);
     } catch (err) {
@@ -92,6 +95,8 @@ export function SingleComparisonView() {
       description="Referenz- und Kandidat-PDF auswählen und textlich vergleichen."
     >
       <div className="max-w-2xl space-y-6">
+        <ProfileSelect value={profileName} onChange={setProfileName} />
+
         <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
           <FilePickerRow
             label="Referenz"
