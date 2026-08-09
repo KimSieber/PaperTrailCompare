@@ -32,11 +32,18 @@ class ValidationError(Exception):
 
 @dataclass
 class ExcludeRegion:
-    page: int
+    """page und page_from sind beide optional; genau eines von beiden muss
+    gesetzt sein - das wird in load_profile geprüft, nicht hier, damit
+    direkt konstruierte ExcludeRegion(...)-Aufrufe (Tests) ohne zusätzliche
+    Validierung bleiben. page=0 bedeutet "alle Seiten", page_from=N bedeutet
+    "ab Seite N bis Dokumentende" (siehe pdf_extractor._region_applies_to_page)."""
+
     x: float
     y: float
     width: float
     height: float
+    page: Optional[int] = None
+    page_from: Optional[int] = None
 
 
 @dataclass
@@ -136,16 +143,40 @@ def load_profile(path: Union[str, Path]) -> Profile:
         )
 
     try:
-        exclude_regions = [
-            ExcludeRegion(
-                page=region["page"],
-                x=region["x"],
-                y=region["y"],
-                width=region["width"],
-                height=region["height"],
+        exclude_regions = []
+        for region in data.get("exclude_regions", []):
+            page = region.get("page")
+            page_from = region.get("page_from")
+            if page is not None and page_from is not None:
+                raise ValidationError(
+                    f"Profil '{path}': exclude_regions-Eintrag darf nicht gleichzeitig "
+                    f"'page' und 'page_from' setzen"
+                )
+            if page is None and page_from is None:
+                raise ValidationError(
+                    f"Profil '{path}': exclude_regions-Eintrag benötigt entweder "
+                    f"'page' (0 = alle Seiten) oder 'page_from'"
+                )
+            if page is not None and page < 0:
+                raise ValidationError(
+                    f"Profil '{path}': exclude_regions.page darf nicht negativ sein, "
+                    f"ist {page}"
+                )
+            if page_from is not None and page_from < 1:
+                raise ValidationError(
+                    f"Profil '{path}': exclude_regions.page_from muss >= 1 sein, "
+                    f"ist {page_from}"
+                )
+            exclude_regions.append(
+                ExcludeRegion(
+                    page=page,
+                    page_from=page_from,
+                    x=region["x"],
+                    y=region["y"],
+                    width=region["width"],
+                    height=region["height"],
+                )
             )
-            for region in data.get("exclude_regions", [])
-        ]
         page_groups = [
             PageGroupPattern(pattern=group["pattern"], name=group["name"])
             for group in data.get("page_groups", [])
