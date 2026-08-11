@@ -15,7 +15,7 @@ name: Build
 # (_stage_tesseract_windows) sollten beim ersten echten CI-Lauf geprüft
 # und ggf. nachgebessert werden.
 
-on:
+on:´
   workflow_dispatch:
 
 jobs:
