@@ -1,0 +1,19 @@
+{
+  "version": "1.0",                
+  "case_sensitive": true,         
+  "normalize_whitespace": true,
+  "compare_mode": "hybrid",
+  "text_extraction": "native",
+  "report_format": "pdf",
+  "ocr": {
+        "enabled": true,
+        "confidence_threshold": 0.85,
+        "dpi": 200,
+        "mode_reference": "fallback",
+        "mode_candidate": "fallback"
+  },
+  "exclude_regions": [
+        { "page": 0,  "x": 0,    "y": 0,  "width": 64,  "height": 840  },
+        { "page": 0,  "x": 565,  "y": 0,  "width": 30,  "height": 840  }
+                     ]
+}
