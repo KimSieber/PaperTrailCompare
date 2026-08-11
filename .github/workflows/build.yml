@@ -51,8 +51,8 @@ jobs:
       # Die Warnung ist harmlos und blockiert deinen Build nicht. Wenn du sie trotzdem loswerden willst, 
       # füge in der build.yml vor dem Tesseract-Install-Step einen neuen Step ein:
       - name: Remove untrusted Homebrew taps
-              if: runner.os == 'macOS'
-              run: brew untap aws/tap
+        if: runner.os == 'macOS'
+        run: brew untap aws/tap
 
       # macOS: Tesseract + Sprachmodell (deu) + dylibbundler für die
       # Relozierung der Homebrew-Abhängigkeiten (siehe
