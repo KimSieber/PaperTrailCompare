@@ -9,6 +9,7 @@
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, Manager};
 use tauri_plugin_shell::process::CommandEvent;
@@ -132,6 +133,35 @@ fn resolve_profile_path(
     Ok(Some(Path::new(&dir).join(name)))
 }
 
+/// On Windows, returns environment overrides that redirect TEMP/TMP to an
+/// AppLocker-whitelisted directory. On other platforms, returns an empty map.
+///
+/// Background: PyInstaller --onefile unpacks bundled files (including
+/// tesseract.exe) into %TEMP%\_MEIxxxxxx at runtime. Corporate AppLocker
+/// policies block .exe execution from %TEMP%. The customer's IT has
+/// whitelisted %LOCALAPPDATA%\SVI (incl. subdirectories), so redirecting
+/// the temp path there lets tesseract.exe run without code-signing.
+fn sidecar_env_overrides() -> HashMap<String, String> {
+    // On non-Windows targets the #[cfg(target_os = "windows")] block below
+    // is compiled out, so `env` is never mutated there - hence `allow`.
+    #[allow(unused_mut)]
+    let mut env = HashMap::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let svi_tmp = format!("{}\\SVI\\PaperTrail Compare", local_app_data);
+            // create_dir_all is safe: it only creates missing directories
+            // and never modifies existing ones or their contents.
+            let _ = std::fs::create_dir_all(&svi_tmp);
+            env.insert("TEMP".to_string(), svi_tmp.clone());
+            env.insert("TMP".to_string(), svi_tmp);
+        }
+    }
+
+    env
+}
+
 /// Verzeichnis für Vergleichs-Reports unterhalb der Dokumente des Nutzers
 /// (macOS: ~/Documents/PaperTrailCompare/, Windows: Eigene
 /// Dokumente\PaperTrailCompare\). Reports bleiben dauerhaft erhalten und
@@ -207,6 +237,7 @@ async fn compare_documents(
 
     let output = sidecar
         .args(cli_args)
+        .envs(sidecar_env_overrides())
         .output()
         .await
         .map_err(|e| e.to_string())?;
@@ -296,7 +327,11 @@ async fn start_batch_compare(
         cli_args.push(profile_path.to_string_lossy().to_string());
     }
 
-    let (mut rx, mut _child) = sidecar.args(cli_args).spawn().map_err(|e| e.to_string())?;
+    let (mut rx, mut _child) = sidecar
+        .args(cli_args)
+        .envs(sidecar_env_overrides())
+        .spawn()
+        .map_err(|e| e.to_string())?;
 
     let mut stderr_output = String::new();
     let mut done_output: Option<BatchOutput> = None;
@@ -360,6 +395,7 @@ async fn engine_version(app: tauri::AppHandle) -> Result<String, String> {
 
     let output = sidecar
         .args(["--version"])
+        .envs(sidecar_env_overrides())
         .output()
         .await
         .map_err(|e| e.to_string())?;
