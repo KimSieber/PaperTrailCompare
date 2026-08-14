@@ -183,7 +183,12 @@ export function BatchView() {
               </div>
             </div>
 
-            <div className="max-h-96 overflow-y-auto rounded-md border border-slate-200">
+            {/* Feste Höhe für genau 6 sichtbare Zeilen (Kopfzeile 32px +
+                6 × 36px Datenzeile ≈ 248px zzgl. 2px Rahmen), unabhängig von
+                der Fensterhöhe - bei weniger Zeilen schrumpft der Container
+                auf die tatsächliche Inhaltshöhe, da max-height statt height
+                gesetzt ist. */}
+            <div className="max-h-[250px] overflow-y-auto rounded-md border border-slate-200">
               <table className="w-full table-fixed text-sm">
                 <colgroup>
                   <col className="w-[38%]" />
