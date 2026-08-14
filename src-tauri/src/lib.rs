@@ -386,8 +386,17 @@ async fn start_batch_compare(
 /// die Auslieferung wird das die PyInstaller-gebündelte Engine sein
 /// (Architekturentscheidung #2). Siehe src-tauri/binaries/README.md für
 /// den aktuellen Entwicklungsstand.
+/// Ausgabe von `papertrail-engine --version` (siehe engine/__main__.py),
+/// deserialisiert aus der einzeiligen JSON-Antwort des Sidecars.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct EngineInfo {
+    version: String,
+    expiry: String,
+    expired: bool,
+}
+
 #[tauri::command]
-async fn engine_version(app: tauri::AppHandle) -> Result<String, String> {
+async fn engine_version(app: tauri::AppHandle) -> Result<EngineInfo, String> {
     let sidecar = app
         .shell()
         .sidecar("papertrail-engine")
@@ -404,7 +413,8 @@ async fn engine_version(app: tauri::AppHandle) -> Result<String, String> {
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    let raw = String::from_utf8_lossy(&output.stdout);
+    serde_json::from_str::<EngineInfo>(raw.trim()).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

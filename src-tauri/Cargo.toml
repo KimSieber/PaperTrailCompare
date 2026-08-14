@@ -1,6 +1,8 @@
 [package]
 name = "papertrail-compare"
-version = "0.1.0"
+# Version must stay in sync with 3 other locations: engine/__init__.py
+# (__version__), package.json and src-tauri/tauri.conf.json.
+version = "0.2.0"
 description = "PaperTrail Compare – textlicher Vergleich von PDF-Dateien für Output-Management-Migrationen"
 authors = ["PaperTrail Compare"]
 edition = "2021"

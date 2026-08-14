@@ -7,8 +7,11 @@
  * @changed 2026-08-09
  */
 
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import type { ViewKey } from "../types";
+import { invoke } from "@tauri-apps/api/core";
+import type { EngineInfo, ViewKey } from "../types";
+import { AboutDialog } from "../components/AboutDialog";
 import { CompareIcon, QueueIcon, SettingsIcon } from "./icons";
 
 interface NavItem {
@@ -29,6 +32,32 @@ interface SidebarProps {
 }
 
 export function Sidebar({ active, onSelect }: SidebarProps) {
+  const [engineInfo, setEngineInfo] = useState<EngineInfo | null>(null);
+  const [showAbout, setShowAbout] = useState(false);
+
+  async function fetchEngineInfo(): Promise<EngineInfo | null> {
+    try {
+      const info = await invoke<EngineInfo>("engine_version");
+      setEngineInfo(info);
+      return info;
+    } catch {
+      // Engine (noch) nicht erreichbar - Versionsanzeige bleibt leer, kein
+      // Dialog. Der Fehler zeigt sich erst beim tatsächlichen Vergleich.
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    void fetchEngineInfo();
+  }, []);
+
+  async function handleVersionClick() {
+    const info = await fetchEngineInfo();
+    if (info) {
+      setShowAbout(true);
+    }
+  }
+
   return (
     <aside className="flex h-full w-60 flex-col bg-slate-900 text-slate-300">
       <div className="flex h-14 items-center border-b border-slate-800 px-5">
@@ -59,9 +88,21 @@ export function Sidebar({ active, onSelect }: SidebarProps) {
         })}
       </nav>
 
-      <div className="border-t border-slate-800 px-5 py-3 text-xs text-slate-500">
-        Version 0.1.0
-      </div>
+      <button
+        type="button"
+        onClick={handleVersionClick}
+        className="cursor-pointer border-t border-slate-800 px-5 py-3 text-left text-xs text-slate-500 hover:underline"
+      >
+        Version {engineInfo?.version ?? "…"}
+      </button>
+
+      {showAbout && engineInfo && (
+        <AboutDialog
+          version={engineInfo.version}
+          expiry={engineInfo.expiry}
+          onClose={() => setShowAbout(false)}
+        />
+      )}
     </aside>
   );
 }

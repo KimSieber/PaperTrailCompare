@@ -16,6 +16,18 @@ Laufzeit erreichbar sind - im PyInstaller-gebündelten Zustand
 (--version) und engine.report_generator (Report-Metadatenzeile
 "Tool-Version") importieren beide von hier, damit es nur eine Stelle
 gibt, die bei einem Release aktualisiert werden muss.
+
+Der Versionsstring muss bei jedem Release an vier Stellen synchron
+gehalten werden: engine/__init__.py (hier), package.json,
+src-tauri/tauri.conf.json und src-tauri/Cargo.toml. Die letzten drei
+sind JSON/TOML und tragen den Hinweis daher nur hier bzw. (TOML) direkt
+neben dem Feld.
+
+__expiry__ ist das Ablaufdatum der aktuellen Testversion (ISO-Format
+YYYY-MM-DD). engine.__main__ prüft es bei jedem Aufruf und bricht mit
+Exit-Code 2 ab, wenn das Datum überschritten ist; die GUI prüft es beim
+Start über den engine_version-Command.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
+__expiry__ = "2026-12-31"

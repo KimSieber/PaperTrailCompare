@@ -47,8 +47,10 @@ export function SettingsView() {
     try {
       // Ruft die Python Core Engine als Sidecar-Prozess auf (lokales IPC
       // über Tauri-Commands, kein Netzwerk-Socket).
-      const version = await invoke<string>("engine_version");
-      setEngineStatus(version);
+      const info = await invoke<{ version: string; expiry: string; expired: boolean }>(
+        "engine_version"
+      );
+      setEngineStatus(info.version);
     } catch (err) {
       setError(String(err));
     } finally {

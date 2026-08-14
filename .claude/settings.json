@@ -27,7 +27,12 @@
       "Bash(rm -rf ~)",
       "Read(./.env)",
       "Read(./.env.*)",
-      "Bash(cargo check *)"
+      "Bash(cargo check *)",
+      "Bash(.venv/bin/python -m engine --version)",
+      "Bash(sed -i '' 's/__expiry__ = \"2026-12-31\"/__expiry__ = \"2020-01-01\"/' engine/__init__.py)",
+      "Bash(.venv/bin/python -m engine compare tests/fixtures/nonexistent_a.pdf tests/fixtures/nonexistent_b.pdf)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(sed -i '' 's/__expiry__ = \"2020-01-01\"/__expiry__ = \"2026-12-31\"/' engine/__init__.py)"
     ],
     "deny": [
       "Bash(git push --force*)",

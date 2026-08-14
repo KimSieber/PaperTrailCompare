@@ -11,6 +11,14 @@
 
 export type ViewKey = "single" | "batch" | "settings";
 
+/** Entspricht 1:1 der JSON-Ausgabe von `engine --version` (engine/__main__.py)
+ * bzw. dem Rust EngineInfo-Struct des engine_version-Commands. */
+export interface EngineInfo {
+  version: string;
+  expiry: string;
+  expired: boolean;
+}
+
 /** Entspricht 1:1 engine.text_comparator.Delta / src-tauri Delta-Struct. */
 export interface Delta {
   page: number;
