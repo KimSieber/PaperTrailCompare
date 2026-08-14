@@ -8,7 +8,7 @@
  * @changed 2026-08-09
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -18,18 +18,28 @@ import { ProfileSelect } from "../components/ProfileSelect";
 import { useDragDropTarget } from "../hooks/useDragDropTarget";
 import type { CompareResult } from "../types";
 
-type DropTarget = "reference" | "candidate";
+type DropTarget = "reference" | "candidate" | "outputDir";
 
 export function SingleComparisonView() {
   const [refPath, setRefPath] = useState("");
   const [cndPath, setCndPath] = useState("");
   const [profileName, setProfileName] = useState("");
+  const [outputDir, setOutputDir] = useState("");
   const [result, setResult] = useState<CompareResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Wird bei jedem frischen Mount (auch Tab-Wechsel) neu vom heutigen Datum
+  // abgeleitet - anders als das Profil wird das Ausgabeverzeichnis bewusst
+  // nicht persistiert (siehe Sprint-Doku Block 4c).
+  useEffect(() => {
+    invoke<string>("get_default_output_dir")
+      .then(setOutputDir)
+      .catch((err) => setError(String(err)));
+  }, []);
+
   const { activeDropTarget, isDragPending } = useDragDropTarget<DropTarget>({
-    isValidPath: (_target, path) => path.toLowerCase().endsWith(".pdf"),
+    isValidPath: (target, path) => target === "outputDir" || path.toLowerCase().endsWith(".pdf"),
     onInvalidDrop: () => setError("Nur PDF-Dateien können per Drag & Drop abgelegt werden."),
     onMultipleDropped: () =>
       setError("Es kann nur eine Datei pro Feld abgelegt werden. Nur die erste Datei wurde übernommen."),
@@ -39,8 +49,10 @@ export function SingleComparisonView() {
       }
       if (target === "reference") {
         setRefPath(path);
-      } else {
+      } else if (target === "candidate") {
         setCndPath(path);
+      } else {
+        setOutputDir(path);
       }
     },
   });
@@ -56,6 +68,13 @@ export function SingleComparisonView() {
     }
   }
 
+  async function pickOutputDir() {
+    const path = await open({ multiple: false, directory: true });
+    if (typeof path === "string") {
+      setOutputDir(path);
+    }
+  }
+
   async function handleCompare() {
     setError("");
     setResult(null);
@@ -67,6 +86,7 @@ export function SingleComparisonView() {
         refPath,
         cndPath,
         profileName: profileName || undefined,
+        outputDir: outputDir || undefined,
       });
       setResult(compareResult);
     } catch (err) {
@@ -112,6 +132,15 @@ export function SingleComparisonView() {
             dropTarget="candidate"
             isDropActive={activeDropTarget === "candidate"}
             isDragPending={isDragPending && activeDropTarget === null}
+          />
+          <FilePickerRow
+            label="Ausgabe"
+            path={outputDir}
+            onPick={pickOutputDir}
+            dropTarget="outputDir"
+            isDropActive={activeDropTarget === "outputDir"}
+            isDragPending={isDragPending && activeDropTarget === null}
+            placeholder="Kein Ausgabeverzeichnis ausgewählt"
           />
 
           <button

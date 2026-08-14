@@ -198,15 +198,17 @@ fn sidecar_env_overrides() -> HashMap<String, String> {
 }
 
 /// Verzeichnis für Vergleichs-Reports unterhalb der Dokumente des Nutzers
-/// (macOS: ~/Documents/PaperTrailCompare/, Windows: Eigene
-/// Dokumente\PaperTrailCompare\). Reports bleiben dauerhaft erhalten und
-/// werden nicht automatisch geleert.
+/// (macOS: ~/Documents/PaperTrail Compare/, Windows: Eigene
+/// Dokumente\PaperTrail Compare\). Reports bleiben dauerhaft erhalten und
+/// werden nicht automatisch geleert. Gleicher Ordnername wie in
+/// get_default_output_dir, damit Default-Vorbelegung (GUI) und
+/// Fallback-Verhalten (kein output_dir übergeben) konsistent sind.
 fn reports_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .document_dir()
         .map_err(|e| e.to_string())?
-        .join("PaperTrailCompare");
+        .join("PaperTrail Compare");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }
@@ -230,24 +232,49 @@ fn file_stem_sanitized(path: &str) -> String {
     sanitize_filename_part(&stem)
 }
 
+/// Vorbelegung für das Ausgabeverzeichnis im Einzelvergleich (Block 4c):
+/// Dokumente-Verzeichnis des Nutzers + "PaperTrail Compare" + heutiges Datum
+/// als Unterordner, z. B. macOS `~/Documents/PaperTrail Compare/2026-08-14`,
+/// Windows `C:\Users\<user>\Documents\PaperTrail Compare\2026-08-14`. Legt
+/// das Verzeichnis bewusst noch nicht an - das passiert erst beim
+/// tatsächlichen Vergleichslauf (siehe compare_documents).
+#[tauri::command]
+fn get_default_output_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = app
+        .path()
+        .document_dir()
+        .map_err(|e| e.to_string())?
+        .join("PaperTrail Compare")
+        .join(chrono::Local::now().format("%Y-%m-%d").to_string());
+    Ok(dir.to_string_lossy().to_string())
+}
+
 /// Vergleicht zwei PDF-Dateien textlich über die Python Core Engine
 /// (Sidecar-Prozess, siehe CLAUDE.md Architekturentscheidung #1). Ruft
 /// `papertrail-engine compare <ref> <cnd> --json --report <pfad>` auf und
 /// parst die JSON-Ausgabe in ein typisiertes Ergebnis.
+///
+/// `output_dir` kommt aus der GUI (Block 4c, vorbelegt über
+/// get_default_output_dir, vom Nutzer änderbar) und wird bei Bedarf
+/// angelegt. Ohne `output_dir` greift zur Abwärtskompatibilität weiterhin
+/// das alte Default-Verzeichnis unterhalb von reports_dir().
 #[tauri::command]
 async fn compare_documents(
     app: tauri::AppHandle,
     ref_path: String,
     cnd_path: String,
     profile_name: Option<String>,
+    output_dir: Option<String>,
 ) -> Result<CompareOutput, String> {
-    let dir = reports_dir(&app)?;
+    let now = chrono::Local::now();
+    let day_dir = match output_dir {
+        Some(dir) => PathBuf::from(dir),
+        None => reports_dir(&app)?.join(now.format("%Y-%m-%d").to_string()),
+    };
+    std::fs::create_dir_all(&day_dir).map_err(|e| e.to_string())?;
 
     let ref_name = file_stem_sanitized(&ref_path);
     let cnd_name = file_stem_sanitized(&cnd_path);
-    let now = chrono::Local::now();
-    let day_dir = dir.join(now.format("%Y-%m-%d").to_string());
-    std::fs::create_dir_all(&day_dir).map_err(|e| e.to_string())?;
     let timestamp = now.format("%Y-%m-%d_%H-%M");
     let report_path = day_dir.join(format!("{ref_name}_{cnd_name}_{timestamp}.pdf"));
     let report_path_str = report_path.to_string_lossy().to_string();
@@ -462,6 +489,7 @@ pub fn run() {
             greet,
             engine_version,
             compare_documents,
+            get_default_output_dir,
             start_batch_compare,
             get_profile_directory,
             set_profile_directory,
