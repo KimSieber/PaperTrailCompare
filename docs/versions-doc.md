@@ -2,8 +2,15 @@
 *** V0.2.0    14.08.2025
 *******************************
 
-Dialog-Anpassungen
--------------------
+Sprint PTC-3: Augabe anpassen
+-----------------------------
+
+Sprint PTC-2: WebSeite anpassen
+--------------------------------
+<< keine Aktion >>
+
+Sprint PTC-1: Dialog-Anpassungen
+---------------------------------
 Block 1 (A+B): __version__ + __expiry__ in __init__.py, Engine-Guard, Version synchron in 4 Dateien, engine_version-Command liefert JSON mit Ablaufstatus
 Block 2 (C): AboutDialog als Modal bei Klick auf Versionsnummer, Ablauf-Sperre beim App-Start
 Block 3 (D): ProfileSelect in den weißen Block, gleiche Optik wie FilePickerRow, Persistenz separat für Single/Batch

@@ -11,9 +11,15 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use tauri::{Emitter, Manager};
-use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
+
+/// Hält den Kind-Prozess-Handle des laufenden Batch-Sidecars, solange ein
+/// Batch-Lauf aktiv ist - Grundlage für den Abbrechen-Button (Block 6).
+/// None, solange kein Batch läuft.
+struct BatchChildState(Mutex<Option<CommandChild>>);
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -372,6 +378,7 @@ async fn start_batch_compare(
     filelist_path: String,
     output_dir: String,
     profile_name: Option<String>,
+    batch_state: tauri::State<'_, BatchChildState>,
 ) -> Result<BatchOutput, String> {
     let sidecar = app
         .shell()
@@ -389,14 +396,17 @@ async fn start_batch_compare(
         cli_args.push(profile_path.to_string_lossy().to_string());
     }
 
-    let (mut rx, mut _child) = sidecar
+    let (mut rx, child) = sidecar
         .args(cli_args)
         .envs(sidecar_env_overrides())
         .spawn()
         .map_err(|e| e.to_string())?;
 
+    *batch_state.0.lock().unwrap() = Some(child);
+
     let mut stderr_output = String::new();
     let mut done_output: Option<BatchOutput> = None;
+    let mut terminate_error: Option<String> = None;
 
     while let Some(event) = rx.recv().await {
         match event {
@@ -424,7 +434,7 @@ async fn start_batch_compare(
             }
             CommandEvent::Terminated(payload) => {
                 if payload.code != Some(0) {
-                    return Err(if stderr_output.is_empty() {
+                    terminate_error = Some(if stderr_output.is_empty() {
                         format!("Batch-Verarbeitung fehlgeschlagen (Exit-Code {:?})", payload.code)
                     } else {
                         stderr_output.trim().to_string()
@@ -435,7 +445,29 @@ async fn start_batch_compare(
         }
     }
 
+    // Sidecar ist beendet (regulär, mit Fehler oder per cancel_batch
+    // gekillt) - der Handle ist in jedem Fall nicht mehr gültig. Erneutes
+    // Setzen auf None ist unschädlich, falls cancel_batch ihn bereits per
+    // take() entfernt hat.
+    *batch_state.0.lock().unwrap() = None;
+
+    if let Some(err) = terminate_error {
+        return Err(err);
+    }
+
     done_output.ok_or_else(|| "Batch-Verarbeitung lieferte kein Ergebnis".to_string())
+}
+
+/// Bricht einen laufenden Batch ab, indem der Sidecar-Kind-Prozess
+/// gekillt wird (siehe start_batch_compare / BatchChildState). Kein-Op,
+/// falls gerade kein Batch läuft.
+#[tauri::command]
+fn cancel_batch(batch_state: tauri::State<'_, BatchChildState>) -> Result<(), String> {
+    let mut guard = batch_state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(child) = guard.take() {
+        child.kill().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Startet die Python Core Engine als Sidecar-Prozess (Kind-Prozess, kein
@@ -485,12 +517,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(BatchChildState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             greet,
             engine_version,
             compare_documents,
             get_default_output_dir,
             start_batch_compare,
+            cancel_batch,
             get_profile_directory,
             set_profile_directory,
             list_profiles,

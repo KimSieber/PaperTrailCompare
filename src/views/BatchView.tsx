@@ -8,7 +8,7 @@
  * @changed 2026-08-09
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -46,6 +46,12 @@ export function BatchView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [doneResult, setDoneResult] = useState<BatchOutput | null>(null);
+  const [cancelled, setCancelled] = useState(false);
+  // Live-Flag für die catch-Auswertung in handleStart: `cancelled` (State)
+  // ist in der zum Startzeitpunkt erzeugten Closure "eingefroren" und würde
+  // dort nicht die Aktualisierung durch handleCancel sehen - der Ref liest
+  // dagegen immer den aktuellen Wert.
+  const cancelledRef = useRef(false);
 
   const { activeDropTarget, isDragPending } = useDragDropTarget<DropTarget>({
     isValidPath: (target, path) => target !== "csv" || path.toLowerCase().endsWith(".csv"),
@@ -86,6 +92,8 @@ export function BatchView() {
     setRows([]);
     setProgress({ index: 0, total: 0 });
     setDoneResult(null);
+    setCancelled(false);
+    cancelledRef.current = false;
     setLoading(true);
 
     const unlisten = await listen<BatchProgressEvent>("batch-progress", (event) => {
@@ -102,10 +110,26 @@ export function BatchView() {
       });
       setDoneResult(output);
     } catch (err) {
-      setError(String(err));
+      // Wird der Sidecar per cancel_batch gekillt, schlägt der Aufruf hier
+      // ebenfalls fehl (siehe start_batch_compare) - das ist dann kein
+      // echter Fehler, sondern der erwartete Abbruch (siehe cancelled-Flag,
+      // gesetzt in handleCancel).
+      if (!cancelledRef.current) {
+        setError(String(err));
+      }
     } finally {
       unlisten();
       setLoading(false);
+    }
+  }
+
+  async function handleCancel() {
+    setCancelled(true);
+    cancelledRef.current = true;
+    try {
+      await invoke("cancel_batch");
+    } catch (err) {
+      setError(String(err));
     }
   }
 
@@ -150,14 +174,25 @@ export function BatchView() {
             placeholder="Kein Ausgabeverzeichnis ausgewählt"
           />
 
-          <button
-            type="button"
-            onClick={handleStart}
-            disabled={!canStart}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? "Vergleiche…" : "Vergleichen"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleStart}
+              disabled={!canStart}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? "Vergleiche…" : "Vergleichen"}
+            </button>
+            {loading && (
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500"
+              >
+                Abbrechen
+              </button>
+            )}
+          </div>
         </section>
 
         {error && (
@@ -232,10 +267,23 @@ export function BatchView() {
                       </tr>
                     );
                   })}
+                  {cancelled && !loading && (
+                    <tr className="bg-red-50 text-red-800">
+                      <td className="px-3 py-2 text-center font-medium" colSpan={4}>
+                        Abbruch
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </section>
+        )}
+
+        {cancelled && !loading && (
+          <p className="text-sm font-medium text-red-700">
+            Batch abgebrochen nach {rows.length} von {progress.total} Paaren
+          </p>
         )}
 
         {doneResult && (
