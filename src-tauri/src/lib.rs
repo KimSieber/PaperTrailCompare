@@ -47,6 +47,11 @@ struct CompareOutput {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct AppConfig {
     profile_directory: Option<String>,
+    // Option<T> deserialisiert bei fehlendem Feld automatisch zu None (kein
+    // #[serde(default)] nötig) - alte app_config.json-Dateien ohne diese
+    // Felder bleiben also kompatibel.
+    selected_profile_single: Option<String>,
+    selected_profile_batch: Option<String>,
 }
 
 /// Pfad der persistierten App-Konfiguration im App-Konfigurationsverzeichnis
@@ -79,13 +84,43 @@ fn get_profile_directory(app: tauri::AppHandle) -> Result<Option<String>, String
     Ok(read_app_config(&app)?.profile_directory)
 }
 
-/// Persistiert das gewählte Profilverzeichnis in app_config.json.
+/// Persistiert das gewählte Profilverzeichnis in app_config.json - liest den
+/// bestehenden Stand zuerst ein, damit die Profil-Dropdown-Auswahl
+/// (selected_profile_single/_batch) dabei nicht verloren geht.
 #[tauri::command]
 fn set_profile_directory(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let config_path = app_config_path(&app)?;
-    let config = AppConfig {
-        profile_directory: Some(path),
-    };
+    let mut config = read_app_config(&app)?;
+    config.profile_directory = Some(path);
+    let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    std::fs::write(&config_path, json).map_err(|e| e.to_string())
+}
+
+/// Liefert die persistierte Profilauswahl für Einzel- und Batch-Vergleich
+/// als (single, batch) - jeweils None, falls "Kein Profil" gewählt wurde
+/// oder noch nie eine Auswahl gespeichert wurde.
+#[tauri::command]
+fn get_selected_profiles(app: tauri::AppHandle) -> Result<(Option<String>, Option<String>), String> {
+    let config = read_app_config(&app)?;
+    Ok((config.selected_profile_single, config.selected_profile_batch))
+}
+
+/// Persistiert die Profilauswahl für den angegebenen Modus ("single" oder
+/// "batch") in app_config.json, ohne profile_directory oder die Auswahl des
+/// jeweils anderen Modus zu verändern.
+#[tauri::command]
+fn set_selected_profile(
+    app: tauri::AppHandle,
+    mode: String,
+    profile_name: Option<String>,
+) -> Result<(), String> {
+    let config_path = app_config_path(&app)?;
+    let mut config = read_app_config(&app)?;
+    match mode.as_str() {
+        "single" => config.selected_profile_single = profile_name,
+        "batch" => config.selected_profile_batch = profile_name,
+        other => return Err(format!("Unbekannter Modus: {other}")),
+    }
     let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     std::fs::write(&config_path, json).map_err(|e| e.to_string())
 }
@@ -430,7 +465,9 @@ pub fn run() {
             start_batch_compare,
             get_profile_directory,
             set_profile_directory,
-            list_profiles
+            list_profiles,
+            get_selected_profiles,
+            set_selected_profile
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
