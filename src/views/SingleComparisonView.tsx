@@ -95,9 +95,8 @@ export function SingleComparisonView() {
       description="Referenz- und Kandidat-PDF auswählen und textlich vergleichen."
     >
       <div className="max-w-2xl space-y-6">
-        <ProfileSelect value={profileName} onChange={setProfileName} />
-
         <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+          <ProfileSelect value={profileName} onChange={setProfileName} persistMode="single" />
           <FilePickerRow
             label="Referenz"
             path={refPath}

@@ -129,9 +129,8 @@ export function BatchView() {
       description="Massenvergleich per Dateiliste (CSV ohne Kopfzeile: Referenzdatei,Kandidatendatei)."
     >
       <div className="max-w-3xl space-y-6">
-        <ProfileSelect value={profileName} onChange={setProfileName} />
-
         <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+          <ProfileSelect value={profileName} onChange={setProfileName} persistMode="batch" />
           <FilePickerRow
             label="Dateiliste"
             path={csvPath}
