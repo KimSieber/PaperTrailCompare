@@ -1,6 +1,6 @@
 [project]
 name = "papertrail-compare"
-version = "0.1.0"
+version = "0.2.0"
 description = "Textlicher Vergleich von PDF-Dateien für Output-Management-Migrationen"
 requires-python = ">=3.12"
 dependencies = [

@@ -14,7 +14,17 @@ Architekturentscheidung #1). Für die Auslieferung wird dieses Modul via
 PyInstaller zu einer eigenständigen Executable gebündelt
 (Architekturentscheidung #2).
 
-`--version` bestätigt, dass der Sidecar-Prozess startet und antwortet.
+`--version` gibt als JSON-Zeile `{"version", "expiry", "expired"}` aus
+(Version aus engine.__version__, Ablaufdatum aus engine.__expiry__) und
+bestätigt damit zugleich, dass der Sidecar-Prozess startet und antwortet;
+die Tauri-Shell (engine_version-Command) nutzt das für den Startup- und
+About-Dialog-Check. `--version` ist von der Ablaufprüfung ausgenommen und
+liefert `expired: true` statt abzubrechen - sonst könnte die GUI den
+Ablauf einer abgelaufenen Testversion gar nicht erst feststellen. Die
+Subcommands (`compare`, `batch`) prüfen __expiry__ dagegen vor jeder
+Ausführung und brechen mit Exit-Code 2 sowie einer deutschsprachigen
+Fehlermeldung auf stderr ab, wenn die Testversion abgelaufen ist
+(Exit-Code 1 bleibt für sonstige Laufzeitfehler reserviert).
 `compare <ref.pdf> <cnd.pdf> [--json] [--report <output.pdf>] [--profile <profil.json>]`
 führt den Einzelvergleich aus (pdf_extractor + text_comparator) und gibt bei
 `--json` exakt die Felder von text_comparator.CompareResult/Delta als JSON
@@ -40,10 +50,10 @@ import sys
 import time
 from typing import Optional
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
-from engine import __version__
+from engine import __expiry__, __version__
 from engine.batch_processor import batch_compare
 from engine.models import PairResult
 from engine.pdf_extractor import extract_pages_for_profile
@@ -223,8 +233,19 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.version:
-        print(f"papertrail-engine {__version__}")
+        expired = date.today() > date.fromisoformat(__expiry__)
+        print(json.dumps({
+            "version": __version__,
+            "expiry": __expiry__,
+            "expired": expired,
+        }))
         return 0
+
+    if date.today() > date.fromisoformat(__expiry__):
+        print(f"Diese Testversion ist am {__expiry__} abgelaufen. "
+              f"Bitte wenden Sie sich an PaperTrail@Sieber-BW.de "
+              f"für eine aktuelle Version.", file=sys.stderr)
+        return 2
 
     if args.command in ("compare", "batch"):
         return args.func(args)

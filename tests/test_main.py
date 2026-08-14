@@ -28,6 +28,7 @@ from pathlib import Path
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+from engine import __expiry__, __version__
 from engine.__main__ import main
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -549,7 +550,10 @@ def test_version_flag(capsys):
     exit_code = main(["--version"])
 
     assert exit_code == 0
-    assert "papertrail-engine" in capsys.readouterr().out
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["version"] == __version__
+    assert payload["expiry"] == __expiry__
+    assert payload["expired"] is False
 
 
 def test_ohne_argumente_zeigt_hilfe(capsys):
