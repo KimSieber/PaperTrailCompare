@@ -2,11 +2,14 @@
 *** V0.2.0    14.08.2025
 *******************************
 
-Sprint PTC-3:
------------------------------
+Sprint PTC-3: Erkennung optimieren
+----------------------------------
+Task A - Bindestriche finden
+Task B - 
+
 
 Sprint PTC-2: Sprint PTC-2: Ausgaben optimieren
---------------------------------
+-----------------------------------------------
 Task A — Processing Duration on Batch Individual Reports
 Task B — Table Header Contrast Fix
 Task C — Sum of Deltas + Timestamp Relocation in Batch Report
