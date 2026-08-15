@@ -8,7 +8,7 @@ Task A - Bindestriche behandeln
 Task B - Spalten vs. Zeilenweise unterscheiden
 
 
-Sprint PTC-2: Sprint PTC-2: Ausgaben optimieren
+Sprint PTC-2: Ausgaben optimieren
 -----------------------------------------------
 Task A — Processing Duration on Batch Individual Reports
 Task B — Table Header Contrast Fix
