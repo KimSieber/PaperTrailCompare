@@ -4,7 +4,7 @@
 
 Sprint PTC-3: Erkennung optimieren
 ----------------------------------
-Task A - Bindestriche finden
+Task A - Bindestriche behandeln
 Task B - 
 
 
