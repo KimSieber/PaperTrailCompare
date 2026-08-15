@@ -45,6 +45,15 @@ _SUBTITLE_STYLE = ParagraphStyle(
 _BODY_STYLE = _STYLES["Normal"]
 _CELL_STYLE = ParagraphStyle("report_cell", parent=_STYLES["Normal"], fontSize=9, leading=11)
 _DETAIL_CELL_STYLE = ParagraphStyle("report_detail_cell", parent=_STYLES["Normal"], fontSize=7, leading=9)
+# Eigene Header-Varianten mit explizitem textColor=white: ReportLab-Paragraph-
+# Objekte überschreiben TEXTCOLOR aus TableStyle, daher reicht TEXTCOLOR=white
+# in _TABLE_STYLE/_DETAIL_TABLE_STYLE allein nicht (Sprint PTC-2, Task B).
+_HEADER_CELL_STYLE = ParagraphStyle(
+    "report_header_cell", parent=_CELL_STYLE, textColor=colors.white, fontName="Helvetica-Bold"
+)
+_DETAIL_HEADER_CELL_STYLE = ParagraphStyle(
+    "report_detail_header_cell", parent=_DETAIL_CELL_STYLE, textColor=colors.white, fontName="Helvetica-Bold"
+)
 _TILE_LABEL_STYLE = ParagraphStyle(
     "report_tile_label", parent=_STYLES["Normal"], fontSize=7, textColor=colors.HexColor("#666666")
 )
@@ -56,6 +65,7 @@ _TABLE_STYLE = TableStyle([
     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
     ("FONTSIZE", (0, 0), (-1, -1), 9),
     ("VALIGN", (0, 0), (-1, -1), "TOP"),
 ])
@@ -65,6 +75,7 @@ _DETAIL_TABLE_STYLE = TableStyle([
     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
     ("FONTSIZE", (0, 0), (-1, 0), 8),
     ("VALIGN", (0, 0), (-1, -1), "TOP"),
 ])
@@ -464,7 +475,7 @@ def _build_delta_detail_pdf_bytes(compare_result: CompareResult) -> bytes:
             Paragraph(html.escape(ref_text), _DETAIL_CELL_STYLE),
             Paragraph(html.escape(cnd_text), _DETAIL_CELL_STYLE),
         ])
-    table_rows[0] = [Paragraph(f"<b>{c}</b>", _DETAIL_CELL_STYLE) for c in table_rows[0]]
+    table_rows[0] = [Paragraph(c, _DETAIL_HEADER_CELL_STYLE) for c in table_rows[0]]
 
     # splitByRow=1 (Default) erlaubt ReportLab, die Tabelle zwischen Zeilen
     # über Seiten zu brechen; ohne die Text-Kürzung oben würde eine einzelne
@@ -813,7 +824,7 @@ def _build_batch_table(batch_result: BatchResult) -> Table:
     Spaltenbreiten umbrechen statt über den Satzspiegel hinauszulaufen
     (Punkt 3); repeatRows=1 wiederholt die Kopfzeile auf Folgeseiten."""
     table_rows = [
-        [Paragraph(f"<b>{c}</b>", _CELL_STYLE) for c in ["Referenz", "Kandidat", "Deltas", "Übereinstimmung"]]
+        [Paragraph(c, _HEADER_CELL_STYLE) for c in ["Referenz", "Kandidat", "Deltas", "Übereinstimmung"]]
     ]
     style_commands = list(_TABLE_STYLE.getCommands())
 
