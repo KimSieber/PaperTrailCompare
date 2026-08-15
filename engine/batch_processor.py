@@ -57,7 +57,7 @@ def _unique_report_path(report_dir: Path, ref_file: Path, cnd_file: Path) -> Pat
     ({RefStem}_{CndStem}.pdf, siehe prompt_batch_fixes.md Punkt 1). Existiert
     dieser Name bereits (Normalfall: nicht der Fall), wird ein Zähler
     angehängt, damit kein bestehender Report überschrieben wird."""
-    base = f"{_sanitize_filename_part(ref_file.stem)}_{_sanitize_filename_part(cnd_file.stem)}"
+    base = f"PTC-Vergleich_{_sanitize_filename_part(ref_file.stem)}_{_sanitize_filename_part(cnd_file.stem)}"
     candidate = report_dir / f"{base}.pdf"
     counter = 2
     while candidate.exists():

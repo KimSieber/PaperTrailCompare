@@ -171,7 +171,7 @@ def _run_batch(args: argparse.Namespace) -> int:
     duration_seconds = time.perf_counter() - start
 
     timestamp = start_time.strftime("%Y-%m-%d_%H-%M")
-    report_path = output_dir / f"Batch-Report_{timestamp}.pdf"
+    report_path = output_dir / f"PTC-Batch-Report_{timestamp}.pdf"
     generate_batch_report(
         result, report_path, profile=profile, profile_path=args.profile,
         duration_seconds=duration_seconds, start_time=start_time,
@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     batch_parser.add_argument("filelist", help="Pfad zur CSV-Dateiliste (ohne Kopfzeile: ref,cnd pro Zeile)")
     batch_parser.add_argument(
-        "--output-dir", required=True, help="Verzeichnis für den Batch-Report (Batch-Report_<Zeitstempel>.pdf)"
+        "--output-dir", required=True, help="Verzeichnis für den Batch-Report (PTC-Batch-Report_<Zeitstempel>.pdf)"
     )
     batch_parser.add_argument(
         "--profile",

@@ -282,7 +282,7 @@ async fn compare_documents(
     let ref_name = file_stem_sanitized(&ref_path);
     let cnd_name = file_stem_sanitized(&cnd_path);
     let timestamp = now.format("%Y-%m-%d_%H-%M");
-    let report_path = day_dir.join(format!("{ref_name}_{cnd_name}_{timestamp}.pdf"));
+    let report_path = day_dir.join(format!("PTC-Vergleich_{ref_name}_{cnd_name}_{timestamp}.pdf"));
     let report_path_str = report_path.to_string_lossy().to_string();
 
     let sidecar = app

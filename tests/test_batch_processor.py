@@ -79,8 +79,8 @@ def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path,
     report_files = sorted(report_dir.glob("*.pdf"))
     assert len(report_files) == 10
     names = {p.name for p in report_files}
-    assert "doc_01_ref_doc_01_cnd.pdf" in names
-    assert "doc_10_ref_doc_10_cnd.pdf" in names
+    assert "PTC-Vergleich_doc_01_ref_doc_01_cnd.pdf" in names
+    assert "PTC-Vergleich_doc_10_ref_doc_10_cnd.pdf" in names
 
 
 def test_batch_compare_erzeugt_keinen_einzel_report_fuer_fehlerpaare(tmp_path, local_filelist):
@@ -121,7 +121,7 @@ def test_batch_compare_haengt_zaehler_an_bei_namenskollision(tmp_path):
 
     assert result.ok_count == 2
     report_files = sorted(p.name for p in report_dir.glob("*.pdf"))
-    assert report_files == ["ref_cnd.pdf", "ref_cnd_2.pdf"]
+    assert report_files == ["PTC-Vergleich_ref_cnd.pdf", "PTC-Vergleich_ref_cnd_2.pdf"]
 
 
 def test_batch_compare_einzel_report_zeigt_verarbeitungsdauer_statt_strich(tmp_path, local_filelist):
