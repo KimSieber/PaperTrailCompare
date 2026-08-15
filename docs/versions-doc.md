@@ -2,12 +2,15 @@
 *** V0.2.0    14.08.2025
 *******************************
 
-Sprint PTC-3: Augabe anpassen
+Sprint PTC-3:
 -----------------------------
 
-Sprint PTC-2: WebSeite anpassen
+Sprint PTC-2: Sprint PTC-2: Ausgaben optimieren
 --------------------------------
-<< keine Aktion >>
+Task A — Processing Duration on Batch Individual Reports
+Task B — Table Header Contrast Fix
+Task C — Sum of Deltas + Timestamp Relocation in Batch Report
+Task D — Output File Naming Prefix
 
 Sprint PTC-1: Dialog-Anpassungen
 ---------------------------------

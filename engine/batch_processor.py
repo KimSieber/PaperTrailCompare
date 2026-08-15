@@ -18,6 +18,7 @@ from __future__ import annotations
 import csv
 import re
 import sys
+import time
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple, Union
@@ -87,6 +88,7 @@ def _compare_pair(
     normalize_whitespace = profile.normalize_whitespace if profile is not None else False
     compare_mode = profile.compare_mode if profile is not None else "words"
     region_warnings: List[str] = []
+    start = time.perf_counter()
     ref_pages, ref_ocr_used = extract_pages_for_profile(
         str(ref_file), profile, role="reference", warnings=region_warnings
     )
@@ -102,6 +104,7 @@ def _compare_pair(
         ocr_used=ref_ocr_used or cnd_ocr_used,
         compare_mode=compare_mode,
     )
+    duration_seconds = time.perf_counter() - start
     total_pages = max(len(ref_pages), len(cnd_pages))
 
     if report_dir is not None:
@@ -109,6 +112,7 @@ def _compare_pair(
         generate_report(
             result, ref_file, cnd_file, report_path,
             profile=profile, region_warnings=region_warnings,
+            duration_seconds=duration_seconds,
         )
 
     return PairResult(
