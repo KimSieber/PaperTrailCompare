@@ -5,7 +5,7 @@
 Sprint PTC-3: Erkennung optimieren
 ----------------------------------
 Task A - Bindestriche behandeln
-Task B - 
+Task B - Spalten vs. Zeilenweise unterscheiden
 
 
 Sprint PTC-2: Sprint PTC-2: Ausgaben optimieren
