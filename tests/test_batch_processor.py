@@ -124,6 +124,35 @@ def test_batch_compare_haengt_zaehler_an_bei_namenskollision(tmp_path):
     assert report_files == ["ref_cnd.pdf", "ref_cnd_2.pdf"]
 
 
+def test_batch_compare_einzel_report_zeigt_verarbeitungsdauer_statt_strich(tmp_path, local_filelist):
+    """_compare_pair() misst die Extraktions-/Vergleichsdauer und reicht sie
+    als duration_seconds an generate_report() durch, damit die
+    Zusammenfassungsseite des Einzel-Reports aus dem Batch-Lauf einen echten
+    Sekundenwert statt "--" bei "Verarbeitungsdauer" zeigt (Sprint PTC-2,
+    Task A)."""
+    filelist_path = local_filelist("TC-B-001", 1)
+    report_dir = tmp_path / "reports"
+    report_dir.mkdir()
+
+    result = batch_compare(filelist_path, report_dir=report_dir)
+
+    assert result.ok_count == 1
+    report_files = sorted(report_dir.glob("*.pdf"))
+    assert len(report_files) == 1
+
+    import re
+
+    import fitz
+
+    doc = fitz.open(report_files[0])
+    page_text = doc[0].get_text()
+    doc.close()
+
+    match = re.search(r"Verarbeitungsdauer\s*\n?\s*([\d,.]+)\s*s", page_text)
+    assert match is not None, f"Kein numerischer Dauerwert gefunden in: {page_text!r}"
+    assert match.group(1) != "--"
+
+
 def test_read_filelist_ohne_kopfzeile(tmp_path):
     """CSV-Dateiliste hat keine Kopfzeile (Architekturentscheidung Batch-GUI-
     Prompt): jede Zeile ist direkt 'Referenzdatei,Kandidatendatei'."""
