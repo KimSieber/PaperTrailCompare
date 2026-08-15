@@ -93,6 +93,8 @@ def _run_compare(args: argparse.Namespace) -> int:
         normalize_whitespace=profile.normalize_whitespace if profile else False,
         ocr_used=ref_ocr_used or cnd_ocr_used,
         compare_mode=profile.compare_mode if profile else "words",
+        merge_hyphenation=profile.merge_hyphenation if profile else True,
+        normalize_orphan_hyphens=profile.normalize_orphan_hyphens if profile else True,
     )
     duration_seconds = time.perf_counter() - start
 

@@ -103,6 +103,8 @@ class Profile:
     ocr: OcrConfig = field(default_factory=OcrConfig)
     text_extraction: str = "native"
     compare_mode: str = "words"
+    merge_hyphenation: bool = True
+    normalize_orphan_hyphens: bool = True
 
 
 def load_profile(path: Union[str, Path]) -> Profile:
@@ -222,6 +224,9 @@ def load_profile(path: Union[str, Path]) -> Profile:
             f"sein, ist '{compare_mode}'"
         )
 
+    merge_hyphenation = bool(data.get("merge_hyphenation", True))
+    normalize_orphan_hyphens = bool(data.get("normalize_orphan_hyphens", True))
+
     return Profile(
         version=str(data["version"]),
         case_sensitive=bool(data.get("case_sensitive", True)),
@@ -232,6 +237,8 @@ def load_profile(path: Union[str, Path]) -> Profile:
         ocr=ocr,
         text_extraction=text_extraction,
         compare_mode=compare_mode,
+        merge_hyphenation=merge_hyphenation,
+        normalize_orphan_hyphens=normalize_orphan_hyphens,
     )
 
 

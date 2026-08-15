@@ -49,14 +49,18 @@ def test_normalize_text_silbentrennung_wird_zusammengefuehrt():
 def test_normalize_text_isolierter_bindestrich_nach_zeilenumbruch_bleibt_erhalten():
     """Bindestrich mit Whitespace/Zeilenumbruch DAVOR ist kein
     Silbentrennungs-Bindestrich, sondern ein eigenständiger Gedankenstrich
-    (z.B. Ein-Wort-pro-Zeile-Layout eines Type3-Dokuments) - bleibt erhalten."""
-    assert normalize_text("Wort\n-\nnächstes") == "Wort - nächstes"
+    (z.B. Ein-Wort-pro-Zeile-Layout eines Type3-Dokuments) - _HYPHENATION_RE
+    lässt ihn unangetastet. Mit dem neuen Default normalize_orphan_hyphens=True
+    (Sprint PTC-S3 Task A2) wird er danach ans vorangehende Wort angehängt."""
+    assert normalize_text("Wort\n-\nnächstes") == "Wort- nächstes"
 
 
 def test_normalize_text_bindestrich_mit_leerzeichen_davor_bleibt_erhalten():
     """Bindestrich mit Leerzeichen davor (kein Wortzeichen unmittelbar vor
-    dem Strich) ist ebenfalls kein Silbentrennungs-Bindestrich."""
-    assert normalize_text("Ende -\nAnfang") == "Ende - Anfang"
+    dem Strich) ist ebenfalls kein Silbentrennungs-Bindestrich - wird aber
+    mit dem neuen Default normalize_orphan_hyphens=True ans vorangehende
+    Wort angehängt (siehe Sprint PTC-S3 Task A2)."""
+    assert normalize_text("Ende -\nAnfang") == "Ende- Anfang"
 
 
 def test_isolierter_gedankenstrich_ergibt_kein_falsches_delta():
@@ -469,3 +473,84 @@ def test_compare_mode_hybrid_qualitaetstest_grosses_dokument():
     assert delta_pages <= edit_pages, f"Unerwartete Delta-Seiten: {delta_pages - edit_pages}"
     assert edit_pages <= delta_pages, f"Nicht gefundene Bearbeitungsseiten: {edit_pages - delta_pages}"
     assert len(result.deltas) <= 20
+
+
+def test_normalize_text_merge_hyphenation_false_preserves_hyphen():
+    """With merge_hyphenation=False, a hyphen before a newline is NOT
+    removed — the compound hyphen 'Stück-' survives normalization."""
+    result = normalize_text("Stück-\nund", merge_hyphenation=False)
+    assert "Stück-" in result
+    assert "Stückund" not in result
+
+
+def test_normalize_text_merge_hyphenation_true_default_merges():
+    """Default behavior: syllable breaks are still merged."""
+    result = normalize_text("Silben-\ntrennung", merge_hyphenation=True)
+    assert result == "Silbentrennung"
+
+
+def test_compare_merge_hyphenation_false_no_false_delta():
+    """With merge_hyphenation=False, 'Stück-\\nund' in ref vs 'Stück- und'
+    in cnd must not produce a delta (both normalize to contain 'Stück-')."""
+    ref_pages = ["Beiträge ohne Stück-\nund periodenabhängige Kosten"]
+    cnd_pages = ["Beiträge ohne Stück- und periodenabhängige Kosten"]
+
+    result = compare(ref_pages, cnd_pages, merge_hyphenation=False)
+    assert result.has_delta is False
+
+
+def test_compare_merge_hyphenation_true_still_merges_syllables():
+    """Default: real syllable breaks still produce no delta."""
+    ref_pages = ["Silben-\ntrennung"]
+    cnd_pages = ["Silbentrennung"]
+
+    result = compare(ref_pages, cnd_pages, merge_hyphenation=True)
+    assert result.has_delta is False
+
+
+def test_normalize_text_orphan_hyphen_attached_to_preceding_word():
+    """A standalone hyphen surrounded by spaces is attached to the
+    preceding word: 'Stück - und' → 'Stück- und'."""
+    result = normalize_text("Stück - und", normalize_orphan_hyphens=True)
+    assert result == "Stück- und"
+
+
+def test_normalize_text_orphan_hyphen_disabled():
+    """With normalize_orphan_hyphens=False, standalone hyphens stay."""
+    result = normalize_text("Stück - und", normalize_orphan_hyphens=False)
+    assert result == "Stück - und"
+
+
+def test_normalize_text_orphan_hyphen_from_newline_split():
+    """Simulates the Papyrus pattern: word\\n-\\nword → after whitespace
+    collapse → 'word - word' → orphan hyphen attach → 'word- word'."""
+    result = normalize_text("Stück\n-\nund", normalize_orphan_hyphens=True)
+    assert result == "Stück- und"
+
+
+def test_compare_orphan_hyphen_no_false_delta():
+    """Ref has orphan hyphen, cand has attached hyphen — no delta."""
+    ref_pages = ["Beiträge ohne Stück - und periodenabhängige Kosten"]
+    cnd_pages = ["Beiträge ohne Stück- und periodenabhängige Kosten"]
+
+    result = compare(ref_pages, cnd_pages, normalize_orphan_hyphens=True)
+    assert result.has_delta is False
+
+
+def test_compare_orphan_hyphen_disabled_produces_delta():
+    """With orphan hyphen normalization off, the difference IS a delta."""
+    ref_pages = ["Beiträge ohne Stück - und periodenabhängige Kosten"]
+    cnd_pages = ["Beiträge ohne Stück- und periodenabhängige Kosten"]
+
+    result = compare(ref_pages, cnd_pages, normalize_orphan_hyphens=False)
+    assert result.has_delta is True
+
+
+def test_normalize_text_orphan_hyphen_not_after_punctuation():
+    """A hyphen after punctuation (e.g. page number '.- 3 -') must NOT
+    be attached to the preceding word. _ORPHAN_HYPHEN_RE requires a
+    trailing space after the hyphen, so the final '3 -' (no trailing
+    space, end of string) is also left untouched - only a hyphen with a
+    word character both before AND after (with a space each) attaches."""
+    result = normalize_text("Versicherungsscheins. - 3 -")
+    assert result == "Versicherungsscheins. - 3 -"

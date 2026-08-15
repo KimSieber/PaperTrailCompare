@@ -4,6 +4,8 @@
   "normalize_whitespace": true,
   "compare_mode": "hybrid",
   "text_extraction": "native",
+  "merge_hyphenation": false,
+  "normalize_orphan_hyphens": true,
   "report_format": "pdf",
   "ocr": {
         "enabled": true,

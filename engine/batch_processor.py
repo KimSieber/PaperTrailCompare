@@ -87,6 +87,8 @@ def _compare_pair(
     case_sensitive = profile.case_sensitive if profile is not None else True
     normalize_whitespace = profile.normalize_whitespace if profile is not None else False
     compare_mode = profile.compare_mode if profile is not None else "words"
+    merge_hyphenation = profile.merge_hyphenation if profile is not None else True
+    normalize_orphan_hyphens = profile.normalize_orphan_hyphens if profile is not None else True
     region_warnings: List[str] = []
     start = time.perf_counter()
     ref_pages, ref_ocr_used = extract_pages_for_profile(
@@ -103,6 +105,8 @@ def _compare_pair(
         normalize_whitespace=normalize_whitespace,
         ocr_used=ref_ocr_used or cnd_ocr_used,
         compare_mode=compare_mode,
+        merge_hyphenation=merge_hyphenation,
+        normalize_orphan_hyphens=normalize_orphan_hyphens,
     )
     duration_seconds = time.perf_counter() - start
     total_pages = max(len(ref_pages), len(cnd_pages))

@@ -22,6 +22,7 @@ from typing import List, Sequence, Tuple
 
 _HYPHENATION_RE = re.compile(r"(?<=\w)-\s*\n\s*(?=\w)")
 _WHITESPACE_RE = re.compile(r"\s+")
+_ORPHAN_HYPHEN_RE = re.compile(r"(\w) - ")
 
 _VALID_COMPARE_MODES = ("words", "chars", "hybrid")
 
@@ -51,7 +52,11 @@ class CompareResult:
     ocr_was_used: bool = False
 
 
-def normalize_text(text: str) -> str:
+def normalize_text(
+    text: str,
+    merge_hyphenation: bool = True,
+    normalize_orphan_hyphens: bool = True,
+) -> str:
     """Führt Silbentrennungen am Zeilenende zusammen und normalisiert Whitespace.
 
     _HYPHENATION_RE verlangt ein Wortzeichen unmittelbar VOR dem Bindestrich
@@ -62,17 +67,49 @@ def normalize_text(text: str) -> str:
     steht) wird nicht entfernt - siehe Diagnose-Session: in einem echten
     Dokument stand '...Verlässlichkeit\\n-\\nvielen Dank...', wobei der
     Strich Satzzeichen war, aber wie Silbentrennung behandelt wurde und
-    verschwand ('' vs. '-' als falsches Delta, 8 von 220 betroffen)."""
-    text = _HYPHENATION_RE.sub("", text)
-    text = _WHITESPACE_RE.sub(" ", text)
-    return text.strip()
+    verschwand ('' vs. '-' als falsches Delta, 8 von 220 betroffen).
+
+    merge_hyphenation=False deaktiviert _HYPHENATION_RE vollständig - für
+    Dokumenttypen, bei denen zusammengesetzte Bindestriche (z.B. 'Stück-
+    und') von der Extraktion mit einem Zeilenumbruch statt einem Leerzeichen
+    getrennt werden (Papyrus-Formatierer, der einen visuellen Zeilenumbruch
+    in mehrere Content-Stream-Operationen aufteilt) und _HYPHENATION_RE das
+    fälschlich als Silbentrennung erkennt und den Bindestrich entfernt
+    ('Stück- und' -> 'Stückund', falsches Delta). Extraktion selbst kann
+    hierfür nicht sicher angepasst werden (siehe Sprint PTC-S3 Task A);
+    stattdessen wird das per Profil abschaltbar gemacht.
+
+    normalize_orphan_hyphens=True (Default) hängt danach einen Bindestrich,
+    der isoliert zwischen Leerzeichen steht ('Stück - und'), wieder an das
+    vorangehende Wort an ('Stück- und') - Folgezustand desselben Papyrus-
+    Musters wie oben, wenn der Bindestrich in eine eigene rawdict-Zeile
+    fällt und PyMuPDF ihn dadurch beidseitig mit Leerzeichen umgibt statt
+    ihn direkt ans Wort zu hängen (siehe Sprint PTC-S3 Task A2). Läuft
+    unabhängig von merge_hyphenation und NACH der Whitespace-Kollabierung,
+    da _ORPHAN_HYPHEN_RE auf genau einem Leerzeichen vor/nach dem
+    Bindestrich beruht."""
+    if merge_hyphenation:
+        text = _HYPHENATION_RE.sub("", text)
+    text = _WHITESPACE_RE.sub(" ", text).strip()
+    if normalize_orphan_hyphens:
+        text = _ORPHAN_HYPHEN_RE.sub(r"\1- ", text)
+    return text
 
 
-def _words_with_pages(pages: Sequence[str]):
+def _words_with_pages(
+    pages: Sequence[str],
+    merge_hyphenation: bool = True,
+    normalize_orphan_hyphens: bool = True,
+):
     words: List[str] = []
     word_pages: List[int] = []
     for page_num, page_text in enumerate(pages, start=1):
-        for word in normalize_text(page_text).split(" "):
+        normalized = normalize_text(
+            page_text,
+            merge_hyphenation=merge_hyphenation,
+            normalize_orphan_hyphens=normalize_orphan_hyphens,
+        )
+        for word in normalized.split(" "):
             if not word:
                 continue
             words.append(word)
@@ -80,7 +117,11 @@ def _words_with_pages(pages: Sequence[str]):
     return words, word_pages
 
 
-def _chars_with_pages(pages: Sequence[str]) -> Tuple[str, List[int], str, List[Tuple[int, int]]]:
+def _chars_with_pages(
+    pages: Sequence[str],
+    merge_hyphenation: bool = True,
+    normalize_orphan_hyphens: bool = True,
+) -> Tuple[str, List[int], str, List[Tuple[int, int]]]:
     """Baut aus pages eine kompakte, whitespace-freie Zeichenkette für den
     zeichenbasierten Vergleich (compare_mode="chars") - für Dokumente, deren
     Wortgrenzen unzuverlässig sind (z.B. Type3-Schriften ohne ToUnicode-
@@ -113,7 +154,11 @@ def _chars_with_pages(pages: Sequence[str]) -> Tuple[str, List[int], str, List[T
             original_parts.append("\n")
             offset += 1
         page_boundaries.append((offset, page_num))
-        normalized = normalize_text(page_text)
+        normalized = normalize_text(
+            page_text,
+            merge_hyphenation=merge_hyphenation,
+            normalize_orphan_hyphens=normalize_orphan_hyphens,
+        )
         for ch in normalized:
             if not ch.isspace():
                 compact_chars.append(ch)
@@ -179,9 +224,15 @@ def _compare_words(
     cnd_pages: Sequence[str],
     case_sensitive: bool,
     normalize_whitespace: bool,
+    merge_hyphenation: bool = True,
+    normalize_orphan_hyphens: bool = True,
 ) -> List[Delta]:
-    ref_words, _ = _words_with_pages(ref_pages)
-    cnd_words, cnd_word_pages = _words_with_pages(cnd_pages)
+    ref_words, _ = _words_with_pages(
+        ref_pages, merge_hyphenation=merge_hyphenation, normalize_orphan_hyphens=normalize_orphan_hyphens
+    )
+    cnd_words, cnd_word_pages = _words_with_pages(
+        cnd_pages, merge_hyphenation=merge_hyphenation, normalize_orphan_hyphens=normalize_orphan_hyphens
+    )
 
     if case_sensitive:
         ref_keys, cnd_keys = ref_words, cnd_words
@@ -260,6 +311,8 @@ def _compare_hybrid(
     ref_pages: Sequence[str],
     cnd_pages: Sequence[str],
     case_sensitive: bool,
+    merge_hyphenation: bool = True,
+    normalize_orphan_hyphens: bool = True,
 ) -> List[Delta]:
     """Zweistufiger Vergleich (compare_mode="hybrid"): löst die Explosion
     kleiner, über weite Bereiche verstreuter Deltas, die reiner
@@ -281,8 +334,12 @@ def _compare_hybrid(
     hier unconditional (nicht hinter normalize_whitespace), das Zusammen-
     fassen ist der eigentliche Kern dieses Modus, nicht ein optionales
     Zusatzverhalten."""
-    ref_words, _ = _words_with_pages(ref_pages)
-    cnd_words, cnd_word_pages = _words_with_pages(cnd_pages)
+    ref_words, _ = _words_with_pages(
+        ref_pages, merge_hyphenation=merge_hyphenation, normalize_orphan_hyphens=normalize_orphan_hyphens
+    )
+    cnd_words, cnd_word_pages = _words_with_pages(
+        cnd_pages, merge_hyphenation=merge_hyphenation, normalize_orphan_hyphens=normalize_orphan_hyphens
+    )
 
     if case_sensitive:
         ref_keys, cnd_keys = ref_words, cnd_words
@@ -312,6 +369,8 @@ def _compare_chars(
     ref_pages: Sequence[str],
     cnd_pages: Sequence[str],
     case_sensitive: bool,
+    merge_hyphenation: bool = True,
+    normalize_orphan_hyphens: bool = True,
 ) -> List[Delta]:
     """Zeichenbasierter Vergleich (compare_mode="chars"): ignoriert
     jeglichen Whitespace vollständig, statt auf Wortgrenzen zu vertrauen -
@@ -329,8 +388,12 @@ def _compare_chars(
     Unterschiede verschluckt oder erfindet - Änderungen werden ggf. in
     mehrere kleinere Deltas aufgesplittet (z.B. ein Datum mit zufällig
     übereinstimmenden Ziffern), aber nicht verloren."""
-    ref_compact, ref_map, ref_original, ref_boundaries = _chars_with_pages(ref_pages)
-    cnd_compact, cnd_map, cnd_original, cnd_boundaries = _chars_with_pages(cnd_pages)
+    ref_compact, ref_map, ref_original, ref_boundaries = _chars_with_pages(
+        ref_pages, merge_hyphenation=merge_hyphenation, normalize_orphan_hyphens=normalize_orphan_hyphens
+    )
+    cnd_compact, cnd_map, cnd_original, cnd_boundaries = _chars_with_pages(
+        cnd_pages, merge_hyphenation=merge_hyphenation, normalize_orphan_hyphens=normalize_orphan_hyphens
+    )
 
     if case_sensitive:
         ref_keys, cnd_keys = ref_compact, cnd_compact
@@ -356,6 +419,8 @@ def compare(
     normalize_whitespace: bool = False,
     ocr_used: bool = False,
     compare_mode: str = "words",
+    merge_hyphenation: bool = True,
+    normalize_orphan_hyphens: bool = True,
 ) -> CompareResult:
     """Vergleicht Referenz- und Kandidat-Text seitenweise, ignoriert dabei
     Seitenumbrüche und Silbentrennung.
@@ -391,10 +456,22 @@ def compare(
         raise ValueError(f"compare_mode muss einer von {_VALID_COMPARE_MODES} sein, ist {compare_mode!r}")
 
     if compare_mode == "chars":
-        deltas = _compare_chars(ref_pages, cnd_pages, case_sensitive)
+        deltas = _compare_chars(
+            ref_pages, cnd_pages, case_sensitive,
+            merge_hyphenation=merge_hyphenation,
+            normalize_orphan_hyphens=normalize_orphan_hyphens,
+        )
     elif compare_mode == "hybrid":
-        deltas = _compare_hybrid(ref_pages, cnd_pages, case_sensitive)
+        deltas = _compare_hybrid(
+            ref_pages, cnd_pages, case_sensitive,
+            merge_hyphenation=merge_hyphenation,
+            normalize_orphan_hyphens=normalize_orphan_hyphens,
+        )
     else:
-        deltas = _compare_words(ref_pages, cnd_pages, case_sensitive, normalize_whitespace)
+        deltas = _compare_words(
+            ref_pages, cnd_pages, case_sensitive, normalize_whitespace,
+            merge_hyphenation=merge_hyphenation,
+            normalize_orphan_hyphens=normalize_orphan_hyphens,
+        )
 
     return CompareResult(has_delta=bool(deltas), deltas=deltas, ocr_was_used=ocr_used)
