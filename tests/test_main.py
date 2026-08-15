@@ -513,6 +513,7 @@ def test_batch_json_lines_gibt_progress_pro_paar_und_abschliessende_done_zeile(t
     report_path = Path(done_payload["report_path"])
     assert report_path.exists()
     assert report_path.parent == tmp_path
+    assert report_path.name.startswith("PTC-Batch-Report_")
 
     # Punkt 1 (prompt_batch_fixes.md): pro Paar zusätzlich ein Einzel-Report
     # flach im selben --output-dir, nicht nur der Batch-Report.
