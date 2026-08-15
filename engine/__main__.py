@@ -159,6 +159,7 @@ def _run_batch(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    start_time = datetime.now()
     start = time.perf_counter()
     try:
         result = batch_compare(
@@ -169,11 +170,11 @@ def _run_batch(args: argparse.Namespace) -> int:
         return 1
     duration_seconds = time.perf_counter() - start
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    timestamp = start_time.strftime("%Y-%m-%d_%H-%M")
     report_path = output_dir / f"Batch-Report_{timestamp}.pdf"
     generate_batch_report(
         result, report_path, profile=profile, profile_path=args.profile,
-        duration_seconds=duration_seconds,
+        duration_seconds=duration_seconds, start_time=start_time,
     )
 
     print(json.dumps({

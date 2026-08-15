@@ -30,4 +30,4 @@ Start über den engine_version-Command.
 """
 
 __version__ = "0.2.0"
-__expiry__ = "2026-12-31"
+__expiry__ = "2026-10-31"

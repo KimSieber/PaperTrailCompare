@@ -866,6 +866,7 @@ def generate_batch_report(
     profile: Optional[Profile] = None,
     profile_path: Optional[Union[str, Path]] = None,
     duration_seconds: Optional[float] = None,
+    start_time: Optional[datetime] = None,
 ) -> Path:
     """Erzeugt den Batch-Report (TC-R-002) im Layout-Vokabular des Einzel-
     Reports (Logo, Titel, Status-Badge, Kennzahlen-Kacheln - siehe
@@ -873,12 +874,19 @@ def generate_batch_report(
     Haupttabelle aller Paare (siehe _build_batch_table). Punkt 4,
     prompt_batch_fixes.md."""
     output_path = Path(output_path)
+    if start_time is None:
+        start_time = datetime.now()
 
     total = len(batch_result.pairs)
     ok_count = batch_result.ok_count
     error_count = batch_result.error_count
     success_rate = (ok_count / total * 100) if total else 0.0
     total_pages = sum(p.total_pages or 0 for p in batch_result.pairs)
+    sum_deltas = sum(
+        len(p.compare_result.deltas)
+        for p in batch_result.pairs
+        if p.status == "ok" and p.compare_result is not None
+    )
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -900,12 +908,18 @@ def generate_batch_report(
     ))
     story.append(Spacer(1, 4))
     story.append(_build_hairline_table())
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        f"Batch-Lauf vom {start_time.strftime('%d.%m.%Y, %H:%M:%S')} Uhr", _SUBTITLE_STYLE,
+    ))
+    story.append(Spacer(1, 6))
 
     rate_accent = _COLOR_TILE_GREEN if error_count == 0 else _COLOR_TILE_ORANGE
     rate_value_color = _COLOR_TILE_VALUE_GREEN if error_count == 0 else _COLOR_TILE_VALUE_ORANGE
     error_accent = _COLOR_TILE_ORANGE if error_count else _COLOR_TILE_GREEN
     error_value_color = _COLOR_TILE_VALUE_ORANGE if error_count else _COLOR_TILE_VALUE_GREEN
+    delta_sum_accent = _COLOR_TILE_ORANGE if sum_deltas > 0 else _COLOR_TILE_GREEN
+    delta_sum_value_color = _COLOR_TILE_VALUE_ORANGE if sum_deltas > 0 else _COLOR_TILE_VALUE_GREEN
 
     story.append(_build_kpi_tile_row([
         _build_kpi_tile("Dateipaare gesamt", str(total), _COLOR_TILE_NEUTRAL),
@@ -920,7 +934,7 @@ def generate_batch_report(
             "Laufzeit", f"{duration_seconds:.1f} s" if duration_seconds is not None else "—",
             _COLOR_TILE_NEUTRAL,
         ),
-        _build_kpi_tile("Zeitpunkt", datetime.now().strftime("%d.%m.%Y %H:%M"), _COLOR_TILE_NEUTRAL),
+        _build_kpi_tile("Summe Deltas", str(sum_deltas), delta_sum_accent, delta_sum_value_color),
         _build_kpi_tile(
             "Profil", _profile_label(profile, profile_path), _COLOR_TILE_NEUTRAL,
             value_font_size=10,
