@@ -18,7 +18,8 @@ Fixture: tests/fixtures/TC-R-001/{ref,cnd}.pdf (3 Deltas auf 2 Seiten),
 tests/fixtures/TC-T-001/{ref,cnd}.pdf (identischer Text, kein Delta),
 siehe tests/generate_fixtures.py::generate_tc_r_001 / generate_tc_t_001.
 """
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import fitz
@@ -595,7 +596,9 @@ def test_tc_r_002_batch_report_wiederholt_tabellenkopf_auf_folgeseiten(tmp_path)
 
 def test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt(tmp_path):
     """Kopfbereich des Batch-Reports zeigt Gesamtanzahl Dokumente, Laufzeit
-    und Zeitpunkt (siehe prompt_batch_verarbeitung.md)."""
+    und den Startzeitpunkt als Subtitle-Zeile (Sprint PTC-2, Task C2: der
+    Zeitpunkt wandert von der KPI-Kachel in eine Subtitle-Zeile mit
+    Sekundengenauigkeit, siehe prompt_batch_verarbeitung.md)."""
     batch_result = BatchResult(pairs=[
         PairResult(
             ref_path="pairs/doc_01_ref.pdf", cnd_path="pairs/doc_01_cnd.pdf",
@@ -614,4 +617,48 @@ def test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt(tmp
 
     assert "1" in text  # Gesamtanzahl Dokumente/Paare
     assert "12.5" in text or "12,5" in text  # Laufzeit
-    assert before.strftime("%d.%m.%Y") in text and after.strftime("%d.%m.%Y") in text
+
+    match = re.search(r"Batch-Lauf vom (\d{2}\.\d{2}\.\d{4}), (\d{2}:\d{2}:\d{2}) Uhr", text)
+    assert match is not None, f"Subtitle-Zeitstempel nicht gefunden in: {text!r}"
+    subtitle_dt = datetime.strptime(f"{match.group(1)} {match.group(2)}", "%d.%m.%Y %H:%M:%S")
+    assert before.replace(microsecond=0) <= subtitle_dt <= after.replace(microsecond=0) + timedelta(seconds=1)
+
+
+def test_batch_report_summe_deltas_kachel_ersetzt_zeitpunkt_kachel(tmp_path):
+    """Task C1: Die "Zeitpunkt"-Kachel entfällt zugunsten von "Summe Deltas"
+    - Summe aller Deltas über alle status="ok"-Paare hinweg, damit beim
+    Profil-Feintuning per Batch-Lauf auf einen Blick erkennbar ist, ob ein
+    erneuter Lauf das Ergebnis verbessert oder verschlechtert hat."""
+    batch_result = BatchResult(pairs=[
+        PairResult(
+            ref_path="pairs/doc_01_ref.pdf", cnd_path="pairs/doc_01_cnd.pdf",
+            status="ok", compare_result=CompareResult(
+                has_delta=True,
+                deltas=[Delta(page=1, position=0, ref_text="A", cnd_text="B")] * 3,
+            ),
+        ),
+        PairResult(
+            ref_path="pairs/doc_02_ref.pdf", cnd_path="pairs/doc_02_cnd.pdf",
+            status="ok", compare_result=CompareResult(
+                has_delta=True,
+                deltas=[Delta(page=1, position=0, ref_text="C", cnd_text="D")] * 2,
+            ),
+        ),
+        PairResult(
+            ref_path="pairs/doc_03_ref.pdf", cnd_path="pairs/doc_03_cnd.pdf",
+            status="error", error="Datei nicht gefunden",
+        ),
+    ])
+
+    output_path = tmp_path / "batch_report.pdf"
+    generate_batch_report(batch_result, output_path, duration_seconds=1.0)
+
+    report = fitz.open(str(output_path))
+    text = "".join(page.get_text() for page in report)
+    report.close()
+
+    assert "Summe Deltas" in text
+    assert "Zeitpunkt" not in text
+    lines = text.splitlines()
+    label_idx = lines.index("Summe Deltas")
+    assert lines[label_idx + 1].strip() == "5"
