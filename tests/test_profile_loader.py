@@ -388,3 +388,33 @@ def test_load_profile_combined_regions_mixed_page_types(tmp_path):
     assert region_1.page == 1 and region_1.page_from is None
     assert region_all.page == 0 and region_all.page_from is None
     assert region_from.page is None and region_from.page_from == 3
+
+
+def test_merge_hyphenation_default_true(tmp_path):
+    """merge_hyphenation defaults to True when not in JSON."""
+    path = tmp_path / "p.json"
+    path.write_text('{"version": "1.0"}')
+    profile = load_profile(path)
+    assert profile.merge_hyphenation is True
+
+
+def test_merge_hyphenation_false_from_json(tmp_path):
+    """merge_hyphenation=false is loaded correctly."""
+    path = tmp_path / "p.json"
+    path.write_text('{"version": "1.0", "merge_hyphenation": false}')
+    profile = load_profile(path)
+    assert profile.merge_hyphenation is False
+
+
+def test_normalize_orphan_hyphens_default_true(tmp_path):
+    path = tmp_path / "p.json"
+    path.write_text('{"version": "1.0"}')
+    profile = load_profile(path)
+    assert profile.normalize_orphan_hyphens is True
+
+
+def test_normalize_orphan_hyphens_false_from_json(tmp_path):
+    path = tmp_path / "p.json"
+    path.write_text('{"version": "1.0", "normalize_orphan_hyphens": false}')
+    profile = load_profile(path)
+    assert profile.normalize_orphan_hyphens is False

@@ -206,6 +206,34 @@ def test_compare_mit_profile_flag_normalize_whitespace_unterdrueckt_delta(tmp_pa
     assert payload["deltas"] == []
 
 
+def test_compare_mit_profile_merge_hyphenation_false_end_to_end(tmp_path, capsys):
+    """merge_hyphenation=false must wire through CLI to compare()."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    # ref: "Stück-" und "und ..." auf zwei separaten Zeilen (wie beim
+    # Papyrus-Formatierer, der einen visuellen Zeilenumbruch in mehrere
+    # Content-Stream-Operationen aufteilt) - PyMuPDF fügt dabei "\n" ein.
+    c = canvas.Canvas(str(ref_path))
+    c.drawString(72, 720, "Beiträge ohne Stück-")
+    c.drawString(72, 708, "und periodenabhängige Kosten")
+    c.save()
+    _write_single_page_pdf(cnd_path, "Beiträge ohne Stück- und periodenabhängige Kosten")
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({"version": "1.0", "merge_hyphenation": False}),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+
+
 def test_compare_mit_ungueltigem_profile_liefert_fehler_und_exit_code(tmp_path, capsys):
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
