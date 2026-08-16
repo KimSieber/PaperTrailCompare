@@ -90,6 +90,7 @@ def compare_region(
     cnd_text_display: str,
     page_num: int,
     region_index: int,
+    region_clip: Optional[Tuple[float, float, float, float]] = None,
 ) -> List[Delta]:
     """Vergleicht zwei Regionstexte über ihr Zeichen-Multiset, nach
     vollständigem Entfernen jeglichen Whitespace - Wortgrenzen (echte wie
@@ -125,6 +126,15 @@ def compare_region(
     region_index identifiziert die compare_region (siehe profile.compare_regions)
     für Aufrufer/Logging; er fließt NICHT in das Delta-Objekt ein, da dessen
     Schema dafür kein Feld vorsieht.
+
+    region_clip (x0, y0, x1, y1) ist die Bounding-Box der Region in PDF-
+    Seitenkoordinaten (siehe docs/prompt_region_clip_highlighting.md) - wird
+    unverändert auf das erzeugte Delta durchgereicht, damit der
+    report_generator die Fundstellensuche für die Highlight-Markierung auf
+    genau diese Region einschränken kann (page.search_for(text, clip=...)),
+    statt versehentlich gleichlautenden Text an anderen Stellen der Seite
+    (Sender-Block, Fußzeile) mitzumarkieren. None (Default) bedeutet "keine
+    Einschränkung" - z.B. bei direkten Testaufrufen ohne Profil-Region.
     """
     ref_nows = "".join(ref_text_nows.split())
     cnd_nows = "".join(cnd_text_nows.split())
@@ -138,6 +148,7 @@ def compare_region(
             position=_NO_POSITION,
             ref_text=ref_text_display,
             cnd_text=cnd_text_display,
+            region_clip=region_clip,
         )
     ]
 
@@ -193,6 +204,7 @@ def _compare_region_sequential(
     cnd_display: str,
     page_num: int,
     settings: RegionCompareSettings,
+    region_clip: Optional[Tuple[float, float, float, float]] = None,
 ) -> List[Delta]:
     """mode="sequential" (siehe docs/prompt_compare_regions_mode.md, Task 2):
     vergleicht den Regionstext mit dem NORMALEN sequenziellen Vergleich
@@ -204,7 +216,11 @@ def _compare_region_sequential(
     compare() arbeitet seitenweise und vergibt page=1 an das (einzige)
     Element der übergebenen ref_pages/cnd_pages-Liste - das wird hier auf
     die tatsächliche Seitenzahl der Region zurückgemappt (Anforderung 4 aus
-    docs/prompt_compare_regions_mode.md, Task 2)."""
+    docs/prompt_compare_regions_mode.md, Task 2).
+
+    region_clip (siehe compare_region oben, docs/prompt_region_clip_highlighting.md)
+    wird auf JEDES remappte Delta gesetzt - compare() kennt die Region nicht
+    und liefert Deltas ohne region_clip; das muss hier nachgetragen werden."""
     result = compare(
         [ref_display], [cnd_display],
         case_sensitive=settings.case_sensitive,
@@ -213,7 +229,10 @@ def _compare_region_sequential(
         merge_hyphenation=settings.merge_hyphenation,
         normalize_orphan_hyphens=settings.normalize_orphan_hyphens,
     )
-    return [dataclasses.replace(delta, page=page_num) for delta in result.deltas]
+    return [
+        dataclasses.replace(delta, page=page_num, region_clip=region_clip)
+        for delta in result.deltas
+    ]
 
 
 def merge_compare_region_comparison(
@@ -262,6 +281,15 @@ def merge_compare_region_comparison(
     Seiten betrachtet (zip stoppt an der kürzeren Liste) - überzählige
     Seiten haben ohnehin schon eigene reguläre Deltas aus dem sequenziellen
     Vergleich (Seitenumbruch-Toleranz ist dessen Aufgabe, nicht diese hier).
+
+    Jedes erzeugte Delta bekommt zusätzlich region_clip = (region.x,
+    region.y, region.x + region.width, region.y + region.height) aus der
+    zugehörigen profile.compare_regions[region_index] gesetzt (siehe
+    docs/prompt_region_clip_highlighting.md) - der report_generator nutzt
+    das, um die Fundstellensuche für die Highlight-Markierung auf die
+    Region einzuschränken, statt gleichlautenden Text an anderen
+    Seitenstellen (z.B. eine zweite Telefonnummer in der Fußzeile)
+    fälschlich mitzumarkieren.
     """
     compare_regions: Sequence[CompareRegion] = profile.compare_regions if profile is not None else ()
     settings = build_region_compare_settings(profile)
@@ -273,17 +301,24 @@ def merge_compare_region_comparison(
             if region_index not in cnd_regions:
                 continue
             cnd_nows, cnd_display = cnd_regions[region_index]
-            mode = (
-                compare_regions[region_index].mode
-                if region_index < len(compare_regions)
-                else "unordered"
+            region = compare_regions[region_index] if region_index < len(compare_regions) else None
+            mode = region.mode if region is not None else "unordered"
+            region_clip = (
+                (region.x, region.y, region.x + region.width, region.y + region.height)
+                if region is not None
+                else None
             )
             if mode == "sequential":
-                deltas.extend(_compare_region_sequential(ref_display, cnd_display, page_num, settings))
+                deltas.extend(
+                    _compare_region_sequential(
+                        ref_display, cnd_display, page_num, settings, region_clip=region_clip
+                    )
+                )
             else:
                 deltas.extend(
                     compare_region(
-                        ref_nows, cnd_nows, ref_display, cnd_display, page_num, region_index
+                        ref_nows, cnd_nows, ref_display, cnd_display, page_num, region_index,
+                        region_clip=region_clip,
                     )
                 )
     return deltas
