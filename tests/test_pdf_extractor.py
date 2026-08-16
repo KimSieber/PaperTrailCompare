@@ -38,10 +38,10 @@ from engine.pdf_extractor import (
     extract_pages_for_profile,
     filter_blocks_by_regions,
     get_text_blocks,
-    separate_table_region_blocks,
+    separate_compare_region_blocks,
     split_wide_blocks,
 )
-from engine.profile_loader import ExcludeRegion, OcrConfig, Profile, TableRegion
+from engine.profile_loader import ExcludeRegion, OcrConfig, Profile, CompareRegion
 from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -189,7 +189,7 @@ def test_extract_pages_for_profile_dpi_wird_an_ocr_durchgereicht(monkeypatch):
     Default (300) verwendet werden."""
     seen_dpi = {}
 
-    def fake_fallback(pdf_path, lang="deu", dpi=300, regions=None, warnings=None, table_regions=None):
+    def fake_fallback(pdf_path, lang="deu", dpi=300, regions=None, warnings=None, compare_regions=None):
         seen_dpi["dpi"] = dpi
         return (["x"], False, [{}])
 
@@ -684,36 +684,36 @@ def test_exclude_region_page_zero_and_page_from_combined(tmp_path):
     assert {delta.page for delta in result.deltas} == {1}
 
 
-# --- separate_table_region_blocks() (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) ---
+# --- separate_compare_region_blocks() (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) ---
 #
 # Fußregion fitz-Koordinaten x=0..300, y=700..800 (dasselbe Band wie
 # _MULTI_PAGE_FOOTER_REGION oben) - drawString(30, 30) liegt bei Standard-
 # Letter (792pt Höhe) bei fitz-y=762, innerhalb des Bandes. Eine zweite
-# Fußregion darunter (y=800..900) für Tests mit mehreren table_regions auf
+# Fußregion darunter (y=800..900) für Tests mit mehreren compare_regions auf
 # derselben Seite - unterschiedliche y-Bänder statt nur x-Versatz, damit
 # PyMuPDF beide als eigene Blöcke erkennt (gleiche Zeile würde sie sonst zu
 # einem einzigen breiten Block verschmelzen, siehe split_wide_blocks-Diagnose).
-_TABLE_REGION_LEFT = dict(x=0, y=700, width=300, height=100)
-_TABLE_REGION_RIGHT = dict(x=0, y=800, width=300, height=100)
+_COMPARE_REGION_LEFT = dict(x=0, y=700, width=300, height=100)
+_COMPARE_REGION_RIGHT = dict(x=0, y=800, width=300, height=100)
 
 
 def _write_footer_pdf(path: Path, footer_text: str, pages: int = 1, second_footer_text: str = None) -> None:
     """Erzeugt ein PDF mit Fließtext oben (außerhalb jeder Fußregion) und
-    footer_text im Band _TABLE_REGION_LEFT. second_footer_text (falls
-    gesetzt) liegt im Band _TABLE_REGION_RIGHT (eigene y-Zeile, siehe oben)."""
+    footer_text im Band _COMPARE_REGION_LEFT. second_footer_text (falls
+    gesetzt) liegt im Band _COMPARE_REGION_RIGHT (eigene y-Zeile, siehe oben)."""
     c = canvas.Canvas(str(path))
     for _ in range(pages):
         c.drawString(30, 700, "Fliesstext im Hauptteil der Seite, unveraendert.")
-        c.drawString(30, 70, footer_text)  # fitz-y ~ 722, innerhalb _TABLE_REGION_LEFT
+        c.drawString(30, 70, footer_text)  # fitz-y ~ 722, innerhalb _COMPARE_REGION_LEFT
         if second_footer_text:
-            c.drawString(30, 20, second_footer_text)  # fitz-y ~ 772, innerhalb _TABLE_REGION_RIGHT
+            c.drawString(30, 20, second_footer_text)  # fitz-y ~ 772, innerhalb _COMPARE_REGION_RIGHT
         c.showPage()
     c.save()
 
 
-def test_separate_table_region_blocks_trennt_blocke_bei_match(tmp_path):
-    """Blöcke innerhalb einer zutreffenden table_region mit passender
-    condition werden abgetrennt - table_region_texts enthält (whitespace-
+def test_separate_compare_region_blocks_trennt_blocke_bei_match(tmp_path):
+    """Blöcke innerhalb einer zutreffenden compare_region mit passender
+    condition werden abgetrennt - compare_region_texts enthält (whitespace-
     freier Text, lesbarer Text), remaining_blocks enthält sie nicht mehr."""
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
@@ -721,68 +721,68 @@ def test_separate_table_region_blocks_trennt_blocke_bei_match(tmp_path):
     doc = fitz.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
-    table_regions = [TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT)]
+    compare_regions = [CompareRegion(condition="ACME Insurance", page=1, **_COMPARE_REGION_LEFT)]
 
-    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+    remaining, compare_region_texts = separate_compare_region_blocks(blocks, 1, compare_regions)
 
-    assert table_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+    assert compare_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
     assert not any("ACME" in b[4] for b in remaining)
     assert len(remaining) == len(blocks) - 1
     doc.close()
 
 
-def test_separate_table_region_blocks_condition_matcht_nicht(tmp_path):
+def test_separate_compare_region_blocks_condition_matcht_nicht(tmp_path):
     """Trifft condition nicht zu, bleiben die Blöcke unverändert im
-    normalen Vergleich - table_region_texts bleibt für diese Region leer."""
+    normalen Vergleich - compare_region_texts bleibt für diese Region leer."""
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
 
     doc = fitz.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
-    table_regions = [TableRegion(condition="Nicht Vorhanden", page=1, **_TABLE_REGION_LEFT)]
+    compare_regions = [CompareRegion(condition="Nicht Vorhanden", page=1, **_COMPARE_REGION_LEFT)]
 
-    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+    remaining, compare_region_texts = separate_compare_region_blocks(blocks, 1, compare_regions)
 
-    assert table_region_texts == {}
+    assert compare_region_texts == {}
     assert len(remaining) == len(blocks)
     assert any("ACME" in b[4] for b in remaining)
     doc.close()
 
 
-def test_separate_table_region_blocks_page_zero_wirkt_auf_jeder_seite(tmp_path):
+def test_separate_compare_region_blocks_page_zero_wirkt_auf_jeder_seite(tmp_path):
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
 
     doc = fitz.open(str(pdf_path))
-    table_regions = [TableRegion(condition="ACME Insurance", page=0, **_TABLE_REGION_LEFT)]
+    compare_regions = [CompareRegion(condition="ACME Insurance", page=0, **_COMPARE_REGION_LEFT)]
 
     for page_index in (0, 1):
         blocks = get_text_blocks(doc[page_index])
-        _, table_region_texts = separate_table_region_blocks(blocks, page_index + 1, table_regions)
-        assert table_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+        _, compare_region_texts = separate_compare_region_blocks(blocks, page_index + 1, compare_regions)
+        assert compare_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
     doc.close()
 
 
-def test_separate_table_region_blocks_page_from_wirkt_erst_ab_angegebener_seite(tmp_path):
+def test_separate_compare_region_blocks_page_from_wirkt_erst_ab_angegebener_seite(tmp_path):
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
 
     doc = fitz.open(str(pdf_path))
-    table_regions = [TableRegion(condition="ACME Insurance", page_from=2, **_TABLE_REGION_LEFT)]
+    compare_regions = [CompareRegion(condition="ACME Insurance", page_from=2, **_COMPARE_REGION_LEFT)]
 
     blocks_page1 = get_text_blocks(doc[0])
-    _, table_region_texts_page1 = separate_table_region_blocks(blocks_page1, 1, table_regions)
-    assert table_region_texts_page1 == {}
+    _, compare_region_texts_page1 = separate_compare_region_blocks(blocks_page1, 1, compare_regions)
+    assert compare_region_texts_page1 == {}
 
     blocks_page2 = get_text_blocks(doc[1])
-    _, table_region_texts_page2 = separate_table_region_blocks(blocks_page2, 2, table_regions)
-    assert table_region_texts_page2 == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+    _, compare_region_texts_page2 = separate_compare_region_blocks(blocks_page2, 2, compare_regions)
+    assert compare_region_texts_page2 == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
     doc.close()
 
 
-def test_separate_table_region_blocks_mehrere_regionen_unabhaengig_gematcht(tmp_path):
-    """Zwei table_regions auf derselben Seite werden unabhängig voneinander
+def test_separate_compare_region_blocks_mehrere_regionen_unabhaengig_gematcht(tmp_path):
+    """Zwei compare_regions auf derselben Seite werden unabhängig voneinander
     ausgewertet - beide matchen, beide werden abgetrennt."""
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", second_footer_text="Contact Support Team")
@@ -790,14 +790,14 @@ def test_separate_table_region_blocks_mehrere_regionen_unabhaengig_gematcht(tmp_
     doc = fitz.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
-    table_regions = [
-        TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT),
-        TableRegion(condition="Contact Support", page=1, **_TABLE_REGION_RIGHT),
+    compare_regions = [
+        CompareRegion(condition="ACME Insurance", page=1, **_COMPARE_REGION_LEFT),
+        CompareRegion(condition="Contact Support", page=1, **_COMPARE_REGION_RIGHT),
     ]
 
-    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+    remaining, compare_region_texts = separate_compare_region_blocks(blocks, 1, compare_regions)
 
-    assert table_region_texts == {
+    assert compare_region_texts == {
         0: ("ACMEInsuranceCompany", "ACME Insurance Company"),
         1: ("ContactSupportTeam", "Contact Support Team"),
     }
@@ -805,11 +805,11 @@ def test_separate_table_region_blocks_mehrere_regionen_unabhaengig_gematcht(tmp_
     doc.close()
 
 
-def test_separate_table_region_blocks_nach_exclude_region_kein_crash(tmp_path):
-    """exclude_regions laufen VOR separate_table_region_blocks (siehe
+def test_separate_compare_region_blocks_nach_exclude_region_kein_crash(tmp_path):
+    """exclude_regions laufen VOR separate_compare_region_blocks (siehe
     Pipeline in _extract_page_text_columns) - überlappt eine exclude_region
-    die table_region vollständig, bleiben dort keine Blöcke mehr übrig;
-    separate_table_region_blocks darf dabei nicht abstürzen, findet aber
+    die compare_region vollständig, bleiben dort keine Blöcke mehr übrig;
+    separate_compare_region_blocks darf dabei nicht abstürzen, findet aber
     naturgemäß keinen Match mehr."""
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
@@ -818,35 +818,35 @@ def test_separate_table_region_blocks_nach_exclude_region_kein_crash(tmp_path):
     page = doc[0]
     exclude_regions = [Region(page=1, x=0, y=700, w=300, h=100, page_from=None)]
     blocks_after_exclude = filter_blocks_by_regions(get_text_blocks(page), 1, exclude_regions)
-    table_regions = [TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT)]
+    compare_regions = [CompareRegion(condition="ACME Insurance", page=1, **_COMPARE_REGION_LEFT)]
 
-    remaining, table_region_texts = separate_table_region_blocks(blocks_after_exclude, 1, table_regions)
+    remaining, compare_region_texts = separate_compare_region_blocks(blocks_after_exclude, 1, compare_regions)
 
-    assert table_region_texts == {}
+    assert compare_region_texts == {}
     assert not any("ACME" in b[4] for b in remaining)  # bereits von exclude_regions entfernt
     doc.close()
 
 
-def test_extract_page_text_columns_integriert_table_regions(tmp_path):
+def test_extract_page_text_columns_integriert_compare_regions(tmp_path):
     """Integrationstest: _extract_page_text_columns() entfernt matchende
-    table_region-Blöcke aus dem Seitentext und liefert deren normalisierten
+    compare_region-Blöcke aus dem Seitentext und liefert deren normalisierten
     Text separat zurück."""
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
 
     doc = fitz.open(str(pdf_path))
     page = doc[0]
-    table_regions = [TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT)]
+    compare_regions = [CompareRegion(condition="ACME Insurance", page=1, **_COMPARE_REGION_LEFT)]
 
-    text, table_region_texts = _extract_page_text_columns(page, 1, (), table_regions)
+    text, compare_region_texts = _extract_page_text_columns(page, 1, (), compare_regions)
 
     assert "ACME" not in text
     assert "Fliesstext" in text
-    assert table_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+    assert compare_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
     doc.close()
 
 
-def test_separate_table_region_blocks_condition_matcht_trotz_type3_fragmentierung(tmp_path):
+def test_separate_compare_region_blocks_condition_matcht_trotz_type3_fragmentierung(tmp_path):
     """Reproduziert das reale Diagnose-Muster (siehe
     docs/prompt_table_regions_whitespace_free.md): Type3-Schriften (Size=1.0)
     liefern über PyMuPDFs Leerzeichen-Heuristik Silbenfragmente mit falschen
@@ -865,7 +865,7 @@ def test_separate_table_region_blocks_condition_matcht_trotz_type3_fragmentierun
     c.drawString(30, 700, "Fliesstext im Hauptteil der Seite, unveraendert.")
     c.setFont("Helvetica", 10)
     x = 30
-    y = 70  # fitz-y ~722, innerhalb _TABLE_REGION_LEFT
+    y = 70  # fitz-y ~722, innerhalb _COMPARE_REGION_LEFT
     for frag in ["SV", "Spa", "r", "ka", "ssen", "Ver", "si", "ch", "eru", "n", "g"]:
         c.drawString(x, y, frag)
         x += c.stringWidth(frag, "Helvetica", 10) + 3
@@ -882,10 +882,10 @@ def test_separate_table_region_blocks_condition_matcht_trotz_type3_fragmentierun
     footer_block = next(b for b in blocks if "Spa" in b[4])
     assert footer_block[4].strip() == "SV Spa r ka ssen Ver si ch eru n g"
 
-    table_regions = [TableRegion(condition="SV SparkassenVersicherung", page=1, **_TABLE_REGION_LEFT)]
-    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+    compare_regions = [CompareRegion(condition="SV SparkassenVersicherung", page=1, **_COMPARE_REGION_LEFT)]
+    remaining, compare_region_texts = separate_compare_region_blocks(blocks, 1, compare_regions)
 
-    assert 0 in table_region_texts
-    assert table_region_texts[0] == ("SVSparkassenVersicherung", "SV Spa r ka ssen Ver si ch eru n g")
+    assert 0 in compare_region_texts
+    assert compare_region_texts[0] == ("SVSparkassenVersicherung", "SV Spa r ka ssen Ver si ch eru n g")
     assert not any("Spa" in b[4] for b in remaining)
     doc.close()

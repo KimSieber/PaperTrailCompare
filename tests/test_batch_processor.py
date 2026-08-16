@@ -26,7 +26,7 @@ from reportlab.pdfgen import canvas
 
 from engine.batch_processor import batch_compare, batch_compare_by_xmp, read_filelist, split_batch_pdf
 from engine.pdf_extractor import extract_pages
-from engine.profile_loader import ExcludeRegion, OcrConfig, PageGroupPattern, Profile, TableRegion
+from engine.profile_loader import ExcludeRegion, OcrConfig, PageGroupPattern, Profile, CompareRegion
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -354,14 +354,14 @@ def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path)
     assert any(delta.page == 2 for delta in pair.compare_result.deltas)
 
 
-# --- table_regions end-to-end via batch_compare (Sprint PTC-S3 Task C, siehe
+# --- compare_regions end-to-end via batch_compare (Sprint PTC-S3 Task C, siehe
 # docs/prompt_table_regions.md, Step 4) ---
 
 
-def test_batch_compare_table_region_eliminiert_false_delta_tc_tr_001(tmp_path):
+def test_batch_compare_compare_region_eliminiert_false_delta_tc_tr_001(tmp_path):
     """TC-TR-001 über den Produktivpfad batch_compare: ref.pdf schreibt die
     Fußzeile als einen breiten Block, cnd.pdf als vier schmale Blöcke -
-    identischer Wortinhalt. Mit korrekt konfigurierter table_region darf
+    identischer Wortinhalt. Mit korrekt konfigurierter compare_region darf
     das nicht als Delta erkannt werden."""
     ref_path = FIXTURES / "TC-TR-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-TR-001" / "cnd.pdf"
@@ -371,10 +371,14 @@ def test_batch_compare_table_region_eliminiert_false_delta_tc_tr_001(tmp_path):
 
     profile = Profile(
         version="1.0",
-        table_regions=[
-            TableRegion(
+        compare_regions=[
+            CompareRegion(
                 page=1, x=0, y=650, width=400, height=250,
                 condition="SV SparkassenVersicherung",
+                # mode="unordered" explizit (siehe docs/prompt_compare_regions_mode.md,
+                # Task 2) - dieser Test prüft genau das Zeichen-Multiset-Verhalten,
+                # nicht den neuen sequenziellen Default.
+                mode="unordered",
             )
         ],
     )
@@ -388,7 +392,7 @@ def test_batch_compare_table_region_eliminiert_false_delta_tc_tr_001(tmp_path):
     assert pair.compare_result.deltas == []
 
 
-def test_batch_compare_table_region_erkennt_echte_aenderung_tc_tr_002(tmp_path):
+def test_batch_compare_compare_region_erkennt_echte_aenderung_tc_tr_002(tmp_path):
     """TC-TR-002 über batch_compare: die Telefonnummer in der Kandidaten-
     Fußzeile ist tatsächlich geändert - der Whitespace-freie Vergleich muss
     das als GENAU EIN Delta für die gesamte Region melden (siehe
@@ -401,10 +405,11 @@ def test_batch_compare_table_region_erkennt_echte_aenderung_tc_tr_002(tmp_path):
 
     profile = Profile(
         version="1.0",
-        table_regions=[
-            TableRegion(
+        compare_regions=[
+            CompareRegion(
                 page=1, x=0, y=650, width=400, height=250,
                 condition="SV SparkassenVersicherung",
+                mode="unordered",
             )
         ],
     )
@@ -421,9 +426,65 @@ def test_batch_compare_table_region_erkennt_echte_aenderung_tc_tr_002(tmp_path):
     assert "0800-5678" in delta.cnd_text
 
 
+# --- Delta-Liste seitenweise sortiert über batch_compare (docs/prompt_compare_regions_mode.md, Task 3) ---
+
+
+def _write_multi_page_pdf(path: Path, page_1_footer: str, body_lines: list) -> None:
+    """Siehe tests/test_main.py::_write_multi_page_pdf - identische Logik,
+    hier separat gehalten, damit test_batch_processor.py nicht von
+    test_main.py importieren muss."""
+    c = canvas.Canvas(str(path), pagesize=A4)
+    _, height = A4
+    c.setFont("Helvetica", 11)
+    c.drawString(30, height - 100, "Seite 1 Fliesstext (identisch in ref und cnd).")
+    c.drawString(30, height - 750, page_1_footer)
+    c.showPage()
+    for line in body_lines:
+        c.drawString(30, height - 100, line)
+        c.showPage()
+    c.save()
+
+
+def test_batch_compare_delta_liste_ist_seitenweise_sortiert(tmp_path):
+    """Wie test_main.py::test_delta_liste_ist_seitenweise_sortiert_..., aber
+    über den batch_compare-Pfad (engine.batch_processor), der dieselbe
+    Merge-Logik verwendet - Task 3 muss an BEIDEN Stellen greifen (Einzel-
+    UND Batch-Vergleich, siehe docs/prompt_compare_regions_mode.md)."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+
+    _write_multi_page_pdf(
+        ref_path, "Footer Alpha Beta",
+        ["Seite zwei referenz", "Seite drei referenz", "Seite vier referenz", "Seite fuenf referenz"],
+    )
+    _write_multi_page_pdf(
+        cnd_path, "Footer Alpha Gamma",
+        ["Seite zwei kandidat", "Seite drei kandidat", "Seite vier kandidat", "Seite fuenf kandidat"],
+    )
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(
+        version="1.0",
+        compare_regions=[
+            CompareRegion(page=1, x=0, y=650, width=400, height=250, condition="Footer Alpha")
+        ],
+    )
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    deltas = result.pairs[0].compare_result.deltas
+    pages = [d.page for d in deltas]
+    assert pages == sorted(pages), f"Delta-Liste nicht seitenweise sortiert: {pages}"
+    assert pages[0] == 1, "compare_region-Delta (Seite 1) muss an erster Stelle stehen"
+    assert 2 in pages and 5 in pages
+
+
 # --- Regression: stdout-Progress-Contract (siehe docs/prompt_bugfix_batch_progress.md) ---
 #
-# Root Cause des Bugs: table_region_comparator._NO_POSITION war -1. Die
+# Root Cause des Bugs: compare_region_comparator._NO_POSITION war -1. Die
 # GUI (src-tauri/src/lib.rs) bildet Delta.position auf ein Rust `u32` ab;
 # ein negativer Wert lässt serde_json::from_value fehlschlagen, was in
 # start_batch_compare per `if let Ok(...)` OHNE Fehlermeldung verschluckt
@@ -437,7 +498,7 @@ def test_batch_compare_table_region_erkennt_echte_aenderung_tc_tr_002(tmp_path):
 # Bericht: das Python-JSON war immer syntaktisch valide, nur der WERT
 # verletzte die Rust-Seite unsichtbar für Python-Tests).
 def test_batch_json_lines_positionsfeld_ist_stets_nicht_negativ_tc_tr_002(tmp_path):
-    """Regressionstest für den Progress-Anzeige-Bug: eine table_region mit
+    """Regressionstest für den Progress-Anzeige-Bug: eine compare_region mit
     echtem Delta (TC-TR-002) darf im emittierten JSON keine negativen
     Zahlenwerte enthalten - src-tauri/src/lib.rs::Delta.position ist ein
     Rust `u32` (vorzeichenlos); ein negativer Sentinel-Wert lässt die
@@ -458,10 +519,17 @@ def test_batch_json_lines_positionsfeld_ist_stets_nicht_negativ_tc_tr_002(tmp_pa
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {
                     "page": 1, "x": 0, "y": 650, "width": 400, "height": 250,
                     "condition": "SV SparkassenVersicherung",
+                    # mode="unordered" explizit, weil dieser Test GENAU den
+                    # _NO_POSITION-Sentinel (0) des Multiset-Vergleichs prüft
+                    # (siehe docs/prompt_bugfix_batch_progress.md) - mit dem
+                    # neuen Default mode="sequential" (siehe
+                    # docs/prompt_compare_regions_mode.md, Task 2) trüge das
+                    # Delta stattdessen eine echte Wort-Position.
+                    "mode": "unordered",
                 }
             ],
         }),
@@ -491,7 +559,7 @@ def test_batch_json_lines_positionsfeld_ist_stets_nicht_negativ_tc_tr_002(tmp_pa
     pair = progress["pair"]
     assert pair["compare_result"]["has_delta"] is True
     deltas = pair["compare_result"]["deltas"]
-    assert len(deltas) == 1  # bestätigt: der table_region-Pfad wurde tatsächlich getroffen
+    assert len(deltas) == 1  # bestätigt: der compare_region-Pfad wurde tatsächlich getroffen
 
     # Der eigentliche Regressionstest: JEDER Zahlenwert im Payload muss
     # nicht-negativ sein (u32-kompatibel) - nicht nur "ist JSON", was

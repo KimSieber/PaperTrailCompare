@@ -1,6 +1,6 @@
 # Fixture: TC-TR-002
 
-**table_regions erkennt echte inhaltliche Änderung weiterhin**
+**compare_regions erkennt echte inhaltliche Änderung weiterhin**
 
 Wie TC-TR-001 (unterschiedliche Blockstruktur), aber die Telefonnummer in der Kandidaten-Fußzeile ist tatsächlich geändert ('Tel: 0800-1234' -> 'Tel: 0800-5678'). Der Multiset-Vergleich muss trotz ignorierter Wortreihenfolge ein Delta für die geänderten Wörter melden.
 

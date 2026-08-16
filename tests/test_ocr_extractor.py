@@ -34,7 +34,7 @@ from engine.ocr_extractor import (
     extract_pages_with_ocr_fallback,
     extract_text_via_ocr,
 )
-from engine.profile_loader import TableRegion
+from engine.profile_loader import CompareRegion
 from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -120,8 +120,8 @@ def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
     assert result.ocr_was_used is True
 
 
-def test_extract_pages_with_ocr_fallback_table_regions_auf_nativer_seite(tmp_path):
-    """table_regions muss im nativen Zweig von extract_pages_with_ocr_fallback
+def test_extract_pages_with_ocr_fallback_compare_regions_auf_nativer_seite(tmp_path):
+    """compare_regions muss im nativen Zweig von extract_pages_with_ocr_fallback
     wirken (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) - das
     ist der tatsächliche Ausführungspfad für ocr.mode='fallback'-Profile.
     Kein Tesseract nötig, da die Seite nativen Text hat (OCR-Zweig wird
@@ -133,16 +133,16 @@ def test_extract_pages_with_ocr_fallback_table_regions_auf_nativer_seite(tmp_pat
     c.showPage()
     c.save()
 
-    table_regions = [TableRegion(condition="ACME Insurance", page=1, x=0, y=700, width=300, height=100)]
+    compare_regions = [CompareRegion(condition="ACME Insurance", page=1, x=0, y=700, width=300, height=100)]
 
-    pages, ocr_used, table_region_texts = extract_pages_with_ocr_fallback(
-        str(pdf_path), table_regions=table_regions
+    pages, ocr_used, compare_region_texts = extract_pages_with_ocr_fallback(
+        str(pdf_path), compare_regions=compare_regions
     )
 
     assert ocr_used is False
     assert "ACME" not in pages[0]
     assert "Fliesstext" in pages[0]
-    assert table_region_texts == [{0: ("ACMEInsuranceCompany", "ACME Insurance Company")}]
+    assert compare_region_texts == [{0: ("ACMEInsuranceCompany", "ACME Insurance Company")}]
 
 
 # --- Spacewidth-Kalibrierung im Fallback-Pfad (siehe docs/prompt_spacewidth_ocr_fallback.md) ---
@@ -154,7 +154,7 @@ def test_extract_pages_with_ocr_fallback_nutzt_spacewidth_kalibrierte_extraktion
     nutzen statt der unkalibrierten get_text_blocks() - sonst liefert dieser
     Pfad bei Type3-Schriften falsche Leerzeichen zwischen Silbenfragmenten
     (z.B. 'SV Spa r ka ssen V er si ch eru n g' statt 'SV
-    SparkassenVersicherung'), was auch table_regions-condition-Matches
+    SparkassenVersicherung'), was auch compare_regions-condition-Matches
     fehlschlagen lässt. Kein Tesseract nötig, da die Seite nativen Text hat
     (OCR-Zweig wird nicht betreten)."""
     pdf_path = tmp_path / "native.pdf"

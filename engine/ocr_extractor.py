@@ -133,7 +133,7 @@ def extract_pages_with_ocr_fallback(
     dpi: int = _DEFAULT_DPI,
     regions: Optional[Sequence] = None,
     warnings: Optional[List[str]] = None,
-    table_regions: Optional[Sequence] = None,
+    compare_regions: Optional[Sequence] = None,
 ) -> Tuple[List[str], bool, List[dict]]:
     """Extrahiert pro Seite nativen Text, falls vorhanden, sonst via OCR.
 
@@ -142,7 +142,7 @@ def extract_pages_with_ocr_fallback(
 
     Dies ist der tatsächliche Ausführungspfad für Profile mit
     ocr.mode="fallback" (siehe pdf_extractor.extract_pages_for_profile) -
-    table_regions muss deshalb hier ausgewertet werden, nicht nur im
+    compare_regions muss deshalb hier ausgewertet werden, nicht nur im
     "off"-Pfad (pdf_extractor.extract_pages), sonst griffe der Multiset-
     Vergleich für genau das real beobachtete Profil nie (siehe
     docs/prompt_table_regions.md, Motivation).
@@ -151,17 +151,17 @@ def extract_pages_with_ocr_fallback(
     block-basiert (filter_blocks_by_regions, siehe pdf_extractor.extract_pages -
     page=0/page_from-Wildcards über _region_applies_to_page), auf tatsächlich
     per OCR gelesenen Seiten durch Maskieren vor dem Rastern-Ergebnis (siehe
-    _mask_regions_on_image). table_regions wirkt nur auf Seiten mit nativem
-    Text (separate_table_region_blocks braucht Blockstruktur, die es unter
+    _mask_regions_on_image). compare_regions wirkt nur auf Seiten mit nativem
+    Text (separate_compare_region_blocks braucht Blockstruktur, die es unter
     OCR nicht gibt - Seiten ohne nativen Text liefern dafür ein leeres dict).
     warnings bleibt hier ungenutzt (beide Zweige unterstützen exclude_regions
     vollständig) - der Parameter existiert nur zur einheitlichen Signatur mit
     extract_pages_for_profile.
 
-    Rückgabe: (Seitentexte, ocr_used, table_region_texte_pro_seite) -
+    Rückgabe: (Seitentexte, ocr_used, compare_region_texte_pro_seite) -
     ocr_used ist True, sobald mindestens eine Seite über Tesseract statt
     nativer Extraktion gelesen wurde, damit Aufrufer (z.B. der Report) das
-    sichtbar machen können. table_region_texte_pro_seite: eine Liste (ein
+    sichtbar machen können. compare_region_texte_pro_seite: eine Liste (ein
     Eintrag pro Seite) von dicts region_index -> normalisierter Text.
 
     Seiten mit nativem Text nutzen get_text_blocks_reconstructed() statt
@@ -173,7 +173,7 @@ def extract_pages_with_ocr_fallback(
     (_extract_page_text_columns) löst das bereits über
     calibrate_spacewidths()/get_text_blocks_reconstructed(); dieser Fallback-
     Pfad war der einzige native-Text-Pfad ohne diese Kalibrierung - das
-    betraf auch table_regions direkt (condition-Match schlug auf dem
+    betraf auch compare_regions direkt (condition-Match schlug auf dem
     unkalibrierten Text fehl). calibrate_spacewidths(doc) läuft einmal pro
     Dokument vor der Seiten-Schleife (Lesezugriff auf Font-Metriken, keine
     Seiteneffekte). BEWUSST NICHT hinzugefügt: sort_blocks_columns/
@@ -184,7 +184,7 @@ def extract_pages_with_ocr_fallback(
     deren Reihenfolge.
     """
     pages_text: List[str] = []
-    per_page_table_region_texts: List[dict] = []
+    per_page_compare_region_texts: List[dict] = []
     ocr_used = False
     doc = fitz.open(pdf_path)
     try:
@@ -196,7 +196,7 @@ def extract_pages_with_ocr_fallback(
                 from engine.pdf_extractor import (
                     filter_blocks_by_regions,
                     join_block_text,
-                    separate_table_region_blocks,
+                    separate_compare_region_blocks,
                 )
                 if regions and any(_region_applies_to_page(r, page_num) for r in regions):
                     blocks = filter_blocks_by_regions(
@@ -204,17 +204,17 @@ def extract_pages_with_ocr_fallback(
                     )
                 else:
                     blocks = get_text_blocks_reconstructed(page, calibration)
-                page_table_region_texts: dict = {}
-                if table_regions:
-                    blocks, page_table_region_texts = separate_table_region_blocks(
-                        blocks, page_num, table_regions
+                page_compare_region_texts: dict = {}
+                if compare_regions:
+                    blocks, page_compare_region_texts = separate_compare_region_blocks(
+                        blocks, page_num, compare_regions
                     )
                 pages_text.append(join_block_text(blocks))
-                per_page_table_region_texts.append(page_table_region_texts)
+                per_page_compare_region_texts.append(page_compare_region_texts)
             else:
                 pages_text.append(_ocr_page(page, lang=lang, dpi=dpi, page_num=page_num, regions=regions))
-                per_page_table_region_texts.append({})
+                per_page_compare_region_texts.append({})
                 ocr_used = True
     finally:
         doc.close()
-    return pages_text, ocr_used, per_page_table_region_texts
+    return pages_text, ocr_used, per_page_compare_region_texts
