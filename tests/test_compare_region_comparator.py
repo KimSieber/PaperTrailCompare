@@ -277,3 +277,71 @@ def test_merge_isoliert_zwei_regionen_auf_derselben_seite_voneinander():
     assert len(deltas) >= 1
     assert all(d.page == 1 for d in deltas)
     assert not any("XY" in d.ref_text or "XY" in d.cnd_text for d in deltas)
+
+
+# --- region_clip (docs/prompt_region_clip_highlighting.md) ---
+
+
+def test_compare_region_setzt_region_clip_wenn_uebergeben():
+    """compare_region (mode='unordered') muss region_clip 1:1 auf das
+    erzeugte Delta durchreichen - der report_generator braucht das
+    Bounding-Box-Tupel, um die Fundstellensuche auf die Region
+    einzuschränken (siehe report_generator._find_delta_rects)."""
+    deltas = compare_region(
+        "AlphaBetaGamma", "AlphaGamma",
+        "Alpha Beta Gamma", "Alpha Gamma",
+        page_num=1, region_index=0,
+        region_clip=(10.0, 20.0, 40.0, 60.0),
+    )
+    assert len(deltas) == 1
+    assert deltas[0].region_clip == (10.0, 20.0, 40.0, 60.0)
+
+
+def test_compare_region_ohne_region_clip_liefert_none():
+    """Ohne übergebenes region_clip bleibt das Feld None (Default) - z.B.
+    wenn compare_region direkt ohne Profil-Region aufgerufen wird."""
+    deltas = compare_region(
+        "AlphaBetaGamma", "AlphaGamma",
+        "Alpha Beta Gamma", "Alpha Gamma",
+        page_num=1, region_index=0,
+    )
+    assert len(deltas) == 1
+    assert deltas[0].region_clip is None
+
+
+def test_merge_unordered_setzt_region_clip_aus_profil_region():
+    """merge_compare_region_comparison muss für mode='unordered' die
+    Bounding-Box der CompareRegion aus dem Profil (x, y, x+width, y+height)
+    als region_clip auf das erzeugte Delta setzen."""
+    region = CompareRegion(
+        x=10.0, y=20.0, width=30.0, height=40.0,
+        condition="irrelevant condition", page=1, mode="unordered",
+    )
+    profile = Profile(version="1.0", compare_regions=[region])
+    ref_tr_texts = [{0: ("Tel0521Fax0621", "Tel: 0521  Fax: 0621")}]
+    cnd_tr_texts = [{0: ("TelFax05210622", "Tel: Fax:  0521 0622")}]
+
+    deltas = merge_compare_region_comparison(ref_tr_texts, cnd_tr_texts, profile)
+
+    assert len(deltas) == 1
+    assert deltas[0].region_clip == (10.0, 20.0, 40.0, 60.0)
+
+
+def test_merge_sequential_setzt_region_clip_aus_profil_region():
+    """Wie oben, aber für mode='sequential' - JEDES aus dem sequenziellen
+    Vergleich remappte Delta muss dasselbe region_clip tragen."""
+    region = CompareRegion(
+        x=5.0, y=5.0, width=100.0, height=50.0,
+        condition="irrelevant condition", page=1, mode="sequential",
+    )
+    profile = Profile(version="1.0", compare_regions=[region])
+    ref_display = "Tel.: 0611 178-49830 Wiesbaden, 15.06.2026"
+    cnd_display = "Tel. 0611 178-49830 Wiesbaden, 03.07.2026"
+    ref_tr_texts = [{0: (ref_display, ref_display)}]
+    cnd_tr_texts = [{0: (cnd_display, cnd_display)}]
+
+    deltas = merge_compare_region_comparison(ref_tr_texts, cnd_tr_texts, profile)
+
+    assert len(deltas) > 1
+    for delta in deltas:
+        assert delta.region_clip == (5.0, 5.0, 105.0, 55.0)

@@ -48,6 +48,21 @@ import dataclasses
 import json
 import sys
 import time
+
+# Felder von text_comparator.Delta, die rein Python-intern sind (nur vom
+# report_generator konsumiert, siehe docs/prompt_region_clip_highlighting.md)
+# und daher NIE in der Tauri-IPC-JSON-Ausgabe erscheinen dürfen -
+# dataclasses.asdict() serialisiert alle Felder inkl. None-Werten, filtert
+# also nicht von selbst.
+_DELTA_INTERNAL_FIELDS = ("region_clip",)
+
+
+def _strip_internal_delta_fields(deltas: list) -> None:
+    """Entfernt _DELTA_INTERNAL_FIELDS in-place aus jedem Delta-Dict einer
+    (von dataclasses.asdict erzeugten) Delta-Liste."""
+    for delta_dict in deltas:
+        for field_name in _DELTA_INTERNAL_FIELDS:
+            delta_dict.pop(field_name, None)
 from typing import Optional
 
 from datetime import date, datetime
@@ -138,6 +153,7 @@ def _run_compare(args: argparse.Namespace) -> int:
 
     if args.json:
         payload = dataclasses.asdict(result)
+        _strip_internal_delta_fields(payload["deltas"])
         if report_path is not None:
             payload["report_path"] = report_path
         print(json.dumps(payload))
@@ -175,11 +191,15 @@ def _run_batch(args: argparse.Namespace) -> int:
             return 1
 
     def on_progress(index: int, total: int, pair_result: PairResult) -> None:
+        pair_payload = dataclasses.asdict(pair_result)
+        compare_result_payload = pair_payload.get("compare_result")
+        if compare_result_payload is not None:
+            _strip_internal_delta_fields(compare_result_payload["deltas"])
         print(json.dumps({
             "type": "progress",
             "index": index,
             "total": total,
-            "pair": dataclasses.asdict(pair_result),
+            "pair": pair_payload,
         }), flush=True)
 
     output_dir = Path(args.output_dir)

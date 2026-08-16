@@ -18,7 +18,7 @@ import re
 from bisect import bisect_right
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 _HYPHENATION_RE = re.compile(r"(?<=\w)-\s*\n\s*(?=\w)")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -43,6 +43,14 @@ class Delta:
     position: int
     ref_text: str
     cnd_text: str
+    # (x0, y0, x1, y1) in PDF-Seitenkoordinaten der compare_region, aus der
+    # dieses Delta stammt (siehe engine.compare_region_comparator) - None
+    # für alle "normalen" (nicht regionsbasierten) Deltas, bedeutet "keine
+    # Einschränkung, ganze Seite durchsuchen". Wird ausschließlich vom
+    # report_generator konsumiert (page.search_for(text, clip=...), siehe
+    # docs/prompt_region_clip_highlighting.md) - rein Python-intern, MUSS
+    # aus der JSON-Ausgabe ausgeschlossen bleiben (siehe engine.__main__).
+    region_clip: Optional[Tuple[float, float, float, float]] = None
 
 
 @dataclass

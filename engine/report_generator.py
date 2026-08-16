@@ -18,7 +18,7 @@ import html
 import io
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import fitz
 from PIL import Image as PILImage
@@ -494,7 +494,7 @@ def _build_delta_detail_pdf_bytes(compare_result: CompareResult) -> bytes:
 
 def _find_delta_rects(
     doc: fitz.Document,
-    texts_by_page: Dict[int, List[str]],
+    texts_by_page: Dict[int, List[Tuple[str, Optional[fitz.Rect]]]],
     fallback_search_all_pages: bool = False,
 ) -> Dict[int, List[fitz.Rect]]:
     """Sucht die übergebenen Delta-Textstellen im PDF und liefert ihre
@@ -513,10 +513,21 @@ def _find_delta_rects(
     von text_comparator gemeldete Delta-Seite bezieht sich nur auf das
     Kandidat-Dokument), wird mit fallback_search_all_pages=True über das
     gesamte Dokument gesucht, statt die Markierung zu verwerfen.
+
+    texts_by_page-Einträge sind (delta_text, clip)-Paare (siehe
+    docs/prompt_region_clip_highlighting.md): ist clip gesetzt (compare_region-
+    Delta, siehe compare_region_comparator), wird die Suche auf der
+    erwarteten Seite auf page.search_for(text, clip=clip) eingeschränkt -
+    das verhindert, dass ein Regions-Delta anderswo auf der Seite (Sender-
+    Block, Fußzeile) oder gar Textfragmente daraus in völlig unbeteiligten
+    Seitenbereichen ("Ghost-Highlights") gefunden werden. Die Fallback-Suche
+    über das gesamte Dokument verwendet den clip NIE - der Fallback sucht
+    per Definition auf ANDEREN Seiten, für die die Region-Koordinaten gar
+    nicht gelten.
     """
     rects_by_page: Dict[int, List[fitz.Rect]] = {}
     for page_num, texts in texts_by_page.items():
-        for text in texts:
+        for text, clip in texts:
             if not text:
                 continue
 
@@ -525,7 +536,7 @@ def _find_delta_rects(
 
             if 1 <= page_num <= len(doc):
                 page = doc[page_num - 1]
-                raw_rects = page.search_for(text)
+                raw_rects = page.search_for(text, clip=clip) if clip is not None else page.search_for(text)
                 if raw_rects:
                     found_rects = [r * page.rotation_matrix for r in raw_rects]
                     found_page_num = page_num
@@ -752,11 +763,16 @@ def generate_report(
     if profile is not None and profile.report_format == "html":
         return _generate_report_html(compare_result, ref_pdf_path, cnd_pdf_path, output_path)
 
-    ref_texts_by_page: Dict[int, List[str]] = {}
-    cnd_texts_by_page: Dict[int, List[str]] = {}
+    # region_clip (siehe text_comparator.Delta, docs/prompt_region_clip_highlighting.md)
+    # ist ein (x0, y0, x1, y1)-Tupel - für _find_delta_rects wird es hier in
+    # ein fitz.Rect umgewandelt (None bleibt None: nicht-regionsbasierte
+    # Deltas durchsuchen weiterhin die ganze Seite).
+    ref_texts_by_page: Dict[int, List[Tuple[str, Optional[fitz.Rect]]]] = {}
+    cnd_texts_by_page: Dict[int, List[Tuple[str, Optional[fitz.Rect]]]] = {}
     for delta in compare_result.deltas:
-        ref_texts_by_page.setdefault(delta.page, []).append(delta.ref_text)
-        cnd_texts_by_page.setdefault(delta.page, []).append(delta.cnd_text)
+        clip = fitz.Rect(*delta.region_clip) if delta.region_clip is not None else None
+        ref_texts_by_page.setdefault(delta.page, []).append((delta.ref_text, clip))
+        cnd_texts_by_page.setdefault(delta.page, []).append((delta.cnd_text, clip))
 
     ref_doc = fitz.open(str(ref_pdf_path))
     cnd_doc = fitz.open(str(cnd_pdf_path))

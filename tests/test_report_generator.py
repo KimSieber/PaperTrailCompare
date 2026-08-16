@@ -23,12 +23,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import fitz
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas as rl_canvas
 
 from engine.models import BatchResult, PairResult
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import ExcludeRegion, Profile
-from engine.report_generator import generate_batch_report, generate_report
+from engine.report_generator import _find_delta_rects, generate_batch_report, generate_report
 from engine.text_comparator import CompareResult, Delta, compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -177,6 +179,83 @@ def test_tc_r_005_rotierte_seite_wird_unverzerrt_eingebettet_und_delta_korrekt_p
     report.close()
     ref_doc.close()
     cnd_doc.close()
+
+
+def _make_two_occurrence_pdf(path: Path) -> None:
+    """Synthetisches Ein-Seiten-PDF (ReportLab, siehe CLAUDE.md Abschnitt 8 -
+    ausschließlich synthetische Fixtures): derselbe kurze Text ("Stuttgart")
+    kommt zweimal vor - einmal weit oben (fitz-Seitenkoordinate y≈100),
+    einmal weit unten (y≈700). ReportLab zählt y von unten, fitz/PDF-
+    Seitenkoordinaten (wie auch CompareRegion.y) von oben - daher
+    page_h - y beim Zeichnen."""
+    page_h = A4[1]
+    c = rl_canvas.Canvas(str(path), pagesize=A4)
+    c.drawString(50, page_h - 100, "Stuttgart")
+    c.drawString(50, page_h - 700, "Stuttgart")
+    c.showPage()
+    c.save()
+
+
+def test_find_delta_rects_region_clip_beschraenkt_suche_auf_region(tmp_path):
+    """docs/prompt_region_clip_highlighting.md, Test 1: mit region_clip
+    gesetzt darf _find_delta_rects den Text NUR innerhalb der Region finden
+    - hier das obere Vorkommen (y≈100), nicht das untere (y≈700)."""
+    pdf_path = tmp_path / "two_occurrences.pdf"
+    _make_two_occurrence_pdf(pdf_path)
+    doc = fitz.open(str(pdf_path))
+
+    clip = fitz.Rect(0, 0, A4[0], 200)  # obere Region (y 0..200)
+    texts_by_page = {1: [("Stuttgart", clip)]}
+
+    rects_by_page = _find_delta_rects(doc, texts_by_page)
+
+    assert list(rects_by_page.keys()) == [1]
+    rects = rects_by_page[1]
+    assert len(rects) == 1
+    assert rects[0].y0 < 200  # obere Fundstelle, nicht die bei y≈700
+
+    doc.close()
+
+
+def test_find_delta_rects_ohne_region_clip_durchsucht_ganze_seite(tmp_path):
+    """docs/prompt_region_clip_highlighting.md, Test 2: ohne region_clip
+    (None) - Backwards-Kompatibilität für alle nicht-regionsbasierten
+    Deltas - werden beide Vorkommen gefunden."""
+    pdf_path = tmp_path / "two_occurrences.pdf"
+    _make_two_occurrence_pdf(pdf_path)
+    doc = fitz.open(str(pdf_path))
+
+    texts_by_page = {1: [("Stuttgart", None)]}
+
+    rects_by_page = _find_delta_rects(doc, texts_by_page)
+
+    assert len(rects_by_page[1]) == 2
+
+    doc.close()
+
+
+def test_find_delta_rects_fallback_ignoriert_region_clip(tmp_path):
+    """docs/prompt_region_clip_highlighting.md, Test 3: die Fallback-Suche
+    (fallback_search_all_pages=True, für Referenz-Seiten bei abweichendem
+    Seitenumbruch) darf den clip NICHT anwenden - genau dafür existiert der
+    Fallback, um auf ANDEREN Seiten zu suchen, wo die Region-Koordinaten
+    gar nicht gelten. Delta-Seite liegt hier außerhalb des Dokuments, mit
+    region_clip gesetzt, das auf der einzigen echten Seite nur die obere
+    Fundstelle einschließen würde - der clip-lose Fallback muss aber BEIDE
+    Vorkommen finden."""
+    pdf_path = tmp_path / "two_occurrences.pdf"
+    _make_two_occurrence_pdf(pdf_path)
+    doc = fitz.open(str(pdf_path))
+
+    clip = fitz.Rect(0, 0, A4[0], 200)  # würde die untere Fundstelle ausschließen
+    texts_by_page = {999: [("Stuttgart", clip)]}  # Seite außerhalb des Dokuments
+
+    rects_by_page = _find_delta_rects(doc, texts_by_page, fallback_search_all_pages=True)
+
+    assert list(rects_by_page.keys()) == [1]
+    assert len(rects_by_page[1]) == 2  # Fallback ignoriert den clip
+
+    doc.close()
 
 
 def test_generate_report_ignoriert_leeren_text_und_seite_ausserhalb_dokument(tmp_path):
