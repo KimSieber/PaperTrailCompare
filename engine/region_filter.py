@@ -43,7 +43,24 @@ def extract_pages_excluding_regions(
 ) -> List[str]:
     """Wie pdf_extractor.extract_pages, aber Textblöcke, die eine der
     angegebenen Regionen auf ihrer Seite überlappen, werden vor der
-    Extraktion entfernt."""
+    Extraktion entfernt.
+
+    Eigenständiger, direkt (per Unit-Test) getesteter Baustein - KEIN
+    Bestandteil des Produktivpfads. CLI (engine.__main__) und Batch
+    (engine.batch_processor) rufen ausschließlich
+    pdf_extractor.extract_pages_for_profile() auf, dessen interner
+    Native-Pfad (_extract_page_text_columns) exakt dieselbe Schrittfolge
+    fährt wie hier (filter_blocks_by_regions -> split_wide_blocks ->
+    sort_blocks_columns -> join_block_text) - siehe Befund Bugfix-Sprint
+    "Region Logic Consolidation", Bug B: beide Pipelines wurden verglichen,
+    keine bot Funktionalität, die der anderen fehlt, und die Verdrahtungs-
+    tests (test_pdf_extractor.py::test_exclude_regions_wirkt_ueber_
+    extract_pages_for_profile_tc_e_001/tc_e_002) belegen, dass
+    exclude_regions über den Produktivpfad bereits korrekt wirkt. Diese
+    Funktion bleibt trotzdem bestehen: als isoliert testbarer Baustein für
+    genau diese Schrittfolge, unabhängig von OCR-Modi, Tabellenerkennung
+    und text_extraction="reconstruct", die extract_pages_for_profile
+    zusätzlich abdeckt."""
     pages_text: List[str] = []
     doc = fitz.open(pdf_path)
     try:

@@ -15,7 +15,11 @@
         "mode_candidate": "fallback"
   },
   "exclude_regions": [
-        { "page": 0,  "x": 0,    "y": 0,  "width": 64,  "height": 840  },
-        { "page": 0,  "x": 565,  "y": 0,  "width": 30,  "height": 840  }
-                     ]
+        { "page": 0,  "x": 0,    "y": 0,   "width": 64,  "height": 840  },
+        { "page": 0,  "x": 565,  "y": 0,   "width": 30,  "height": 840  }
+                     ],
+  "table_regions": [
+        { "page": 0,  "x": 50,   "y": 750, "width": 500, "height": 80,
+          "condition": "SV SparkassenVersicherung" }
+                   ]
 }

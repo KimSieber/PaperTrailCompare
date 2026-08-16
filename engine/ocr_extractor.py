@@ -24,6 +24,8 @@ import fitz
 import pytesseract
 from PIL import Image, ImageDraw
 
+from engine.pdf_extractor import _region_applies_to_page
+
 _DEFAULT_DPI = 300
 _DEFAULT_LANG = "deu"
 
@@ -53,18 +55,6 @@ def _configure_bundled_tesseract() -> None:
 _configure_bundled_tesseract()
 
 
-def _region_applies_to_page(region, page_num: int) -> bool:
-    """Duck-typed Kopie von pdf_extractor._region_applies_to_page (page=0 =
-    alle Seiten, page_from=N = ab Seite N) - absichtlich ohne Import, um
-    keine Modulabhängigkeit auf pdf_extractor.Region einzugehen (siehe
-    _mask_regions_on_image)."""
-    if region.page is not None:
-        return region.page == 0 or region.page == page_num
-    if region.page_from is not None:
-        return page_num >= region.page_from
-    return False
-
-
 def _mask_regions_on_image(
     image: "Image.Image", page_num: int, regions: Optional[Sequence], dpi: int
 ) -> "Image.Image":
@@ -73,8 +63,14 @@ def _mask_regions_on_image(
     wirkt der Ausschluss auch dort, wo es (anders als bei nativer
     Extraktion) keine Textblockstruktur gibt, auf die ein nachträglicher
     Filter aufbauen könnte (siehe pdf_extractor.extract_pages_for_profile,
-    Abschnitt "force"). Duck-typed auf region.page/x/y/w/h, um keine
-    Modulabhängigkeit auf pdf_extractor.Region einzugehen."""
+    Abschnitt "force"). Nutzt pdf_extractor._region_applies_to_page fürs
+    page=0/page_from-Wildcard-Matching (Modulabhängigkeit auf pdf_extractor
+    besteht ohnehin bereits an anderer Stelle in dieser Datei, siehe
+    extract_pages_with_ocr_fallback); erwartet Regionen mit region.x/y/w/h
+    (siehe pdf_extractor.Region) - r.page/r.page_from reichen für
+    _region_applies_to_page, Test-Doubles ohne .page_from funktionieren,
+    solange .page gesetzt ist (siehe tests/test_ocr_extractor.py
+    _FakeRegion)."""
     if not regions:
         return image
     page_regions = [r for r in regions if _region_applies_to_page(r, page_num)]
@@ -160,7 +156,6 @@ def extract_pages_with_ocr_fallback(
             native_text = page.get_text().strip()
             if native_text:
                 from engine.pdf_extractor import (
-                    _region_applies_to_page,
                     filter_blocks_by_regions,
                     get_text_blocks,
                     join_block_text,
