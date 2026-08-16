@@ -1335,6 +1335,212 @@ def generate_tc_t_009_sperrsatz_ohne_leerzeichen() -> None:
 
 
 # ---------------------------------------------------------------------------
+# TC-TR-001 / TC-TR-002  table_regions - Multiset-Wortvergleich (PTC-S3 Task C)
+# ---------------------------------------------------------------------------
+# Reproduziert das reale Diagnose-Muster (siehe docs/prompt_table_regions.md):
+# ref.pdf schreibt den Fußzeilentext als EINEN breiten Block (eine Zeile über
+# die "Spalten" hinweg), cnd.pdf schreibt ihn als VIER schmale Blöcke (eine
+# Zeile pro Spalte, vertikal gestapelt statt in einer Zeile - PyMuPDF
+# verschmilzt sonst same-y-Text mit ausreichendem x-Abstand nicht zuverlässig
+# zu getrennten Blöcken, siehe split_wide_blocks-Diagnose). Beide Varianten
+# enthalten dieselben Wörter - ein sequenzieller Vergleich sähe dort nur
+# Umstellungen; table_regions eliminiert das über Multiset-Vergleich.
+#
+# Fußregion (fitz-Koordinaten): x=0, y=650, width=400, height=250 - deckt
+# beide Block-Varianten ab (ref: 1 Zeile bei y≈750; cnd: 4 Zeilen y≈687..809).
+_TABLE_REGION_FOOTER = dict(x=0, y=650, width=400, height=250)
+_TABLE_REGION_FOOTER_WORDS = ["SV SparkassenVersicherung", "Kundenservice", "Tel: 0800-1234", "info@sv.de"]
+
+
+def _draw_table_region_page(c: rl_canvas.Canvas, footer_words: list[str], wide_footer: bool) -> None:
+    """Zeichnet Fließtext oben (identisch zwischen ref/cnd) und die
+    Fußzeile entweder als einen breiten Block (wide_footer=True, alle
+    Wörter in einem drawString-Aufruf) oder als vier schmale, vertikal
+    gestapelte Blöcke (wide_footer=False, ein drawString-Aufruf je Wort,
+    mit Zeilenabstand groß genug, dass PyMuPDF sie als eigene Blöcke
+    erkennt, siehe Diagnose _TABLE_REGION_FOOTER oben)."""
+    c.setFont("Helvetica", 11)
+    c.drawString(30, H - 100, "Sehr geehrte Damen und Herren, dies ist der unveraenderte Fliesstext.")
+    c.drawString(30, H - 118, "Zeile 2 des Fliesstexts, ebenfalls unveraendert zwischen ref und cnd.")
+
+    if wide_footer:
+        c.drawString(30, H - 750, " ".join(footer_words))
+    else:
+        fitz_y_start = 700
+        gap = 35
+        for i, word in enumerate(footer_words):
+            fitz_y = fitz_y_start + i * gap
+            c.drawString(30, H - fitz_y, word)
+
+
+def generate_tc_tr_001() -> None:
+    """table_regions eliminiert das False-Delta aus abweichender
+    Fußzeilen-Blockstruktur bei identischem Wortinhalt."""
+    tc = "TC-TR-001"
+    d = fixture_dir(tc)
+
+    c = rl_canvas.Canvas(str(d / "ref.pdf"), pagesize=A4)
+    _draw_table_region_page(c, _TABLE_REGION_FOOTER_WORDS, wide_footer=True)
+    c.showPage()
+    c.save()
+
+    c = rl_canvas.Canvas(str(d / "cnd.pdf"), pagesize=A4)
+    _draw_table_region_page(c, _TABLE_REGION_FOOTER_WORDS, wide_footer=False)
+    c.showPage()
+    c.save()
+
+    write_readme(
+        tc,
+        "table_regions eliminiert False-Delta aus abweichender Blockstruktur",
+        "ref.pdf schreibt die Fußzeile als einen breiten Block (eine Zeile "
+        "über alle 'Spalten' hinweg), cnd.pdf als vier schmale, vertikal "
+        "gestapelte Blöcke - PyMuPDF liefert dafür unterschiedliche "
+        "Blockgrenzen, obwohl der Wortinhalt identisch ist. Ein "
+        "sequenzieller Vergleich sähe hier reine Wortumstellungen als "
+        "False-Deltas. Profil: table_region "
+        f"{{page:1, x:{_TABLE_REGION_FOOTER['x']}, y:{_TABLE_REGION_FOOTER['y']}, "
+        f"width:{_TABLE_REGION_FOOTER['width']}, height:{_TABLE_REGION_FOOTER['height']}, "
+        "condition:'SV SparkassenVersicherung'} → kein Delta erwartet.",
+        "Fließtext oben + Fußzeile als EIN breiter Block (eine Zeile).",
+        "Identischer Fließtext + Fußzeile als VIER schmale Blöcke (vertikal gestapelt).",
+    )
+
+
+def generate_tc_tr_002() -> None:
+    """Gegenprobe zu TC-TR-001: ein Wort in der Kandidaten-Fußzeile ist
+    tatsächlich geändert - table_regions muss das als echtes Delta melden,
+    nicht wegfiltern."""
+    tc = "TC-TR-002"
+    d = fixture_dir(tc)
+
+    ref_words = list(_TABLE_REGION_FOOTER_WORDS)
+    cnd_words = list(_TABLE_REGION_FOOTER_WORDS)
+    cnd_words[2] = "Tel: 0800-5678"  # "Tel: 0800-1234" -> geänderte Telefonnummer
+
+    c = rl_canvas.Canvas(str(d / "ref.pdf"), pagesize=A4)
+    _draw_table_region_page(c, ref_words, wide_footer=True)
+    c.showPage()
+    c.save()
+
+    c = rl_canvas.Canvas(str(d / "cnd.pdf"), pagesize=A4)
+    _draw_table_region_page(c, cnd_words, wide_footer=False)
+    c.showPage()
+    c.save()
+
+    write_readme(
+        tc,
+        "table_regions erkennt echte inhaltliche Änderung weiterhin",
+        "Wie TC-TR-001 (unterschiedliche Blockstruktur), aber die "
+        "Telefonnummer in der Kandidaten-Fußzeile ist tatsächlich geändert "
+        "('Tel: 0800-1234' -> 'Tel: 0800-5678'). Der Multiset-Vergleich "
+        "muss trotz ignorierter Wortreihenfolge ein Delta für die "
+        "geänderten Wörter melden.",
+        "Fußzeile (1 breiter Block) mit 'Tel: 0800-1234'.",
+        "Fußzeile (4 schmale Blöcke) mit 'Tel: 0800-5678' statt '...-1234'.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# TC-TR-003  table_regions im OCR-Zweig (siehe docs/prompt_table_regions_ocr_branch.md)
+# ---------------------------------------------------------------------------
+# Reproduziert Kims reale Konstellation: Referenz-PDFs aus Großrechner-
+# Druckoutput sind reine Bitmap-Seiten (0 Fonts, 0 nativer Text, jede Glyphe
+# ein eingebettetes Bild) - durchlaufen zwangsläufig den OCR-Zweig von
+# extract_pages_with_ocr_fallback, nicht den nativen Block-Zweig, den
+# TC-TR-001/002 abdecken. cnd.pdf hat nativen Text (typisch für ein neues
+# Drucksystem) mit identischer Fußzeile - gemischte Bitmap-Referenz/native-
+# Kandidat-Konstellation, exakt wie bei Kim.
+
+def _render_bitmap_page_with_footer(path: Path, body_lines: list[str], footer_words: list[str]) -> None:
+    """Wie _render_text_as_scanned_page, platziert die Fußzeile aber gezielt
+    bei denselben fitz-pt-Koordinaten wie _draw_table_region_page (fitz-y=750,
+    x=30) - umgerechnet in Pixel über dieselbe px/pt-Skalierung wie der
+    restliche Seitentext, damit dieselbe _TABLE_REGION_FOOTER-Rechteck-
+    Definition (x=0,y=650,width=400,height=250) auch für die Bitmap-Variante
+    gilt."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    px_w, px_h = 1600, 2262  # ~ A4 bei ~200dpi, wie _render_text_as_scanned_page
+    scale_x = px_w / W
+    scale_y = px_h / H
+
+    img = Image.new("RGB", (px_w, px_h), color="white")
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 42)
+        # Fußzeile in einer zur nativen Variante (_draw_table_region_page,
+        # Helvetica 11pt) vergleichbaren PT-Größe rendern, sonst überschreitet
+        # der Text bei 42px (~15.6pt-Äquivalent bei dieser px/pt-Skalierung)
+        # die Breite von _TABLE_REGION_FOOTER (400pt) - geprüft per
+        # OCR-Crop-Probe, siehe docs/prompt_table_regions_ocr_branch.md Step 1.
+        footer_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", round(11 * scale_x))
+    except OSError:
+        font = ImageFont.load_default()
+        footer_font = font
+
+    y = 150
+    for line in body_lines:
+        draw.text((120, y), line, fill="black", font=font)
+        y += 70
+
+    footer_fitz_x, footer_fitz_y = 30, 750  # siehe _draw_table_region_page(wide_footer=True)
+    draw.text(
+        (footer_fitz_x * scale_x, footer_fitz_y * scale_y),
+        " ".join(footer_words), fill="black", font=footer_font,
+    )
+
+    img_path = path.with_suffix(".png")
+    img.save(img_path)
+
+    c = rl_canvas.Canvas(str(path), pagesize=A4)
+    c.drawImage(str(img_path), 0, 0, width=W, height=H)
+    c.showPage()
+    c.save()
+    img_path.unlink()
+
+
+def generate_tc_tr_003() -> None:
+    """table_regions im OCR-Zweig: ref.pdf ist eine reine Bitmap-Seite ohne
+    nativen Textlayer (wie Kims echte Referenzdokumente), cnd.pdf hat
+    nativen Text mit identischer Fußzeile."""
+    tc = "TC-TR-003"
+    d = fixture_dir(tc)
+
+    body_lines = [
+        "Sehr geehrte Damen und Herren,",
+        "dies ist der unveraenderte Fliesstext.",
+    ]
+
+    _render_bitmap_page_with_footer(d / "ref.pdf", body_lines, _TABLE_REGION_FOOTER_WORDS)
+
+    c = rl_canvas.Canvas(str(d / "cnd.pdf"), pagesize=A4)
+    _draw_table_region_page(c, _TABLE_REGION_FOOTER_WORDS, wide_footer=True)
+    c.showPage()
+    c.save()
+
+    # Vorbedingung: ref.pdf hat wirklich KEINEN nativen Text (sonst testet
+    # dieses Fixture nicht den OCR-Zweig, siehe docs/prompt_table_regions_ocr_branch.md).
+    ref_doc = fitz.open(str(d / "ref.pdf"))
+    assert ref_doc[0].get_text() == "", "TC-TR-003/ref.pdf darf keinen nativen Text haben"
+    ref_doc.close()
+
+    write_readme(
+        tc,
+        "table_regions im OCR-Zweig (gemischte Bitmap-Referenz / native Kandidat)",
+        "ref.pdf ist eine reine Bitmap-Seite ohne nativen Textlayer (0 Fonts, "
+        "wie Kims echte Referenzdokumente aus Großrechner-Druckoutput) - "
+        "durchläuft zwangsläufig den OCR-Zweig von extract_pages_with_ocr_fallback, "
+        "nicht den nativen Block-Zweig (siehe TC-TR-001/002). cnd.pdf hat "
+        "nativen Text mit identischer Fußzeile. Profil: table_region "
+        f"{{page:1, x:{_TABLE_REGION_FOOTER['x']}, y:{_TABLE_REGION_FOOTER['y']}, "
+        f"width:{_TABLE_REGION_FOOTER['width']}, height:{_TABLE_REGION_FOOTER['height']}, "
+        "condition:'SV SparkassenVersicherung'} -> kein Delta erwartet.",
+        "Bitmap-Seite (kein nativer Text) mit Fliesstext + Fußzeile.",
+        "Native Seite mit identischem Fliesstext + Fußzeile.",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Hauptprogramm
 # ---------------------------------------------------------------------------
 
@@ -1364,6 +1570,9 @@ GENERATORS = [
     ("TC-R-001-seitenumbruch", generate_tc_r_001_seitenumbruch),
     ("TC-R-005-rotation", generate_tc_r_005_rotierte_seite),
     ("TC-S-001 + TC-S-002", generate_tc_s_001_002),
+    ("TC-TR-001", generate_tc_tr_001),
+    ("TC-TR-002", generate_tc_tr_002),
+    ("TC-TR-003", generate_tc_tr_003),
 ]
 
 

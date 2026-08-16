@@ -261,7 +261,8 @@ def test_compare_ruft_extraktion_mit_korrekter_role_fuer_ref_und_cnd_auf(tmp_pat
 
     def fake_extract(pdf_path, profile, role="reference", warnings=None):
         seen_roles[role] = pdf_path
-        return extract_pages(pdf_path), False
+        pages = extract_pages(pdf_path)
+        return pages, False, [{} for _ in pages]
 
     import engine.__main__ as main_module
 
@@ -590,3 +591,63 @@ def test_ohne_argumente_zeigt_hilfe(capsys):
 
     assert exit_code == 0
     assert "usage" in capsys.readouterr().out.lower()
+
+
+# --- table_regions end-to-end (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md, Step 4) ---
+
+_TABLE_REGION_PROFILE = {
+    "version": "1.0",
+    "table_regions": [
+        {
+            "page": 1, "x": 0, "y": 650, "width": 400, "height": 250,
+            "condition": "SV SparkassenVersicherung",
+        }
+    ],
+}
+
+
+def test_table_region_eliminiert_false_delta_aus_abweichender_blockstruktur_tc_tr_001(tmp_path, capsys):
+    """TC-TR-001: ref.pdf schreibt die Fußzeile als einen breiten Block,
+    cnd.pdf als vier schmale, vertikal gestapelte Blöcke - identischer
+    Wortinhalt. Ohne table_region wäre das ein sequenzielles False-Delta
+    (reine Wortumstellung); mit korrekt konfigurierter table_region muss
+    has_delta False sein."""
+    ref_path = FIXTURES / "TC-TR-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-TR-001" / "cnd.pdf"
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(_TABLE_REGION_PROFILE), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is False
+    assert payload["deltas"] == []
+
+
+def test_table_region_erkennt_echte_aenderung_trotz_abweichender_blockstruktur_tc_tr_002(tmp_path, capsys):
+    """TC-TR-002: wie TC-TR-001, aber die Telefonnummer in der Kandidaten-
+    Fußzeile ist tatsächlich geändert ('...-1234' -> '...-5678'). Der
+    Whitespace-freie Vergleich muss das als echtes Delta melden - GENAU EIN
+    Delta für die gesamte Region (siehe docs/prompt_table_regions_whitespace_free.md),
+    mit lesbarem ref_text/cnd_text für den Report."""
+    ref_path = FIXTURES / "TC-TR-002" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-TR-002" / "cnd.pdf"
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(_TABLE_REGION_PROFILE), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is True
+    assert len(payload["deltas"]) == 1
+    delta = payload["deltas"][0]
+    assert "0800-1234" in delta["ref_text"]
+    assert "0800-5678" in delta["cnd_text"]

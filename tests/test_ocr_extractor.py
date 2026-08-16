@@ -27,12 +27,14 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from reportlab.pdfgen import canvas
 
 from engine.ocr_extractor import (
     _mask_regions_on_image,
     extract_pages_with_ocr_fallback,
     extract_text_via_ocr,
 )
+from engine.profile_loader import TableRegion
 from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -98,8 +100,8 @@ def test_tc_o_001_gescannten_text_via_ocr_erkennen():
 
 @_requires_tesseract
 def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
-    ref_pages, ref_ocr_used = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "ref.pdf"))
-    cnd_pages, cnd_ocr_used = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "cnd.pdf"))
+    ref_pages, ref_ocr_used, _ = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "ref.pdf"))
+    cnd_pages, cnd_ocr_used, _ = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "cnd.pdf"))
 
     assert len(ref_pages) == 2
     # Seite 1: nativer Text, direkt extrahiert (kein OCR nötig).
@@ -116,3 +118,99 @@ def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
     assert result.has_delta is False
     assert result.deltas == []
     assert result.ocr_was_used is True
+
+
+def test_extract_pages_with_ocr_fallback_table_regions_auf_nativer_seite(tmp_path):
+    """table_regions muss im nativen Zweig von extract_pages_with_ocr_fallback
+    wirken (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) - das
+    ist der tatsächliche Ausführungspfad für ocr.mode='fallback'-Profile.
+    Kein Tesseract nötig, da die Seite nativen Text hat (OCR-Zweig wird
+    nicht betreten)."""
+    pdf_path = tmp_path / "footer.pdf"
+    c = canvas.Canvas(str(pdf_path))
+    c.drawString(30, 700, "Fliesstext im Hauptteil der Seite, unveraendert.")
+    c.drawString(30, 70, "ACME Insurance Company")
+    c.showPage()
+    c.save()
+
+    table_regions = [TableRegion(condition="ACME Insurance", page=1, x=0, y=700, width=300, height=100)]
+
+    pages, ocr_used, table_region_texts = extract_pages_with_ocr_fallback(
+        str(pdf_path), table_regions=table_regions
+    )
+
+    assert ocr_used is False
+    assert "ACME" not in pages[0]
+    assert "Fliesstext" in pages[0]
+    assert table_region_texts == [{0: ("ACMEInsuranceCompany", "ACME Insurance Company")}]
+
+
+# --- Spacewidth-Kalibrierung im Fallback-Pfad (siehe docs/prompt_spacewidth_ocr_fallback.md) ---
+
+
+def test_extract_pages_with_ocr_fallback_nutzt_spacewidth_kalibrierte_extraktion(tmp_path, monkeypatch):
+    """Der native-Text-Zweig von extract_pages_with_ocr_fallback muss
+    get_text_blocks_reconstructed() (mit calibrate_spacewidths()-Ergebnis)
+    nutzen statt der unkalibrierten get_text_blocks() - sonst liefert dieser
+    Pfad bei Type3-Schriften falsche Leerzeichen zwischen Silbenfragmenten
+    (z.B. 'SV Spa r ka ssen V er si ch eru n g' statt 'SV
+    SparkassenVersicherung'), was auch table_regions-condition-Matches
+    fehlschlagen lässt. Kein Tesseract nötig, da die Seite nativen Text hat
+    (OCR-Zweig wird nicht betreten)."""
+    pdf_path = tmp_path / "native.pdf"
+    c = canvas.Canvas(str(pdf_path))
+    c.drawString(72, 720, "Normaler Fliesstext mit echten Leerzeichen.")
+    c.showPage()
+    c.save()
+
+    import engine.ocr_extractor as ocr_extractor_module
+
+    real_calibrate = ocr_extractor_module.calibrate_spacewidths
+    real_reconstructed = ocr_extractor_module.get_text_blocks_reconstructed
+    calibrate_calls = []
+    reconstructed_calls = []
+
+    def spy_calibrate(doc):
+        calibrate_calls.append(doc)
+        return real_calibrate(doc)
+
+    def spy_reconstructed(page, calibration):
+        reconstructed_calls.append(calibration)
+        return real_reconstructed(page, calibration)
+
+    monkeypatch.setattr(ocr_extractor_module, "calibrate_spacewidths", spy_calibrate)
+    monkeypatch.setattr(ocr_extractor_module, "get_text_blocks_reconstructed", spy_reconstructed)
+
+    pages, ocr_used, _ = extract_pages_with_ocr_fallback(str(pdf_path))
+
+    assert len(calibrate_calls) == 1  # einmal pro Dokument, nicht pro Seite
+    assert len(reconstructed_calls) == 1  # einmal für die eine native-Text-Seite
+    assert ocr_used is False
+    assert "Fliesstext" in pages[0]
+
+
+def test_extract_pages_with_ocr_fallback_stimmt_mit_direkter_rekonstruktion_ueberein():
+    """Für dieselbe Seite muss der Fallback-Pfad denselben Text liefern wie
+    die direkte Nutzung von calibrate_spacewidths() +
+    get_text_blocks_reconstructed() (siehe pdf_extractor._extract_page_text_columns_reconstructed)
+    - beide nutzen jetzt dieselbe Kalibrierung/Rekonstruktion. TC-T-009/cnd.pdf
+    hat echte Leerzeichen-Glyphen (source='real_spaces', siehe
+    test_calibrate_spacewidths_nutzt_echte_leerzeichen_wenn_vorhanden) und
+    genau eine Seite mit nativem Text - kein Tesseract nötig."""
+    import fitz
+
+    from engine.pdf_extractor import calibrate_spacewidths, get_text_blocks_reconstructed, join_block_text
+
+    pdf_path = str(FIXTURES / "TC-T-009" / "cnd.pdf")
+
+    pages, ocr_used, _ = extract_pages_with_ocr_fallback(pdf_path)
+
+    doc = fitz.open(pdf_path)
+    try:
+        calibration = calibrate_spacewidths(doc)
+        expected = join_block_text(get_text_blocks_reconstructed(doc[0], calibration))
+    finally:
+        doc.close()
+
+    assert ocr_used is False
+    assert pages[0] == expected

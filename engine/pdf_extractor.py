@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import fitz
 import pdfplumber
 
-from engine.profile_loader import Profile
+from engine.profile_loader import Profile, TableRegion
 
 _TEXT_BLOCK_TYPE = 0
 _COLUMN_BUCKET_PT = 50  # Blockbreite-Toleranz zur Spaltenerkennung
@@ -130,6 +130,111 @@ def filter_blocks_by_regions(
     if not page_regions:
         return list(blocks)
     return [b for b in blocks if not any(r.overlaps(b[:4]) for r in page_regions)]
+
+
+def _table_region_overlaps(region: TableRegion, bbox: Sequence[float]) -> bool:
+    """Wie Region.overlaps, aber für TableRegion (x/y/width/height statt
+    x/y/w/h) - eigene Methode statt Wiederverwendung, weil TableRegion in
+    profile_loader lebt und keine overlaps()-Methode besitzt (keine
+    Modulabhängigkeit von profile_loader auf pdf_extractor)."""
+    x0, y0, x1, y1 = bbox
+    return not (
+        x1 <= region.x
+        or x0 >= region.x + region.width
+        or y1 <= region.y
+        or y0 >= region.y + region.height
+    )
+
+
+def check_table_region_condition(text: str, condition: str) -> Optional[Tuple[str, str]]:
+    """Whitespace-freier condition-Abgleich für table_regions - gemeinsame
+    Stelle für BEIDE Extraktionspfade (nativer Text: separate_table_region_blocks
+    hier; OCR-Zweig: ocr_extractor.extract_pages_with_ocr_fallback), damit
+    beide exakt dieselbe Semantik verwenden (siehe
+    docs/prompt_table_regions_ocr_branch.md - vorher lag dieser Abgleich nur
+    inline in separate_table_region_blocks, der OCR-Zweig hatte gar keinen).
+
+    Case-sensitiver Teilstring-Vergleich, aber JEGLICHER Whitespace wird vor
+    dem Vergleich entfernt (nicht nur auf ein Leerzeichen kollabiert) -
+    Type3-Schriften von Großrechner-Drucksystemen (Size=1.0) liefern über
+    PyMuPDFs Leerzeichen-Heuristik Silbenfragmente mit falschen
+    Zwischenräumen ("SV Spa r ka ssen V er si ch eru n g" statt "SV
+    SparkassenVersicherung", siehe docs/prompt_table_regions_whitespace_free.md).
+
+    Rückgabe: None, wenn condition nicht zutrifft. Sonst ein Tupel
+    (text_nows, text_display):
+    - text_nows: text komplett ohne Whitespace - für den späteren
+      Whitespace-freien Vergleich (siehe engine.table_region_comparator).
+    - text_display: text mit auf je ein Leerzeichen kollabiertem Whitespace
+      - lesbare Version für die Delta-Anzeige im Report."""
+    text_display = " ".join(text.split())
+    text_nows = "".join(text_display.split())
+    condition_nows = "".join(condition.split())
+    if condition_nows not in text_nows:
+        return None
+    return text_nows, text_display
+
+
+def separate_table_region_blocks(
+    blocks: List[TextBlock],
+    page_num: int,
+    table_regions: Sequence[TableRegion],
+) -> Tuple[List[TextBlock], Dict[int, Tuple[str, str]]]:
+    """Trennt Blöcke ab, die innerhalb einer zutreffenden table_region
+    liegen UND deren condition matcht - für diese Blöcke greift statt des
+    normalen sequenziellen Vergleichs der Whitespace-freie Vergleich (siehe
+    engine.table_region_comparator), weil PyMuPDF für optisch identischen
+    Mehrspalten-Inhalt je nach Formatierer unterschiedliche Blockgrenzen
+    liefert (siehe docs/prompt_table_regions.md).
+
+    _region_applies_to_page erwartet Region, akzeptiert TableRegion aber
+    per Duck-Typing (gleiche .page/.page_from-Attribute) - siehe
+    ocr_extractor._mask_regions_on_image für dasselbe Muster.
+
+    Der condition-Abgleich entfernt JEGLICHEN Whitespace (nicht nur
+    Kollabieren auf ein Leerzeichen) - Type3-Schriften von Großrechner-
+    Drucksystemen (Size=1.0) liefern über PyMuPDFs Leerzeichen-Heuristik
+    Silbenfragmente mit falschen Zwischenräumen ("SV Spa r ka ssen V er si
+    ch eru n g" statt "SV SparkassenVersicherung", siehe
+    docs/prompt_table_regions_whitespace_free.md); die Kalibrierung
+    (calibrate_spacewidths) kann das nicht immer heilen, weil die
+    Zeichenlücken bei diesen Schriften gleichmäßig verteilt sind (kein
+    erkennbarer Sprung zwischen Intra-Wort- und Wortgrenzen-Abstand,
+    criterion_met=False). Ein reiner "auf ein Leerzeichen kollabieren"-
+    Abgleich (die vorherige Fassung) findet die condition dort nicht, weil
+    die Referenzseite viele echte Leerzeichen mitten in Wörtern hat, die
+    die Kandidatenseite nicht hat.
+
+    Rückgabe: (remaining_blocks, table_region_texts)
+    - remaining_blocks: Blöcke, die in KEINER zutreffenden, matchenden
+      table_region liegen (unverändert für split_wide_blocks/sort/join).
+    - table_region_texts: dict region_index -> (whitespace-freier Text für
+      den Vergleich, Whitespace-normalisierter Text mit einfachen
+      Leerzeichen für die lesbare Delta-Anzeige im Report) - NUR für
+      Regionen, deren condition tatsächlich zutraf. Nicht zutreffende
+      Regionen (falsche Seite, keine überlappenden Blöcke, condition
+      trifft nicht zu) bleiben unerwähnt - ihre Blöcke bleiben unverändert
+      im normalen Vergleich.
+    """
+    remaining = list(blocks)
+    table_region_texts: Dict[int, Tuple[str, str]] = {}
+
+    for index, region in enumerate(table_regions):
+        if not _region_applies_to_page(region, page_num):
+            continue
+        region_blocks = [b for b in remaining if _table_region_overlaps(region, b[:4])]
+        if not region_blocks:
+            continue
+
+        matched = check_table_region_condition(join_block_text(region_blocks), region.condition)
+        if matched is None:
+            continue  # condition trifft nicht zu - Blöcke bleiben im normalen Vergleich
+
+        table_region_texts[index] = matched
+        region_block_ids = {id(b) for b in region_blocks}
+        remaining = [b for b in remaining if id(b) not in region_block_ids]
+
+    return remaining, table_region_texts
 
 
 def get_text_blocks(page: "fitz.Page") -> List[TextBlock]:
@@ -243,14 +348,30 @@ def split_wide_blocks(blocks: List[TextBlock], page: "fitz.Page") -> List[TextBl
 
 
 def _extract_page_text_columns(
-    page: "fitz.Page", page_num: int = 1, regions: Sequence[Region] = ()
-) -> str:
+    page: "fitz.Page",
+    page_num: int = 1,
+    regions: Sequence[Region] = (),
+    table_regions: Sequence[TableRegion] = (),
+) -> Tuple[str, Dict[int, Tuple[str, str]]]:
     """Liest den Text einer Seite spaltenweise (links vor rechts), statt
     strikt zeilenweise. regions wird vor der Sortierung angewendet
-    (Ausschluss-Regionen, siehe filter_blocks_by_regions)."""
+    (Ausschluss-Regionen, siehe filter_blocks_by_regions); table_regions
+    danach, aber vor split_wide_blocks (siehe separate_table_region_blocks -
+    deren Blöcke sollen NICHT mehr am Spalten-Splitting/-Sortieren
+    teilnehmen, sie fließen stattdessen separat in den Whitespace-freien
+    Vergleich).
+
+    Rückgabe: (Seitentext ohne table_region-Blöcke, table_region_texts für
+    diese Seite - leeres dict, wenn table_regions leer ist oder keine
+    Region zutraf). Werte sind (whitespace-freier Text, lesbarer Text) -
+    siehe separate_table_region_blocks."""
     blocks = filter_blocks_by_regions(get_text_blocks(page), page_num, regions)
+    table_region_texts: Dict[int, Tuple[str, str]] = {}
+    if table_regions:
+        blocks, table_region_texts = separate_table_region_blocks(blocks, page_num, table_regions)
     blocks = split_wide_blocks(blocks, page)
-    return join_block_text(sort_blocks_columns(blocks))
+    text = join_block_text(sort_blocks_columns(blocks))
+    return text, table_region_texts
 
 
 def _linearize_tables(tables: List[List[List[Optional[str]]]]) -> str:
@@ -529,6 +650,8 @@ def extract_pages(
     pdf_path: str,
     regions: Sequence[Region] = (),
     warnings: Optional[List[str]] = None,
+    table_regions: Sequence[TableRegion] = (),
+    table_region_texts: Optional[List[Dict[int, Tuple[str, str]]]] = None,
 ) -> List[str]:
     """Extrahiert den Text jeder Seite eines PDFs als eigenen String.
 
@@ -537,7 +660,15 @@ def extract_pages(
     Textblöcke aus, die eine für ihre Seite definierte Region überlappen
     (TC-E-001 ff.) - auf Tabellenseiten kann das nicht angewendet werden,
     siehe _warn_if_table_page_has_regions.
-    """
+
+    table_region_texts ist ein Ausgabe-Parameter (wie warnings) statt eines
+    Teils des Rückgabewerts - das hält die Signatur für die vielen
+    bestehenden direkten extract_pages()-Aufrufer (Tests, page_group_detector)
+    unverändert kompatibel: List[str] bleibt List[str]. Wird eine Liste
+    übergeben, hängt jede Seite dort ihr table_region_texts-dict an (leeres
+    dict für Tabellenseiten - Tabellenerkennung ist nicht block-basiert,
+    siehe _warn_if_table_page_has_regions für dasselbe Problem bei
+    exclude_regions)."""
     pages_text: List[str] = []
     doc = fitz.open(pdf_path)
     try:
@@ -549,8 +680,15 @@ def extract_pages(
                 if tables:
                     _warn_if_table_page_has_regions(page_num, regions, warnings)
                     pages_text.append(_linearize_tables(tables))
+                    if table_region_texts is not None:
+                        table_region_texts.append({})
                 else:
-                    pages_text.append(_extract_page_text_columns(page, page_num, regions))
+                    page_text, page_table_region_texts = _extract_page_text_columns(
+                        page, page_num, regions, table_regions
+                    )
+                    pages_text.append(page_text)
+                    if table_region_texts is not None:
+                        table_region_texts.append(page_table_region_texts)
     finally:
         doc.close()
     return pages_text
@@ -575,7 +713,7 @@ def extract_pages_for_profile(
     profile: Optional[Profile],
     role: str = "reference",
     warnings: Optional[List[str]] = None,
-) -> Tuple[List[str], bool]:
+) -> Tuple[List[str], bool, List[Dict[int, Tuple[str, str]]]]:
     """Wie extract_pages(), wendet aber je nach role ("reference" oder
     "candidate") und profile.ocr.mode_reference/mode_candidate einen der
     drei OCR-Modi an, UND wendet profile.exclude_regions tatsächlich auf
@@ -616,23 +754,46 @@ def extract_pages_for_profile(
     Tabellenseiten unter "off"/"fallback") - Aufrufer geben das an Log und
     Report weiter, statt den Ausschluss dort still wirkungslos zu lassen.
 
-    Rückgabe: (Seitentexte, ocr_used).
+    table_regions (siehe profile.table_regions, separate_table_region_blocks)
+    werden aktuell nur unter "off" (native Extraktion, extract_pages) und
+    "fallback" (ocr_extractor.extract_pages_with_ocr_fallback, der
+    tatsächliche Ausführungspfad für ocr.mode="fallback"-Profile) block-
+    basiert ausgewertet - unter "force" (reines OCR, keine Blockstruktur)
+    und text_extraction="reconstruct" (noch nicht integriert, siehe
+    docs/prompt_table_regions.md) liefern diese Pfade je ein leeres dict
+    pro Seite.
+
+    Rückgabe: (Seitentexte, ocr_used, table_region_texte_pro_seite) - der
+    dritte Wert ist eine Liste (ein Eintrag pro Seite) von dicts
+    region_index -> (whitespace-freier Text, lesbarer Text); Seiten ohne
+    zutreffende table_region haben ein leeres dict (siehe
+    separate_table_region_blocks).
     """
     regions: List[Region] = []
+    table_regions: List[TableRegion] = []
     if profile is not None:
         regions = [
             Region(page=r.page, x=r.x, y=r.y, w=r.width, h=r.height, page_from=r.page_from)
             for r in profile.exclude_regions
         ]
+        table_regions = list(profile.table_regions)
         mode = _effective_ocr_mode(profile.ocr, role)
         if mode == "force":
             from engine.ocr_extractor import extract_text_via_ocr
-            return extract_text_via_ocr(pdf_path, dpi=profile.ocr.dpi, regions=regions), True
+            pages = extract_text_via_ocr(pdf_path, dpi=profile.ocr.dpi, regions=regions)
+            return pages, True, [{} for _ in pages]
         if mode == "fallback":
             from engine.ocr_extractor import extract_pages_with_ocr_fallback
             return extract_pages_with_ocr_fallback(
-                pdf_path, dpi=profile.ocr.dpi, regions=regions, warnings=warnings
+                pdf_path, dpi=profile.ocr.dpi, regions=regions, warnings=warnings,
+                table_regions=table_regions,
             )
         if profile.text_extraction == "reconstruct":
-            return _extract_pages_reconstructed(pdf_path, regions=regions, warnings=warnings), False
-    return extract_pages(pdf_path, regions=regions, warnings=warnings), False
+            pages = _extract_pages_reconstructed(pdf_path, regions=regions, warnings=warnings)
+            return pages, False, [{} for _ in pages]
+    per_page_table_region_texts: List[Dict[int, Tuple[str, str]]] = []
+    pages = extract_pages(
+        pdf_path, regions=regions, warnings=warnings,
+        table_regions=table_regions, table_region_texts=per_page_table_region_texts,
+    )
+    return pages, False, per_page_table_region_texts

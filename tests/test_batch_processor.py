@@ -18,6 +18,7 @@ Fixtures: tests/fixtures/TC-B-001/ … TC-B-005/
 (tests/generate_fixtures.py::generate_tc_b_001_003/generate_tc_b_004/
 generate_tc_b_005).
 """
+import json
 from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
@@ -25,7 +26,7 @@ from reportlab.pdfgen import canvas
 
 from engine.batch_processor import batch_compare, batch_compare_by_xmp, read_filelist, split_batch_pdf
 from engine.pdf_extractor import extract_pages
-from engine.profile_loader import ExcludeRegion, OcrConfig, PageGroupPattern, Profile
+from engine.profile_loader import ExcludeRegion, OcrConfig, PageGroupPattern, Profile, TableRegion
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -311,7 +312,8 @@ def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypa
 
     def fake_extract(pdf_path, profile, role="reference", warnings=None):
         seen_roles.append((pdf_path, role))
-        return extract_pages(pdf_path), False
+        pages = extract_pages(pdf_path)
+        return pages, False, [{} for _ in pages]
 
     import engine.batch_processor as batch_processor_module
 
@@ -350,6 +352,165 @@ def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path)
     assert pair.status == "ok"
     assert pair.compare_result.has_delta is True
     assert any(delta.page == 2 for delta in pair.compare_result.deltas)
+
+
+# --- table_regions end-to-end via batch_compare (Sprint PTC-S3 Task C, siehe
+# docs/prompt_table_regions.md, Step 4) ---
+
+
+def test_batch_compare_table_region_eliminiert_false_delta_tc_tr_001(tmp_path):
+    """TC-TR-001 über den Produktivpfad batch_compare: ref.pdf schreibt die
+    Fußzeile als einen breiten Block, cnd.pdf als vier schmale Blöcke -
+    identischer Wortinhalt. Mit korrekt konfigurierter table_region darf
+    das nicht als Delta erkannt werden."""
+    ref_path = FIXTURES / "TC-TR-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-TR-001" / "cnd.pdf"
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(
+        version="1.0",
+        table_regions=[
+            TableRegion(
+                page=1, x=0, y=650, width=400, height=250,
+                condition="SV SparkassenVersicherung",
+            )
+        ],
+    )
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    pair = result.pairs[0]
+    assert pair.status == "ok"
+    assert pair.compare_result.has_delta is False
+    assert pair.compare_result.deltas == []
+
+
+def test_batch_compare_table_region_erkennt_echte_aenderung_tc_tr_002(tmp_path):
+    """TC-TR-002 über batch_compare: die Telefonnummer in der Kandidaten-
+    Fußzeile ist tatsächlich geändert - der Whitespace-freie Vergleich muss
+    das als GENAU EIN Delta für die gesamte Region melden (siehe
+    docs/prompt_table_regions_whitespace_free.md), mit lesbarem Text."""
+    ref_path = FIXTURES / "TC-TR-002" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-TR-002" / "cnd.pdf"
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile = Profile(
+        version="1.0",
+        table_regions=[
+            TableRegion(
+                page=1, x=0, y=650, width=400, height=250,
+                condition="SV SparkassenVersicherung",
+            )
+        ],
+    )
+
+    result = batch_compare(filelist_path, profile=profile)
+
+    assert len(result.pairs) == 1
+    pair = result.pairs[0]
+    assert pair.status == "ok"
+    assert pair.compare_result.has_delta is True
+    assert len(pair.compare_result.deltas) == 1
+    delta = pair.compare_result.deltas[0]
+    assert "0800-1234" in delta.ref_text
+    assert "0800-5678" in delta.cnd_text
+
+
+# --- Regression: stdout-Progress-Contract (siehe docs/prompt_bugfix_batch_progress.md) ---
+#
+# Root Cause des Bugs: table_region_comparator._NO_POSITION war -1. Die
+# GUI (src-tauri/src/lib.rs) bildet Delta.position auf ein Rust `u32` ab;
+# ein negativer Wert lässt serde_json::from_value fehlschlagen, was in
+# start_batch_compare per `if let Ok(...)` OHNE Fehlermeldung verschluckt
+# wird - kein Progress-Event, keine Ergebnisliste in der GUI, obwohl der
+# Python-Batch selbst fehlerfrei durchläuft und "N ok" meldet. Dieser Test
+# sperrt den Vertrag: JEDES Feld, das die JSON-Progress-Zeile pro Paar
+# transportiert (insbesondere Delta.position), muss mit einem
+# vorzeichenlosen 32-Bit-Integer kompatibel sein - nicht nur "irgendein
+# gültiger JSON-Wert", wie ein reiner Python-seitiger Test es abdecken
+# würde (pytest allein hätte diesen Bug nie gefunden, siehe Root-Cause-
+# Bericht: das Python-JSON war immer syntaktisch valide, nur der WERT
+# verletzte die Rust-Seite unsichtbar für Python-Tests).
+def test_batch_json_lines_positionsfeld_ist_stets_nicht_negativ_tc_tr_002(tmp_path):
+    """Regressionstest für den Progress-Anzeige-Bug: eine table_region mit
+    echtem Delta (TC-TR-002) darf im emittierten JSON keine negativen
+    Zahlenwerte enthalten - src-tauri/src/lib.rs::Delta.position ist ein
+    Rust `u32` (vorzeichenlos); ein negativer Sentinel-Wert lässt die
+    Deserialisierung dort silently fehlschlagen (kein Fehler, kein Event),
+    obwohl der Python-Batch selbst korrekt durchläuft. Läuft über
+    engine.__main__.main(), nicht batch_compare() direkt, weil der Bug
+    exakt an der JSON-Serialisierungsgrenze (stdout) auftrat, nicht in den
+    Python-Objekten selbst."""
+    from engine.__main__ import main
+
+    ref_path = FIXTURES / "TC-TR-002" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-TR-002" / "cnd.pdf"
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(f"{ref_path},{cnd_path}\n", encoding="utf-8")
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {
+                    "page": 1, "x": 0, "y": 650, "width": 400, "height": 250,
+                    "condition": "SV SparkassenVersicherung",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    import subprocess
+    import sys as _sys
+
+    proc = subprocess.run(
+        [
+            _sys.executable, "-m", "engine", "batch", str(filelist_path),
+            "--output-dir", str(tmp_path), "--profile", str(profile_path),
+        ],
+        capture_output=True, text=True, cwd=Path(__file__).parent.parent,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    lines = proc.stdout.strip().splitlines()
+    assert len(lines) == 2  # 1 Progress-Zeile + 1 done-Zeile
+
+    progress = json.loads(lines[0])
+    assert progress["type"] == "progress"
+    done = json.loads(lines[1])
+    assert done["type"] == "done"  # Progress-Zeile(n) VOR der done-Zeile
+
+    pair = progress["pair"]
+    assert pair["compare_result"]["has_delta"] is True
+    deltas = pair["compare_result"]["deltas"]
+    assert len(deltas) == 1  # bestätigt: der table_region-Pfad wurde tatsächlich getroffen
+
+    # Der eigentliche Regressionstest: JEDER Zahlenwert im Payload muss
+    # nicht-negativ sein (u32-kompatibel) - nicht nur "ist JSON", was
+    # reines json.loads() bereits für den alten, kaputten Wert -1 bestätigt
+    # hätte.
+    def assert_no_negative_numbers(value, path="root"):
+        if isinstance(value, bool):
+            return
+        if isinstance(value, (int, float)):
+            assert value >= 0, f"Negativer Zahlenwert bei {path}: {value}"
+        elif isinstance(value, dict):
+            for key, sub in value.items():
+                assert_no_negative_numbers(sub, f"{path}.{key}")
+        elif isinstance(value, list):
+            for index, sub in enumerate(value):
+                assert_no_negative_numbers(sub, f"{path}[{index}]")
+
+    assert_no_negative_numbers(progress)
+    assert deltas[0]["position"] == 0
 
 
 def test_batch_compare_mit_profile_case_sensitive_false_end_to_end(tmp_path):

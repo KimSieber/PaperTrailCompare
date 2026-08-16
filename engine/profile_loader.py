@@ -47,6 +47,31 @@ class ExcludeRegion:
 
 
 @dataclass
+class TableRegion:
+    """Wie ExcludeRegion (page/page_from-Semantik identisch, siehe dort),
+    aber die Blöcke innerhalb der Region werden nicht ausgeschlossen,
+    sondern separat per Multiset-Wortvergleich (Counter statt sequenziellem
+    Diff) verglichen (siehe engine.table_region_comparator) - das eliminiert
+    False-Deltas durch abweichende Block-/Spaltenstrukturen bei sonst
+    identischem Textinhalt (z.B. Mehrspalten-Fußzeilen, siehe
+    docs/prompt_table_regions.md). condition ist ein case-sensitiver
+    Teilstring-Match auf den (Whitespace-normalisierten) Blocktext der
+    Region - nur wenn er zutrifft, greift der Multiset-Vergleich; sonst
+    bleiben die Blöcke unverändert im normalen sequenziellen Vergleich
+    (siehe separate_table_region_blocks). condition muss mindestens 2
+    Wörter enthalten - ein einzelnes Wort matcht zu unspezifisch (praktisch
+    jeder Fußzeilenblock enthielte es)."""
+
+    x: float
+    y: float
+    width: float
+    height: float
+    condition: str
+    page: Optional[int] = None
+    page_from: Optional[int] = None
+
+
+@dataclass
 class PageGroupPattern:
     pattern: str
     name: str
@@ -98,6 +123,7 @@ class Profile:
     case_sensitive: bool = True
     normalize_whitespace: bool = False
     exclude_regions: List[ExcludeRegion] = field(default_factory=list)
+    table_regions: List[TableRegion] = field(default_factory=list)
     page_groups: List[PageGroupPattern] = field(default_factory=list)
     report_format: str = "pdf"
     ocr: OcrConfig = field(default_factory=OcrConfig)
@@ -179,13 +205,68 @@ def load_profile(path: Union[str, Path]) -> Profile:
                     height=region["height"],
                 )
             )
+        table_regions = []
+        for region in data.get("table_regions", []):
+            page = region.get("page")
+            page_from = region.get("page_from")
+            if page is not None and page_from is not None:
+                raise ValidationError(
+                    f"Profil '{path}': table_regions-Eintrag darf nicht gleichzeitig "
+                    f"'page' und 'page_from' setzen"
+                )
+            if page is None and page_from is None:
+                raise ValidationError(
+                    f"Profil '{path}': table_regions-Eintrag benötigt entweder "
+                    f"'page' (0 = alle Seiten) oder 'page_from'"
+                )
+            if page is not None and page < 0:
+                raise ValidationError(
+                    f"Profil '{path}': table_regions.page darf nicht negativ sein, "
+                    f"ist {page}"
+                )
+            if page_from is not None and page_from < 1:
+                raise ValidationError(
+                    f"Profil '{path}': table_regions.page_from muss >= 1 sein, "
+                    f"ist {page_from}"
+                )
+            width = region["width"]
+            height = region["height"]
+            if region["x"] < 0 or region["y"] < 0:
+                raise ValidationError(
+                    f"Profil '{path}': table_regions.x/y dürfen nicht negativ sein"
+                )
+            if width <= 0 or height <= 0:
+                raise ValidationError(
+                    f"Profil '{path}': table_regions.width/height müssen positiv sein"
+                )
+            condition = region["condition"]
+            if not isinstance(condition, str) or not condition.strip():
+                raise ValidationError(
+                    f"Profil '{path}': table_regions.condition darf nicht leer sein"
+                )
+            if len(condition.split()) < 2:
+                raise ValidationError(
+                    f"Profil '{path}': table_regions.condition muss mindestens 2 "
+                    f"Wörter enthalten (zu unspezifisch sonst), ist '{condition}'"
+                )
+            table_regions.append(
+                TableRegion(
+                    page=page,
+                    page_from=page_from,
+                    x=region["x"],
+                    y=region["y"],
+                    width=width,
+                    height=height,
+                    condition=condition,
+                )
+            )
         page_groups = [
             PageGroupPattern(pattern=group["pattern"], name=group["name"])
             for group in data.get("page_groups", [])
         ]
     except KeyError as exc:
         raise ValidationError(
-            f"Profil '{path}': fehlendes Feld {exc} in exclude_regions/page_groups"
+            f"Profil '{path}': fehlendes Feld {exc} in exclude_regions/table_regions/page_groups"
         ) from exc
 
     ocr_data = data.get("ocr", {})
@@ -232,6 +313,7 @@ def load_profile(path: Union[str, Path]) -> Profile:
         case_sensitive=bool(data.get("case_sensitive", True)),
         normalize_whitespace=bool(data.get("normalize_whitespace", False)),
         exclude_regions=exclude_regions,
+        table_regions=table_regions,
         page_groups=page_groups,
         report_format=report_format,
         ocr=ocr,

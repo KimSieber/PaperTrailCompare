@@ -16,6 +16,7 @@ Batch-Ablauf; daher Integrationstests statt Unit-Tests (siehe CLAUDE.md).
 from __future__ import annotations
 
 import csv
+import dataclasses
 import re
 import sys
 import time
@@ -30,6 +31,7 @@ from engine.page_group_detector import extract_page_groups
 from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile
 from engine.report_generator import generate_report
+from engine.table_region_comparator import merge_table_region_comparison
 from engine.text_comparator import compare
 
 _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
@@ -91,10 +93,10 @@ def _compare_pair(
     normalize_orphan_hyphens = profile.normalize_orphan_hyphens if profile is not None else True
     region_warnings: List[str] = []
     start = time.perf_counter()
-    ref_pages, ref_ocr_used = extract_pages_for_profile(
+    ref_pages, ref_ocr_used, ref_tr_texts = extract_pages_for_profile(
         str(ref_file), profile, role="reference", warnings=region_warnings
     )
-    cnd_pages, cnd_ocr_used = extract_pages_for_profile(
+    cnd_pages, cnd_ocr_used, cnd_tr_texts = extract_pages_for_profile(
         str(cnd_file), profile, role="candidate", warnings=region_warnings
     )
     for warning in region_warnings:
@@ -108,6 +110,16 @@ def _compare_pair(
         merge_hyphenation=merge_hyphenation,
         normalize_orphan_hyphens=normalize_orphan_hyphens,
     )
+    # Dieselbe Merge-Logik wie engine.__main__._run_compare (siehe
+    # docs/prompt_table_regions.md, Step 4) - gemeinsam genutzt über
+    # engine.table_region_comparator.merge_table_region_comparison.
+    table_region_deltas = merge_table_region_comparison(ref_tr_texts, cnd_tr_texts)
+    if table_region_deltas:
+        result = dataclasses.replace(
+            result,
+            deltas=result.deltas + table_region_deltas,
+            has_delta=True,
+        )
     duration_seconds = time.perf_counter() - start
     total_pages = max(len(ref_pages), len(cnd_pages))
 
