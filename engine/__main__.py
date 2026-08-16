@@ -59,6 +59,7 @@ from engine.models import PairResult
 from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile, ValidationError, load_profile
 from engine.report_generator import generate_batch_report, generate_report
+from engine.table_region_comparator import merge_table_region_comparison
 from engine.text_comparator import compare
 
 
@@ -74,10 +75,10 @@ def _run_compare(args: argparse.Namespace) -> int:
     region_warnings: list[str] = []
     start = time.perf_counter()
     try:
-        ref_pages, ref_ocr_used = extract_pages_for_profile(
+        ref_pages, ref_ocr_used, ref_tr_texts = extract_pages_for_profile(
             args.ref_pdf, profile, role="reference", warnings=region_warnings
         )
-        cnd_pages, cnd_ocr_used = extract_pages_for_profile(
+        cnd_pages, cnd_ocr_used, cnd_tr_texts = extract_pages_for_profile(
             args.cnd_pdf, profile, role="candidate", warnings=region_warnings
         )
     except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
@@ -96,6 +97,18 @@ def _run_compare(args: argparse.Namespace) -> int:
         merge_hyphenation=profile.merge_hyphenation if profile else True,
         normalize_orphan_hyphens=profile.normalize_orphan_hyphens if profile else True,
     )
+    # table_region_texts (3. Rückgabewert von extract_pages_for_profile) wurde
+    # bereits aus ref_pages/cnd_pages herausgefiltert (siehe
+    # pdf_extractor.separate_table_region_blocks) - hier fließen die
+    # zugehörigen Multiset-Deltas zusätzlich in has_delta/deltas ein (siehe
+    # docs/prompt_table_regions.md, Step 4).
+    table_region_deltas = merge_table_region_comparison(ref_tr_texts, cnd_tr_texts)
+    if table_region_deltas:
+        result = dataclasses.replace(
+            result,
+            deltas=result.deltas + table_region_deltas,
+            has_delta=True,
+        )
     duration_seconds = time.perf_counter() - start
 
     report_path = None

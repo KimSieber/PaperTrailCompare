@@ -10,7 +10,7 @@
   "ocr": {
         "enabled": true,
         "confidence_threshold": 0.85,
-        "dpi": 200,
+        "dpi": 300,
         "mode_reference": "fallback",
         "mode_candidate": "fallback"
   },
@@ -19,7 +19,7 @@
         { "page": 0,  "x": 565,  "y": 0,   "width": 30,  "height": 840  }
                      ],
   "table_regions": [
-        { "page": 0,  "x": 50,   "y": 750, "width": 500, "height": 80,
+        { "page": 0,  "x": 0,    "y": 710, "width": 600, "height": 120,
           "condition": "SV SparkassenVersicherung" }
                    ]
 }

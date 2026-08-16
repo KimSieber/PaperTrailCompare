@@ -418,3 +418,188 @@ def test_normalize_orphan_hyphens_false_from_json(tmp_path):
     path.write_text('{"version": "1.0", "normalize_orphan_hyphens": false}')
     profile = load_profile(path)
     assert profile.normalize_orphan_hyphens is False
+
+
+# --- table_regions (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) ---
+
+
+def test_load_profile_table_regions_absent_defaults_to_empty_list(tmp_path):
+    """Rückwärtskompatibilität: Profile ohne table_regions müssen weiterhin
+    unverändert funktionieren."""
+    path = tmp_path / "p.json"
+    path.write_text('{"version": "1.0"}')
+    profile = load_profile(path)
+    assert profile.table_regions == []
+
+
+def test_load_profile_table_region_valides_single_region(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {
+                    "page": 1,
+                    "x": 50, "y": 750, "width": 500, "height": 80,
+                    "condition": "SV SparkassenVersicherung",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert len(profile.table_regions) == 1
+    region = profile.table_regions[0]
+    assert region.page == 1
+    assert region.page_from is None
+    assert region.x == 50
+    assert region.y == 750
+    assert region.width == 500
+    assert region.height == 80
+    assert region.condition == "SV SparkassenVersicherung"
+
+
+def test_load_profile_table_region_valide_mehrere_regionen(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Erste Region"},
+                {"page": 2, "x": 10, "y": 10, "width": 20, "height": 20, "condition": "Zweite Region"},
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert len(profile.table_regions) == 2
+    assert profile.table_regions[0].condition == "Erste Region"
+    assert profile.table_regions[1].condition == "Zweite Region"
+
+
+def test_load_profile_table_region_page_zero_all_pages(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {"page": 0, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Alle Seiten"}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert len(profile.table_regions) == 1
+    region = profile.table_regions[0]
+    assert region.page == 0
+    assert region.page_from is None
+
+
+def test_load_profile_table_region_page_from(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {"page_from": 2, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Ab Seite zwei"}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert len(profile.table_regions) == 1
+    region = profile.table_regions[0]
+    assert region.page is None
+    assert region.page_from == 2
+
+
+def test_load_profile_table_region_page_and_page_from_both_set_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {
+                    "page": 1, "page_from": 2,
+                    "x": 0, "y": 0, "width": 100, "height": 50,
+                    "condition": "Zwei Bedingungen",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_table_region_neither_page_nor_page_from_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {"x": 0, "y": 0, "width": 100, "height": 50, "condition": "Keine Seite"}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_table_region_empty_condition_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": ""}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_table_region_single_word_condition_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Einzelwort"}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)
+
+
+def test_load_profile_table_region_missing_condition_field_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "table_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        load_profile(profile_path)

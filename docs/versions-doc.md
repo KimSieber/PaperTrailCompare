@@ -5,8 +5,8 @@
 Sprint PTC-3: Erkennung optimieren
 ----------------------------------
 Task A - Bindestriche behandeln
-Task A2 - Bugfix und Korrekturen - Gefungen bei Versuch Task B
-
+Task A2 - Bugfixes
+Task B - table_regions eingeführt
 
 Sprint PTC-2: Ausgaben optimieren
 -----------------------------------------------

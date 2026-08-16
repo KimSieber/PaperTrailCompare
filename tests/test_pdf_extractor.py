@@ -28,6 +28,7 @@ import fitz
 from reportlab.pdfgen import canvas
 
 from engine.pdf_extractor import (
+    Region,
     SpacewidthCalibration,
     _calibrate_from_gaps,
     _extract_page_text_columns,
@@ -35,10 +36,12 @@ from engine.pdf_extractor import (
     calibrate_spacewidths,
     extract_pages,
     extract_pages_for_profile,
+    filter_blocks_by_regions,
     get_text_blocks,
+    separate_table_region_blocks,
     split_wide_blocks,
 )
-from engine.profile_loader import ExcludeRegion, OcrConfig, Profile
+from engine.profile_loader import ExcludeRegion, OcrConfig, Profile, TableRegion
 from engine.text_comparator import compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -79,7 +82,7 @@ def test_tc_t_007_mehrspaltiger_text_korrekte_lesereihenfolge():
 
 
 def test_extract_pages_for_profile_ohne_profil_wie_extract_pages():
-    pages, ocr_used = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), None)
+    pages, ocr_used, _ = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), None)
 
     assert pages == extract_pages(str(FIXTURES / "TC-X-002" / "doc.pdf"))
     assert ocr_used is False
@@ -87,7 +90,7 @@ def test_extract_pages_for_profile_ohne_profil_wie_extract_pages():
 
 def test_extract_pages_for_profile_ocr_deaktiviert_wie_extract_pages():
     profile = Profile(version="1.0", ocr=OcrConfig(enabled=False))
-    pages, ocr_used = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), profile)
+    pages, ocr_used, _ = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), profile)
 
     assert pages == extract_pages(str(FIXTURES / "TC-X-002" / "doc.pdf"))
     assert ocr_used is False
@@ -102,7 +105,7 @@ def test_extract_pages_for_profile_ocr_aktiviert_nutzt_fallback():
     gescannte Seite (kein nativer Textlayer) via OCR-Fallback lesen,
     statt leeren Text zu liefern (siehe TC-O-002-Fixture)."""
     profile = Profile(version="1.0", ocr=OcrConfig(enabled=True))
-    pages, ocr_used = extract_pages_for_profile(str(FIXTURES / "TC-O-002" / "ref.pdf"), profile)
+    pages, ocr_used, _ = extract_pages_for_profile(str(FIXTURES / "TC-O-002" / "ref.pdf"), profile)
 
     assert len(pages) == 2
     assert "AB-2026-00099" in pages[0]
@@ -115,7 +118,7 @@ def test_extract_pages_for_profile_mode_off_ignoriert_enabled_flag():
     sind - auch gegen ein 'enabled=True', das sonst (ohne Modus) fallback
     für beide Seiten bedeuten würde."""
     profile = Profile(version="1.0", ocr=OcrConfig(enabled=True, mode_reference="off"))
-    pages, ocr_used = extract_pages_for_profile(
+    pages, ocr_used, _ = extract_pages_for_profile(
         str(FIXTURES / "TC-O-002" / "ref.pdf"), profile, role="reference"
     )
 
@@ -144,10 +147,10 @@ def test_extract_pages_for_profile_mode_candidate_unabhaengig_von_reference(monk
         ocr=OcrConfig(mode_reference="fallback", mode_candidate="off"),
     )
 
-    ref_pages, ref_ocr_used = extract_pages_for_profile(
+    ref_pages, ref_ocr_used, _ = extract_pages_for_profile(
         str(FIXTURES / "TC-O-002" / "ref.pdf"), profile, role="reference"
     )
-    cnd_pages, cnd_ocr_used = extract_pages_for_profile(
+    cnd_pages, cnd_ocr_used, _ = extract_pages_for_profile(
         str(FIXTURES / "TC-O-002" / "ref.pdf"), profile, role="candidate"
     )
 
@@ -167,7 +170,7 @@ def test_extract_pages_for_profile_mode_force_liest_auch_native_seiten_per_ocr()
     greift (siehe TC-X-002: Seiten haben sauberen nativen Text, force liest
     trotzdem via Tesseract)."""
     profile = Profile(version="1.0", ocr=OcrConfig(mode_reference="force"))
-    pages, ocr_used = extract_pages_for_profile(
+    pages, ocr_used, _ = extract_pages_for_profile(
         str(FIXTURES / "TC-X-002" / "doc.pdf"), profile, role="reference"
     )
 
@@ -186,9 +189,9 @@ def test_extract_pages_for_profile_dpi_wird_an_ocr_durchgereicht(monkeypatch):
     Default (300) verwendet werden."""
     seen_dpi = {}
 
-    def fake_fallback(pdf_path, lang="deu", dpi=300, regions=None, warnings=None):
+    def fake_fallback(pdf_path, lang="deu", dpi=300, regions=None, warnings=None, table_regions=None):
         seen_dpi["dpi"] = dpi
-        return (["x"], False)
+        return (["x"], False, [{}])
 
     import engine.pdf_extractor as pdf_extractor_module
 
@@ -311,7 +314,7 @@ def test_tc_t_009_sperrsatz_ohne_leerzeichen_faellt_sicher_auf_native_zurueck():
     ref_path = str(FIXTURES / "TC-T-009" / "ref.pdf")
     profile = Profile(version="1.0", text_extraction="reconstruct")
 
-    pages_reconstruct, _ = extract_pages_for_profile(ref_path, profile)
+    pages_reconstruct, _, _ = extract_pages_for_profile(ref_path, profile)
     pages_native = extract_pages(ref_path)
 
     assert pages_reconstruct == pages_native
@@ -323,7 +326,7 @@ def test_tc_t_009_normales_dokument_bleibt_unter_reconstruct_unveraendert():
     cnd_path = str(FIXTURES / "TC-T-009" / "cnd.pdf")
     profile = Profile(version="1.0", text_extraction="reconstruct")
 
-    pages_reconstruct, _ = extract_pages_for_profile(cnd_path, profile)
+    pages_reconstruct, _, _ = extract_pages_for_profile(cnd_path, profile)
     pages_native = extract_pages(cnd_path)
 
     assert pages_reconstruct == pages_native
@@ -364,8 +367,8 @@ def test_exclude_regions_wirkt_ueber_extract_pages_for_profile_tc_e_001():
         ],
     )
 
-    ref_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "ref.pdf"), profile, role="reference")
-    cnd_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "cnd.pdf"), profile, role="candidate")
+    ref_pages, _, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "ref.pdf"), profile, role="reference")
+    cnd_pages, _, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "cnd.pdf"), profile, role="candidate")
 
     result = compare(ref_pages, cnd_pages)
 
@@ -382,8 +385,8 @@ def test_exclude_regions_gilt_nur_fuer_definierte_seite_tc_e_002():
         exclude_regions=[ExcludeRegion(page=1, **_HEADER_EXCLUDE_REGION)],
     )
 
-    ref_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-002" / "ref.pdf"), profile, role="reference")
-    cnd_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-002" / "cnd.pdf"), profile, role="candidate")
+    ref_pages, _, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-002" / "ref.pdf"), profile, role="reference")
+    cnd_pages, _, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-002" / "cnd.pdf"), profile, role="candidate")
 
     result = compare(ref_pages, cnd_pages)
 
@@ -423,8 +426,8 @@ def test_exclude_regions_wirkt_auch_unter_text_extraction_reconstruct():
         ],
     )
 
-    ref_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "ref.pdf"), profile, role="reference")
-    cnd_pages, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "cnd.pdf"), profile, role="candidate")
+    ref_pages, _, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "ref.pdf"), profile, role="reference")
+    cnd_pages, _, _ = extract_pages_for_profile(str(FIXTURES / "TC-E-001" / "cnd.pdf"), profile, role="candidate")
 
     result = compare(ref_pages, cnd_pages)
 
@@ -473,8 +476,8 @@ def test_exclude_region_page_zero_applies_to_all_pages(tmp_path):
         exclude_regions=[ExcludeRegion(page=0, **_MULTI_PAGE_HEADER_REGION)],
     )
 
-    ref_pages, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
-    cnd_pages, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
+    ref_pages, _, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
+    cnd_pages, _, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
 
     result = compare(ref_pages, cnd_pages)
 
@@ -500,8 +503,8 @@ def test_exclude_region_page_from_applies_from_given_page(tmp_path):
         exclude_regions=[ExcludeRegion(page_from=2, **_MULTI_PAGE_HEADER_REGION)],
     )
 
-    ref_pages, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
-    cnd_pages, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
+    ref_pages, _, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
+    cnd_pages, _, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
 
     result = compare(ref_pages, cnd_pages)
 
@@ -636,7 +639,7 @@ def test_split_wide_blocks_integration_ergibt_spaltenweise_lesereihenfolge(tmp_p
 
     doc = fitz.open(str(pdf_path))
     page = doc[0]
-    text = _extract_page_text_columns(page)
+    text, _ = _extract_page_text_columns(page)
     doc.close()
 
     pos_col0_last = text.index("Col0Row2")
@@ -672,10 +675,217 @@ def test_exclude_region_page_zero_and_page_from_combined(tmp_path):
         ],
     )
 
-    ref_pages, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
-    cnd_pages, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
+    ref_pages, _, _ = extract_pages_for_profile(str(ref_path), profile, role="reference")
+    cnd_pages, _, _ = extract_pages_for_profile(str(cnd_path), profile, role="candidate")
 
     result = compare(ref_pages, cnd_pages)
 
     assert result.has_delta is True
     assert {delta.page for delta in result.deltas} == {1}
+
+
+# --- separate_table_region_blocks() (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) ---
+#
+# Fußregion fitz-Koordinaten x=0..300, y=700..800 (dasselbe Band wie
+# _MULTI_PAGE_FOOTER_REGION oben) - drawString(30, 30) liegt bei Standard-
+# Letter (792pt Höhe) bei fitz-y=762, innerhalb des Bandes. Eine zweite
+# Fußregion darunter (y=800..900) für Tests mit mehreren table_regions auf
+# derselben Seite - unterschiedliche y-Bänder statt nur x-Versatz, damit
+# PyMuPDF beide als eigene Blöcke erkennt (gleiche Zeile würde sie sonst zu
+# einem einzigen breiten Block verschmelzen, siehe split_wide_blocks-Diagnose).
+_TABLE_REGION_LEFT = dict(x=0, y=700, width=300, height=100)
+_TABLE_REGION_RIGHT = dict(x=0, y=800, width=300, height=100)
+
+
+def _write_footer_pdf(path: Path, footer_text: str, pages: int = 1, second_footer_text: str = None) -> None:
+    """Erzeugt ein PDF mit Fließtext oben (außerhalb jeder Fußregion) und
+    footer_text im Band _TABLE_REGION_LEFT. second_footer_text (falls
+    gesetzt) liegt im Band _TABLE_REGION_RIGHT (eigene y-Zeile, siehe oben)."""
+    c = canvas.Canvas(str(path))
+    for _ in range(pages):
+        c.drawString(30, 700, "Fliesstext im Hauptteil der Seite, unveraendert.")
+        c.drawString(30, 70, footer_text)  # fitz-y ~ 722, innerhalb _TABLE_REGION_LEFT
+        if second_footer_text:
+            c.drawString(30, 20, second_footer_text)  # fitz-y ~ 772, innerhalb _TABLE_REGION_RIGHT
+        c.showPage()
+    c.save()
+
+
+def test_separate_table_region_blocks_trennt_blocke_bei_match(tmp_path):
+    """Blöcke innerhalb einer zutreffenden table_region mit passender
+    condition werden abgetrennt - table_region_texts enthält (whitespace-
+    freier Text, lesbarer Text), remaining_blocks enthält sie nicht mehr."""
+    pdf_path = tmp_path / "footer.pdf"
+    _write_footer_pdf(pdf_path, "ACME Insurance Company")
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    blocks = get_text_blocks(page)
+    table_regions = [TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT)]
+
+    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+
+    assert table_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+    assert not any("ACME" in b[4] for b in remaining)
+    assert len(remaining) == len(blocks) - 1
+    doc.close()
+
+
+def test_separate_table_region_blocks_condition_matcht_nicht(tmp_path):
+    """Trifft condition nicht zu, bleiben die Blöcke unverändert im
+    normalen Vergleich - table_region_texts bleibt für diese Region leer."""
+    pdf_path = tmp_path / "footer.pdf"
+    _write_footer_pdf(pdf_path, "ACME Insurance Company")
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    blocks = get_text_blocks(page)
+    table_regions = [TableRegion(condition="Nicht Vorhanden", page=1, **_TABLE_REGION_LEFT)]
+
+    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+
+    assert table_region_texts == {}
+    assert len(remaining) == len(blocks)
+    assert any("ACME" in b[4] for b in remaining)
+    doc.close()
+
+
+def test_separate_table_region_blocks_page_zero_wirkt_auf_jeder_seite(tmp_path):
+    pdf_path = tmp_path / "footer.pdf"
+    _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
+
+    doc = fitz.open(str(pdf_path))
+    table_regions = [TableRegion(condition="ACME Insurance", page=0, **_TABLE_REGION_LEFT)]
+
+    for page_index in (0, 1):
+        blocks = get_text_blocks(doc[page_index])
+        _, table_region_texts = separate_table_region_blocks(blocks, page_index + 1, table_regions)
+        assert table_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+    doc.close()
+
+
+def test_separate_table_region_blocks_page_from_wirkt_erst_ab_angegebener_seite(tmp_path):
+    pdf_path = tmp_path / "footer.pdf"
+    _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
+
+    doc = fitz.open(str(pdf_path))
+    table_regions = [TableRegion(condition="ACME Insurance", page_from=2, **_TABLE_REGION_LEFT)]
+
+    blocks_page1 = get_text_blocks(doc[0])
+    _, table_region_texts_page1 = separate_table_region_blocks(blocks_page1, 1, table_regions)
+    assert table_region_texts_page1 == {}
+
+    blocks_page2 = get_text_blocks(doc[1])
+    _, table_region_texts_page2 = separate_table_region_blocks(blocks_page2, 2, table_regions)
+    assert table_region_texts_page2 == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+    doc.close()
+
+
+def test_separate_table_region_blocks_mehrere_regionen_unabhaengig_gematcht(tmp_path):
+    """Zwei table_regions auf derselben Seite werden unabhängig voneinander
+    ausgewertet - beide matchen, beide werden abgetrennt."""
+    pdf_path = tmp_path / "footer.pdf"
+    _write_footer_pdf(pdf_path, "ACME Insurance Company", second_footer_text="Contact Support Team")
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    blocks = get_text_blocks(page)
+    table_regions = [
+        TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT),
+        TableRegion(condition="Contact Support", page=1, **_TABLE_REGION_RIGHT),
+    ]
+
+    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+
+    assert table_region_texts == {
+        0: ("ACMEInsuranceCompany", "ACME Insurance Company"),
+        1: ("ContactSupportTeam", "Contact Support Team"),
+    }
+    assert not any("ACME" in b[4] or "Contact" in b[4] for b in remaining)
+    doc.close()
+
+
+def test_separate_table_region_blocks_nach_exclude_region_kein_crash(tmp_path):
+    """exclude_regions laufen VOR separate_table_region_blocks (siehe
+    Pipeline in _extract_page_text_columns) - überlappt eine exclude_region
+    die table_region vollständig, bleiben dort keine Blöcke mehr übrig;
+    separate_table_region_blocks darf dabei nicht abstürzen, findet aber
+    naturgemäß keinen Match mehr."""
+    pdf_path = tmp_path / "footer.pdf"
+    _write_footer_pdf(pdf_path, "ACME Insurance Company")
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    exclude_regions = [Region(page=1, x=0, y=700, w=300, h=100, page_from=None)]
+    blocks_after_exclude = filter_blocks_by_regions(get_text_blocks(page), 1, exclude_regions)
+    table_regions = [TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT)]
+
+    remaining, table_region_texts = separate_table_region_blocks(blocks_after_exclude, 1, table_regions)
+
+    assert table_region_texts == {}
+    assert not any("ACME" in b[4] for b in remaining)  # bereits von exclude_regions entfernt
+    doc.close()
+
+
+def test_extract_page_text_columns_integriert_table_regions(tmp_path):
+    """Integrationstest: _extract_page_text_columns() entfernt matchende
+    table_region-Blöcke aus dem Seitentext und liefert deren normalisierten
+    Text separat zurück."""
+    pdf_path = tmp_path / "footer.pdf"
+    _write_footer_pdf(pdf_path, "ACME Insurance Company")
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    table_regions = [TableRegion(condition="ACME Insurance", page=1, **_TABLE_REGION_LEFT)]
+
+    text, table_region_texts = _extract_page_text_columns(page, 1, (), table_regions)
+
+    assert "ACME" not in text
+    assert "Fliesstext" in text
+    assert table_region_texts == {0: ("ACMEInsuranceCompany", "ACME Insurance Company")}
+    doc.close()
+
+
+def test_separate_table_region_blocks_condition_matcht_trotz_type3_fragmentierung(tmp_path):
+    """Reproduziert das reale Diagnose-Muster (siehe
+    docs/prompt_table_regions_whitespace_free.md): Type3-Schriften (Size=1.0)
+    liefern über PyMuPDFs Leerzeichen-Heuristik Silbenfragmente mit falschen
+    Zwischenräumen ("SV Spa r ka ssen Ver si ch eru n g" statt "SV
+    SparkassenVersicherung"). Der Whitespace-freie condition-Abgleich muss
+    trotzdem matchen, wo der alte "auf ein Leerzeichen kollabieren"-Abgleich
+    fehlschlug.
+
+    Fragmente mit 3pt Zwischenraum (empirisch geprüft, siehe Diagnose-
+    Session): PyMuPDF fügt zwischen JEDES Fragment ein Leerzeichen ein,
+    exakt das reale Bugmuster - bei zu kleinem Zwischenraum rekonstruiert
+    PyMuPDFs eigene Heuristik das Wort bereits korrekt (keine Fragmentierung
+    zum Testen)."""
+    pdf_path = tmp_path / "fragmented_footer.pdf"
+    c = canvas.Canvas(str(pdf_path))
+    c.drawString(30, 700, "Fliesstext im Hauptteil der Seite, unveraendert.")
+    c.setFont("Helvetica", 10)
+    x = 30
+    y = 70  # fitz-y ~722, innerhalb _TABLE_REGION_LEFT
+    for frag in ["SV", "Spa", "r", "ka", "ssen", "Ver", "si", "ch", "eru", "n", "g"]:
+        c.drawString(x, y, frag)
+        x += c.stringWidth(frag, "Helvetica", 10) + 3
+    c.showPage()
+    c.save()
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    blocks = get_text_blocks(page)
+
+    # Vorbedingung: PyMuPDF liefert tatsächlich das fragmentierte Muster
+    # (mit Leerzeichen zwischen jedem Fragment) - sonst testet dieser Test
+    # nichts.
+    footer_block = next(b for b in blocks if "Spa" in b[4])
+    assert footer_block[4].strip() == "SV Spa r ka ssen Ver si ch eru n g"
+
+    table_regions = [TableRegion(condition="SV SparkassenVersicherung", page=1, **_TABLE_REGION_LEFT)]
+    remaining, table_region_texts = separate_table_region_blocks(blocks, 1, table_regions)
+
+    assert 0 in table_region_texts
+    assert table_region_texts[0] == ("SVSparkassenVersicherung", "SV Spa r ka ssen Ver si ch eru n g")
+    assert not any("Spa" in b[4] for b in remaining)
+    doc.close()
