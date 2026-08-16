@@ -59,7 +59,7 @@ from engine.models import PairResult
 from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile, ValidationError, load_profile
 from engine.report_generator import generate_batch_report, generate_report
-from engine.table_region_comparator import merge_table_region_comparison
+from engine.compare_region_comparator import merge_compare_region_comparison
 from engine.text_comparator import compare
 
 
@@ -97,18 +97,29 @@ def _run_compare(args: argparse.Namespace) -> int:
         merge_hyphenation=profile.merge_hyphenation if profile else True,
         normalize_orphan_hyphens=profile.normalize_orphan_hyphens if profile else True,
     )
-    # table_region_texts (3. Rückgabewert von extract_pages_for_profile) wurde
+    # compare_region_texts (3. Rückgabewert von extract_pages_for_profile) wurde
     # bereits aus ref_pages/cnd_pages herausgefiltert (siehe
-    # pdf_extractor.separate_table_region_blocks) - hier fließen die
+    # pdf_extractor.separate_compare_region_blocks) - hier fließen die
     # zugehörigen Multiset-Deltas zusätzlich in has_delta/deltas ein (siehe
     # docs/prompt_table_regions.md, Step 4).
-    table_region_deltas = merge_table_region_comparison(ref_tr_texts, cnd_tr_texts)
-    if table_region_deltas:
+    compare_region_deltas = merge_compare_region_comparison(ref_tr_texts, cnd_tr_texts, profile)
+    if compare_region_deltas:
         result = dataclasses.replace(
             result,
-            deltas=result.deltas + table_region_deltas,
+            deltas=result.deltas + compare_region_deltas,
             has_delta=True,
         )
+    # Stabil NUR nach Seite sortieren (siehe docs/prompt_compare_regions_mode.md,
+    # Task 3): compare_region-Deltas wurden bisher immer ans Ende angehängt, egal
+    # zu welcher Seite sie gehören (siehe oben) - eine Seite-1-Region-Delta
+    # erschien so hinter Seite-17-Deltas und wurde von Testern übersehen.
+    # Bewusst KEIN sekundärer Sortierschlüssel auf position: Region-interne
+    # Positionen haben einen anderen Bezugsrahmen als Dokumentpositionen, und
+    # bei Spalten/Tabellen/Querformat entspricht die Lesereihenfolge ohnehin
+    # nicht dem visuellen Eindruck im Viewer. Pythons sort ist stabil, die
+    # ursprüngliche Generierungsreihenfolge innerhalb einer Seite bleibt also
+    # erhalten.
+    result = dataclasses.replace(result, deltas=sorted(result.deltas, key=lambda d: d.page))
     duration_seconds = time.perf_counter() - start
 
     report_path = None

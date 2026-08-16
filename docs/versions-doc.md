@@ -1,15 +1,19 @@
 *******************************
-*** V0.2.0    15.08.2025
+*** V0.2.0    16.08.2025
 *******************************
+
+Sprint PTC-4: Bugfixes
+----------------------
+
 
 Sprint PTC-3: Erkennung optimieren
 ----------------------------------
 Task A - Bindestriche behandeln
 Task A2 - Bugfixes
-Task B - table_regions eingeführt
+Task B - compare_regions eingeführt
 
 Sprint PTC-2: Ausgaben optimieren
------------------------------------------------
+---------------------------------
 Task A — Processing Duration on Batch Individual Reports
 Task B — Table Header Contrast Fix
 Task C — Sum of Deltas + Timestamp Relocation in Batch Report

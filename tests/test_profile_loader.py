@@ -420,24 +420,24 @@ def test_normalize_orphan_hyphens_false_from_json(tmp_path):
     assert profile.normalize_orphan_hyphens is False
 
 
-# --- table_regions (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) ---
+# --- compare_regions (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) ---
 
 
-def test_load_profile_table_regions_absent_defaults_to_empty_list(tmp_path):
-    """Rückwärtskompatibilität: Profile ohne table_regions müssen weiterhin
+def test_load_profile_compare_regions_absent_defaults_to_empty_list(tmp_path):
+    """Rückwärtskompatibilität: Profile ohne compare_regions müssen weiterhin
     unverändert funktionieren."""
     path = tmp_path / "p.json"
     path.write_text('{"version": "1.0"}')
     profile = load_profile(path)
-    assert profile.table_regions == []
+    assert profile.compare_regions == []
 
 
-def test_load_profile_table_region_valides_single_region(tmp_path):
+def test_load_profile_compare_region_valides_single_region(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {
                     "page": 1,
                     "x": 50, "y": 750, "width": 500, "height": 80,
@@ -450,8 +450,8 @@ def test_load_profile_table_region_valides_single_region(tmp_path):
 
     profile = load_profile(profile_path)
 
-    assert len(profile.table_regions) == 1
-    region = profile.table_regions[0]
+    assert len(profile.compare_regions) == 1
+    region = profile.compare_regions[0]
     assert region.page == 1
     assert region.page_from is None
     assert region.x == 50
@@ -461,12 +461,95 @@ def test_load_profile_table_region_valides_single_region(tmp_path):
     assert region.condition == "SV SparkassenVersicherung"
 
 
-def test_load_profile_table_region_valide_mehrere_regionen(tmp_path):
+def test_load_profile_compare_region_mode_fehlt_default_ist_sequential(tmp_path):
+    """Default bei fehlendem 'mode'-Feld ist 'sequential' (siehe
+    docs/prompt_compare_regions_mode.md, Task 2) - NICHT mehr das alte
+    Multiset-Verhalten, das jetzt explizit 'unordered' heißt."""
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Kein Mode"}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert profile.compare_regions[0].mode == "sequential"
+
+
+def test_load_profile_compare_region_mode_unordered_wird_uebernommen(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "compare_regions": [
+                {
+                    "page": 1, "x": 0, "y": 0, "width": 100, "height": 50,
+                    "condition": "Explizit Unordered", "mode": "unordered",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert profile.compare_regions[0].mode == "unordered"
+
+
+def test_load_profile_compare_region_mode_sequential_wird_uebernommen(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "compare_regions": [
+                {
+                    "page": 1, "x": 0, "y": 0, "width": 100, "height": 50,
+                    "condition": "Explizit Sequential", "mode": "sequential",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    profile = load_profile(profile_path)
+
+    assert profile.compare_regions[0].mode == "sequential"
+
+
+def test_load_profile_compare_region_ungueltiger_mode_wirft_validation_error(tmp_path):
+    """Unbekannte mode-Werte müssen mit einer sprechenden deutschen
+    Fehlermeldung abgelehnt werden, die beide erlaubten Werte nennt (siehe
+    docs/prompt_compare_regions_mode.md, Task 2)."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "compare_regions": [
+                {
+                    "page": 1, "x": 0, "y": 0, "width": 100, "height": 50,
+                    "condition": "Falscher Mode", "mode": "random",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="sequential") as exc_info:
+        load_profile(profile_path)
+    assert "unordered" in str(exc_info.value)
+
+
+def test_load_profile_compare_region_valide_mehrere_regionen(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "compare_regions": [
                 {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Erste Region"},
                 {"page": 2, "x": 10, "y": 10, "width": 20, "height": 20, "condition": "Zweite Region"},
             ],
@@ -476,17 +559,17 @@ def test_load_profile_table_region_valide_mehrere_regionen(tmp_path):
 
     profile = load_profile(profile_path)
 
-    assert len(profile.table_regions) == 2
-    assert profile.table_regions[0].condition == "Erste Region"
-    assert profile.table_regions[1].condition == "Zweite Region"
+    assert len(profile.compare_regions) == 2
+    assert profile.compare_regions[0].condition == "Erste Region"
+    assert profile.compare_regions[1].condition == "Zweite Region"
 
 
-def test_load_profile_table_region_page_zero_all_pages(tmp_path):
+def test_load_profile_compare_region_page_zero_all_pages(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {"page": 0, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Alle Seiten"}
             ],
         }),
@@ -495,18 +578,18 @@ def test_load_profile_table_region_page_zero_all_pages(tmp_path):
 
     profile = load_profile(profile_path)
 
-    assert len(profile.table_regions) == 1
-    region = profile.table_regions[0]
+    assert len(profile.compare_regions) == 1
+    region = profile.compare_regions[0]
     assert region.page == 0
     assert region.page_from is None
 
 
-def test_load_profile_table_region_page_from(tmp_path):
+def test_load_profile_compare_region_page_from(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {"page_from": 2, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Ab Seite zwei"}
             ],
         }),
@@ -515,18 +598,18 @@ def test_load_profile_table_region_page_from(tmp_path):
 
     profile = load_profile(profile_path)
 
-    assert len(profile.table_regions) == 1
-    region = profile.table_regions[0]
+    assert len(profile.compare_regions) == 1
+    region = profile.compare_regions[0]
     assert region.page is None
     assert region.page_from == 2
 
 
-def test_load_profile_table_region_page_and_page_from_both_set_raises(tmp_path):
+def test_load_profile_compare_region_page_and_page_from_both_set_raises(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {
                     "page": 1, "page_from": 2,
                     "x": 0, "y": 0, "width": 100, "height": 50,
@@ -541,12 +624,12 @@ def test_load_profile_table_region_page_and_page_from_both_set_raises(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_table_region_neither_page_nor_page_from_raises(tmp_path):
+def test_load_profile_compare_region_neither_page_nor_page_from_raises(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {"x": 0, "y": 0, "width": 100, "height": 50, "condition": "Keine Seite"}
             ],
         }),
@@ -557,12 +640,12 @@ def test_load_profile_table_region_neither_page_nor_page_from_raises(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_table_region_empty_condition_raises(tmp_path):
+def test_load_profile_compare_region_empty_condition_raises(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": ""}
             ],
         }),
@@ -573,12 +656,35 @@ def test_load_profile_table_region_empty_condition_raises(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_table_region_single_word_condition_raises(tmp_path):
+def test_load_profile_alter_schluessel_table_regions_wird_abgelehnt(tmp_path):
+    """Keine Rückwärtskompatibilität für den alten Schlüssel (siehe
+    docs/prompt_compare_regions_mode.md, Task 1): ein Profil, das noch
+    'table_regions' statt 'compare_regions' verwendet, muss mit einer
+    sprechenden deutschen Fehlermeldung abgelehnt werden, die den neuen
+    Schlüssel nennt - sonst würde die Region unbemerkt ignoriert (leere
+    compare_regions-Liste), weil load_profile den unbekannten Schlüssel
+    stillschweigend überginge."""
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
             "table_regions": [
+                {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Alter Schluessel"}
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="compare_regions"):
+        load_profile(profile_path)
+
+
+def test_load_profile_compare_region_single_word_condition_raises(tmp_path):
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps({
+            "version": "1.0",
+            "compare_regions": [
                 {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50, "condition": "Einzelwort"}
             ],
         }),
@@ -589,12 +695,12 @@ def test_load_profile_table_region_single_word_condition_raises(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_table_region_missing_condition_field_raises(tmp_path):
+def test_load_profile_compare_region_missing_condition_field_raises(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
             "version": "1.0",
-            "table_regions": [
+            "compare_regions": [
                 {"page": 1, "x": 0, "y": 0, "width": 100, "height": 50}
             ],
         }),

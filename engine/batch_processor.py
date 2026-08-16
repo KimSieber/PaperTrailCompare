@@ -31,7 +31,7 @@ from engine.page_group_detector import extract_page_groups
 from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile
 from engine.report_generator import generate_report
-from engine.table_region_comparator import merge_table_region_comparison
+from engine.compare_region_comparator import merge_compare_region_comparison
 from engine.text_comparator import compare
 
 _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
@@ -112,14 +112,17 @@ def _compare_pair(
     )
     # Dieselbe Merge-Logik wie engine.__main__._run_compare (siehe
     # docs/prompt_table_regions.md, Step 4) - gemeinsam genutzt über
-    # engine.table_region_comparator.merge_table_region_comparison.
-    table_region_deltas = merge_table_region_comparison(ref_tr_texts, cnd_tr_texts)
-    if table_region_deltas:
+    # engine.compare_region_comparator.merge_compare_region_comparison.
+    compare_region_deltas = merge_compare_region_comparison(ref_tr_texts, cnd_tr_texts, profile)
+    if compare_region_deltas:
         result = dataclasses.replace(
             result,
-            deltas=result.deltas + table_region_deltas,
+            deltas=result.deltas + compare_region_deltas,
             has_delta=True,
         )
+    # Stabil NUR nach Seite sortieren - siehe engine.__main__._run_compare für
+    # die identische Begründung (docs/prompt_compare_regions_mode.md, Task 3).
+    result = dataclasses.replace(result, deltas=sorted(result.deltas, key=lambda d: d.page))
     duration_seconds = time.perf_counter() - start
     total_pages = max(len(ref_pages), len(cnd_pages))
 

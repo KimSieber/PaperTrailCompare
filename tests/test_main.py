@@ -593,30 +593,37 @@ def test_ohne_argumente_zeigt_hilfe(capsys):
     assert "usage" in capsys.readouterr().out.lower()
 
 
-# --- table_regions end-to-end (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md, Step 4) ---
+# --- compare_regions end-to-end (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md, Step 4) ---
 
-_TABLE_REGION_PROFILE = {
+_COMPARE_REGION_PROFILE = {
     "version": "1.0",
-    "table_regions": [
+    "compare_regions": [
         {
             "page": 1, "x": 0, "y": 650, "width": 400, "height": 250,
             "condition": "SV SparkassenVersicherung",
+            # mode="unordered" explizit (siehe docs/prompt_compare_regions_mode.md,
+            # Task 2): TC-TR-001/002 testen genau das Zeichen-Multiset-Verhalten
+            # (Blockreihenfolge irrelevant) - der neue Default "sequential"
+            # würde hier zufällig dieselben Assertions erfüllen (die Wortreihenfolge
+            # ist in diesen Fixtures ohnehin identisch), aber die Tests würden
+            # dann nicht mehr das testen, was ihr Name behauptet.
+            "mode": "unordered",
         }
     ],
 }
 
 
-def test_table_region_eliminiert_false_delta_aus_abweichender_blockstruktur_tc_tr_001(tmp_path, capsys):
+def test_compare_region_eliminiert_false_delta_aus_abweichender_blockstruktur_tc_tr_001(tmp_path, capsys):
     """TC-TR-001: ref.pdf schreibt die Fußzeile als einen breiten Block,
     cnd.pdf als vier schmale, vertikal gestapelte Blöcke - identischer
-    Wortinhalt. Ohne table_region wäre das ein sequenzielles False-Delta
-    (reine Wortumstellung); mit korrekt konfigurierter table_region muss
+    Wortinhalt. Ohne compare_region wäre das ein sequenzielles False-Delta
+    (reine Wortumstellung); mit korrekt konfigurierter compare_region muss
     has_delta False sein."""
     ref_path = FIXTURES / "TC-TR-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-TR-001" / "cnd.pdf"
 
     profile_path = tmp_path / "profile.json"
-    profile_path.write_text(json.dumps(_TABLE_REGION_PROFILE), encoding="utf-8")
+    profile_path.write_text(json.dumps(_COMPARE_REGION_PROFILE), encoding="utf-8")
 
     exit_code = main(
         ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
@@ -628,7 +635,7 @@ def test_table_region_eliminiert_false_delta_aus_abweichender_blockstruktur_tc_t
     assert payload["deltas"] == []
 
 
-def test_table_region_erkennt_echte_aenderung_trotz_abweichender_blockstruktur_tc_tr_002(tmp_path, capsys):
+def test_compare_region_erkennt_echte_aenderung_trotz_abweichender_blockstruktur_tc_tr_002(tmp_path, capsys):
     """TC-TR-002: wie TC-TR-001, aber die Telefonnummer in der Kandidaten-
     Fußzeile ist tatsächlich geändert ('...-1234' -> '...-5678'). Der
     Whitespace-freie Vergleich muss das als echtes Delta melden - GENAU EIN
@@ -638,7 +645,7 @@ def test_table_region_erkennt_echte_aenderung_trotz_abweichender_blockstruktur_t
     cnd_path = FIXTURES / "TC-TR-002" / "cnd.pdf"
 
     profile_path = tmp_path / "profile.json"
-    profile_path.write_text(json.dumps(_TABLE_REGION_PROFILE), encoding="utf-8")
+    profile_path.write_text(json.dumps(_COMPARE_REGION_PROFILE), encoding="utf-8")
 
     exit_code = main(
         ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
@@ -651,3 +658,201 @@ def test_table_region_erkennt_echte_aenderung_trotz_abweichender_blockstruktur_t
     delta = payload["deltas"][0]
     assert "0800-1234" in delta["ref_text"]
     assert "0800-5678" in delta["cnd_text"]
+
+
+# --- Delta-Liste seitenweise sortiert (docs/prompt_compare_regions_mode.md, Task 3) ---
+
+
+def _write_multi_page_pdf(path: Path, page_1_footer: str, body_lines: list[str]) -> None:
+    """Seite 1: unveränderter Fließtext + `page_1_footer` (Ziel der
+    compare_region). Seiten 2..N: je eine Zeile aus `body_lines` - eine
+    Zeile pro Seite, damit sequenzielle Deltas gezielt auf bestimmte
+    Seitenzahlen gemappt werden können (siehe Modultests unten)."""
+    c = canvas.Canvas(str(path), pagesize=A4)
+    _, height = A4
+    c.setFont("Helvetica", 11)
+    c.drawString(30, height - 100, "Seite 1 Fliesstext (identisch in ref und cnd).")
+    c.drawString(30, height - 750, page_1_footer)
+    c.showPage()
+    for line in body_lines:
+        c.drawString(30, height - 100, line)
+        c.showPage()
+    c.save()
+
+
+_REGION_DELTA_ON_PAGE_1_PROFILE = {
+    "version": "1.0",
+    "compare_regions": [
+        {
+            "page": 1, "x": 0, "y": 650, "width": 400, "height": 250,
+            "condition": "Footer Alpha",
+        }
+    ],
+}
+
+
+def test_delta_liste_ist_seitenweise_sortiert_region_delta_vor_spaeteren_seiten(tmp_path, capsys):
+    """Die compare_region-Delta gehört inhaltlich zu Seite 1, wurde bisher
+    aber immer ans Ende der Delta-Liste angehängt - hinter alle
+    sequenziellen Deltas bis Seite 5. Nach Task 3 muss die fertige
+    Delta-Liste stabil nach Seite sortiert sein, sodass die Seite-1-Delta
+    VOR den Deltas der Seiten 2-5 erscheint."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+
+    _write_multi_page_pdf(
+        ref_path, "Footer Alpha Beta",
+        ["Seite zwei referenz", "Seite drei referenz", "Seite vier referenz", "Seite fuenf referenz"],
+    )
+    _write_multi_page_pdf(
+        cnd_path, "Footer Alpha Gamma",
+        ["Seite zwei kandidat", "Seite drei kandidat", "Seite vier kandidat", "Seite fuenf kandidat"],
+    )
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(_REGION_DELTA_ON_PAGE_1_PROFILE), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    deltas = payload["deltas"]
+
+    pages = [d["page"] for d in deltas]
+    assert pages == sorted(pages), f"Delta-Liste nicht seitenweise sortiert: {pages}"
+    assert pages[0] == 1, "compare_region-Delta (Seite 1) muss an erster Stelle stehen"
+    assert 2 in pages and 5 in pages
+
+
+def test_delta_liste_sortierung_ist_stabil_innerhalb_derselben_seite(tmp_path, capsys):
+    """Zwei Deltas auf DERSELBEN Seite müssen ihre ursprüngliche
+    Generierungsreihenfolge (Positions-Reihenfolge des sequenziellen
+    Vergleichs) behalten - sortiert wird ausschließlich nach Seite
+    (`sorted(..., key=lambda d: d.page)`), NICHT zusätzlich nach position
+    (siehe docs/prompt_compare_regions_mode.md, Task 3)."""
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+
+    # Seite 2 enthält zwei weit auseinanderliegende geänderte Wörter -> zwei
+    # separate sequenzielle Deltas auf derselben Seite, mit aufsteigender
+    # Wort-Position.
+    ref_body = ["Wort1 Wort2 Wort3 Wort4 Wort5 Wort6 Wort7 Wort8 Wort9 Wort10"]
+    cnd_body = ["Wort1 GEAENDERT Wort3 Wort4 Wort5 Wort6 Wort7 Wort8 GEAENDERT2 Wort10"]
+
+    _write_multi_page_pdf(ref_path, "Footer Alpha Beta", ref_body)
+    _write_multi_page_pdf(cnd_path, "Footer Alpha Beta", cnd_body)
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(_REGION_DELTA_ON_PAGE_1_PROFILE), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    deltas = payload["deltas"]
+
+    page_2_deltas = [d for d in deltas if d["page"] == 2]
+    assert len(page_2_deltas) == 2
+    positions = [d["position"] for d in page_2_deltas]
+    assert positions == sorted(positions), (
+        "Deltas derselben Seite müssen in ihrer ursprünglichen "
+        f"Generierungsreihenfolge bleiben (Positionen: {positions})"
+    )
+
+
+# --- mode="sequential" end-to-end: Isolation vom Nachbartext (docs/prompt_compare_regions_mode.md, Task 2) ---
+
+
+def _write_page_with_interleaved_blocks(path: Path, address_lines: list, info_lines: list) -> None:
+    """Baut EINE Seite nach, bei der ein Adressblock links und ein
+    Absenderinfo-Block rechts auf DERSELBEN Zeilenhöhe stehen (siehe
+    docs/prompt_compare_regions_mode.md, Problem-Abschnitt: 'Es betreut Sie'
+    rechts oben, Empfängeradresse links) - der normale sequenzielle
+    Seiten-Vergleich würde deren Zeilen verschachtelt lesen (Interleaving)
+    und bei jeder Änderung im Info-Block auch die unveränderten
+    Adresszeilen in die Deltas hineinziehen. Deshalb muss der Info-Block
+    per compare_region (mode='sequential') isoliert verglichen werden."""
+    c = canvas.Canvas(str(path), pagesize=A4)
+    _, height = A4
+    c.setFont("Helvetica", 11)
+    y = height - 100
+    for address_line, info_line in zip(address_lines, info_lines):
+        c.drawString(30, y, address_line)
+        c.drawString(350, y, info_line)
+        y -= 20
+    c.showPage()
+    c.save()
+
+
+_SEQUENTIAL_INFO_BLOCK_PROFILE = {
+    "version": "1.0",
+    "compare_regions": [
+        {
+            "page": 1, "x": 330, "y": 0, "width": 265, "height": 200,
+            "condition": "Es schreibt Ihnen",
+            "mode": "sequential",
+        }
+    ],
+}
+
+
+def test_compare_region_mode_sequential_isoliert_info_block_von_adressblock(tmp_path, capsys):
+    """Reproduziert das Problem aus docs/prompt_compare_regions_mode.md:
+    Adressblock (links) bleibt zwischen ref und cnd unverändert, der
+    Info-Block (rechts, 'Es schreibt Ihnen ...' + Telefon + Datum) hat zwei
+    echte, kleine Änderungen ('Tel.:' -> 'Tel.', Datum geändert). Mit
+    mode='sequential' dürfen NUR diese beiden kleinen Änderungen als Deltas
+    erscheinen - insbesondere KEIN Delta, das den unveränderten Adressblock
+    enthält (das wäre der alte Interleaving-Bug), und KEIN einzelnes
+    Delta, das den gesamten Info-Block als einen Klumpen enthält (das wäre
+    mode='unordered')."""
+    address_lines = [
+        "Frau Erika Mustermann",
+        "Musterstrasse 12",
+        "65183 Wiesbaden",
+    ]
+    ref_info_lines = [
+        "Es schreibt Ihnen Max Beispiel",
+        "Tel.: 0611 178-49830",
+        "Wiesbaden, 15.06.2026",
+    ]
+    cnd_info_lines = [
+        "Es schreibt Ihnen Max Beispiel",
+        "Tel. 0611 178-49830",
+        "Wiesbaden, 03.07.2026",
+    ]
+
+    ref_path = tmp_path / "ref.pdf"
+    cnd_path = tmp_path / "cnd.pdf"
+    _write_page_with_interleaved_blocks(ref_path, address_lines, ref_info_lines)
+    _write_page_with_interleaved_blocks(cnd_path, address_lines, cnd_info_lines)
+
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(_SEQUENTIAL_INFO_BLOCK_PROFILE), encoding="utf-8")
+
+    exit_code = main(
+        ["compare", str(ref_path), str(cnd_path), "--profile", str(profile_path), "--json"]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["has_delta"] is True
+    deltas = payload["deltas"]
+
+    # Isolation: keine Adresszeile darf in irgendeinem Delta auftauchen.
+    for delta in deltas:
+        for address_line in address_lines:
+            assert address_line not in delta["ref_text"]
+            assert address_line not in delta["cnd_text"]
+
+    # Mehrere kleine Deltas statt eines Klumpens für den gesamten Info-Block.
+    assert len(deltas) > 1
+    full_ref_block = " ".join(ref_info_lines)
+    full_cnd_block = " ".join(cnd_info_lines)
+    for delta in deltas:
+        assert delta["ref_text"] != full_ref_block
+        assert delta["cnd_text"] != full_cnd_block
