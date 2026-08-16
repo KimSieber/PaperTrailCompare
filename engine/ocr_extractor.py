@@ -140,8 +140,9 @@ def extract_pages_with_ocr_fallback(
     (TC-O-002: gemischtes PDF mit nativen und gescannten Seiten).
 
     regions wirkt auf beiden Zweigen: auf Seiten mit nativem Text
-    block-basiert (wie pdf_extractor.extract_pages), auf tatsächlich per
-    OCR gelesenen Seiten durch Maskieren vor dem Rastern-Ergebnis (siehe
+    block-basiert (filter_blocks_by_regions, siehe pdf_extractor.extract_pages -
+    page=0/page_from-Wildcards über _region_applies_to_page), auf tatsächlich
+    per OCR gelesenen Seiten durch Maskieren vor dem Rastern-Ergebnis (siehe
     _mask_regions_on_image). warnings bleibt hier ungenutzt (beide Zweige
     unterstützen exclude_regions vollständig) - der Parameter existiert nur
     zur einheitlichen Signatur mit extract_pages_for_profile.
@@ -158,12 +159,18 @@ def extract_pages_with_ocr_fallback(
             page_num = page_index + 1
             native_text = page.get_text().strip()
             if native_text:
+                from engine.pdf_extractor import (
+                    _region_applies_to_page,
+                    filter_blocks_by_regions,
+                    get_text_blocks,
+                    join_block_text,
+                )
                 if regions and any(_region_applies_to_page(r, page_num) for r in regions):
-                    from engine.pdf_extractor import filter_blocks_by_regions, get_text_blocks, join_block_text
                     blocks = filter_blocks_by_regions(get_text_blocks(page), page_num, regions)
                     pages_text.append(join_block_text(blocks))
                 else:
-                    pages_text.append(native_text)
+                    blocks = get_text_blocks(page)
+                    pages_text.append(join_block_text(blocks))
             else:
                 pages_text.append(_ocr_page(page, lang=lang, dpi=dpi, page_num=page_num, regions=regions))
                 ocr_used = True

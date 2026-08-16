@@ -31,6 +31,7 @@ from engine.pdf_extractor import (
     get_text_blocks,
     join_block_text,
     sort_blocks_columns,
+    split_wide_blocks,
 )
 from engine.profile_loader import Profile
 
@@ -49,6 +50,7 @@ def extract_pages_excluding_regions(
         for page_index, page in enumerate(doc):
             page_num = page_index + 1
             blocks = filter_blocks_by_regions(get_text_blocks(page), page_num, regions)
+            blocks = split_wide_blocks(blocks, page)
             blocks = sort_blocks_columns(blocks)
             pages_text.append(join_block_text(blocks))
     finally:
