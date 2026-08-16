@@ -11,6 +11,7 @@ Sprint PTC-3: Erkennung optimieren
 Task A - Bindestriche behandeln
 Task A2 - Bugfixes
 Task B - compare_regions eingeführt
+Task C - Markierungen optimiert
 
 Sprint PTC-2: Ausgaben optimieren
 ---------------------------------
