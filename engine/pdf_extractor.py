@@ -26,6 +26,9 @@ from engine.profile_loader import Profile
 _TEXT_BLOCK_TYPE = 0
 _COLUMN_BUCKET_PT = 50  # Blockbreite-Toleranz zur Spaltenerkennung
 
+_SPLIT_THRESHOLD_PT = 300  # Blöcke breiter als das sind Kandidaten für split_wide_blocks()
+_SPLIT_GAP_THRESHOLD_PT = 30  # Lücke zwischen zwei nach x0 sortierten Zeilen, ab der eine neue Spalte beginnt
+
 # PyMuPDF-Textblock: (x0, y0, x1, y1, text, block_no, block_type)
 TextBlock = Tuple[float, float, float, float, str, int, int]
 
@@ -152,6 +155,93 @@ def join_block_text(blocks: Sequence[TextBlock]) -> str:
     return "\n".join(b[4].strip() for b in blocks)
 
 
+def split_wide_blocks(blocks: List[TextBlock], page: "fitz.Page") -> List[TextBlock]:
+    """Zerlegt breite Blöcke, die mehrere visuelle Spalten überdecken, wieder
+    in schmale Teilblöcke - eine je Spalte (siehe CLAUDE-Diagnose-Session:
+    schreibt der Formatierer zeilenweise über alle Spalten hinweg, verschmilzt
+    PyMuPDF sie zu einem einzigen breiten Block, dessen "Zeilen" eigentlich
+    einzelne Spalten-Zellen sind).
+
+    Reine Funktion, verändert blocks/page nicht. Gehört zwischen
+    filter_blocks_by_regions() und sort_blocks_columns() in die
+    Extraktions-Pipeline (native wie rekonstruiert, siehe
+    _extract_page_text_columns[_reconstructed] und
+    region_filter.extract_pages_excluding_regions).
+
+    Blöcke <= _SPLIT_THRESHOLD_PT bleiben unverändert (kein Splitkandidat).
+    Für breitere Blöcke werden die rawdict-Zeilen über block_no (Index 5 des
+    TextBlock-Tupels) nachgeschlagen und per Lücken-Clustering zu
+    Spalten-Gruppen zusammengefasst: Zeilen nach x0 sortiert, eine neue Spalte
+    beginnt, sobald die Lücke zum nächsten x0 _SPLIT_GAP_THRESHOLD_PT
+    überschreitet. Das vermeidet das Bucket-Grenzproblem einer reinen
+    Rundung, bei dem zwei nah beieinanderliegende x0-Werte (z.B. 70 und 80)
+    je nach Lage der Rundungsgrenze in unterschiedliche Gruppen fallen
+    könnten. Ergibt das nur eine Gruppe (z.B. eine breite, linksbündige
+    Überschrift über mehrere Zeilen), gibt es keine Mehrspalten-Struktur
+    aufzulösen - der Block bleibt unverändert. Bei jeder Unstimmigkeit
+    zwischen TextBlock-Text und rawdict (fehlender/abweichender Block,
+    Zeilen-Anzahl passt nicht) wird der Block unverändert durchgereicht
+    statt zu raten - siehe Modul-Docstring zu _reconstruct_line_text für
+    dieselbe Grundhaltung."""
+    result: List[TextBlock] = []
+    rawdict_blocks: Optional[List[dict]] = None
+
+    for block in blocks:
+        x0, y0, x1, y1, text, block_no, block_type = block
+        if x1 - x0 <= _SPLIT_THRESHOLD_PT:
+            result.append(block)
+            continue
+
+        if rawdict_blocks is None:
+            rawdict_blocks = page.get_text("rawdict").get("blocks", [])
+
+        if block_no < 0 or block_no >= len(rawdict_blocks):
+            result.append(block)
+            continue
+        rawdict_block = rawdict_blocks[block_no]
+        if rawdict_block.get("type") != _TEXT_BLOCK_TYPE:
+            result.append(block)
+            continue
+
+        lines = rawdict_block.get("lines", [])
+        text_lines = text.split("\n")
+        while text_lines and text_lines[-1] == "":
+            text_lines.pop()
+        if not lines or len(text_lines) != len(lines):
+            result.append(block)
+            continue
+
+        by_x0 = sorted(range(len(lines)), key=lambda i: lines[i]["bbox"][0])
+        groups: List[List[int]] = []
+        current_group: List[int] = []
+        prev_x0: Optional[float] = None
+        for i in by_x0:
+            x0_line = lines[i]["bbox"][0]
+            if prev_x0 is not None and x0_line - prev_x0 > _SPLIT_GAP_THRESHOLD_PT:
+                groups.append(current_group)
+                current_group = []
+            current_group.append(i)
+            prev_x0 = x0_line
+        if current_group:
+            groups.append(current_group)
+
+        if len(groups) <= 1:
+            result.append(block)
+            continue
+
+        for group in groups:
+            indices = sorted(group)  # ursprüngliche Zeilenreihenfolge für Text/Bbox
+            line_bboxes = [lines[i]["bbox"] for i in indices]
+            sub_x0 = min(b[0] for b in line_bboxes)
+            sub_y0 = min(b[1] for b in line_bboxes)
+            sub_x1 = max(b[2] for b in line_bboxes)
+            sub_y1 = max(b[3] for b in line_bboxes)
+            sub_text = "\n".join(text_lines[i] for i in indices) + "\n"
+            result.append((sub_x0, sub_y0, sub_x1, sub_y1, sub_text, block_no, _TEXT_BLOCK_TYPE))
+
+    return result
+
+
 def _extract_page_text_columns(
     page: "fitz.Page", page_num: int = 1, regions: Sequence[Region] = ()
 ) -> str:
@@ -159,6 +249,7 @@ def _extract_page_text_columns(
     strikt zeilenweise. regions wird vor der Sortierung angewendet
     (Ausschluss-Regionen, siehe filter_blocks_by_regions)."""
     blocks = filter_blocks_by_regions(get_text_blocks(page), page_num, regions)
+    blocks = split_wide_blocks(blocks, page)
     return join_block_text(sort_blocks_columns(blocks))
 
 
@@ -384,6 +475,7 @@ def _extract_page_text_columns_reconstructed(
     blocks = filter_blocks_by_regions(
         get_text_blocks_reconstructed(page, calibration), page_num, regions
     )
+    blocks = split_wide_blocks(blocks, page)
     return join_block_text(sort_blocks_columns(blocks))
 
 

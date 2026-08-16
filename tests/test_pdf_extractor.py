@@ -30,10 +30,13 @@ from reportlab.pdfgen import canvas
 from engine.pdf_extractor import (
     SpacewidthCalibration,
     _calibrate_from_gaps,
+    _extract_page_text_columns,
     _reconstruct_line_text,
     calibrate_spacewidths,
     extract_pages,
     extract_pages_for_profile,
+    get_text_blocks,
+    split_wide_blocks,
 )
 from engine.profile_loader import ExcludeRegion, OcrConfig, Profile
 from engine.text_comparator import compare
@@ -504,6 +507,146 @@ def test_exclude_region_page_from_applies_from_given_page(tmp_path):
 
     assert result.has_delta is True
     assert {delta.page for delta in result.deltas} == {1}
+
+
+# --- split_wide_blocks() (Sprint PTC-S3 Task B, siehe docs/prompt_split_wide_blocks.md) ---
+#
+# Hintergrund: PyMuPDF liefert je nach Reihenfolge der Text-Zeigeoperationen im
+# Content-Stream unterschiedliche Blockgrenzen für visuell identische mehrspaltige
+# Bereiche (Fußzeilen, Adressblöcke) - schreibt der Formatierer zeilenweise über
+# alle Spalten hinweg, verschmilzt PyMuPDF sie zu einem breiten Block mit einer
+# "Zeile" pro Spalten-Zelle; schreibt er spaltenweise, bleiben es schmale
+# Einzelblöcke. split_wide_blocks() gleicht das an, indem es breite Blöcke anhand
+# der rawdict-Zeilengeometrie (x0-Anker) wieder in Spalten-Teilblöcke zerlegt.
+
+
+def _write_row_major_columns_pdf(path: Path, rows: list, xs: list) -> None:
+    """Schreibt Text zeilenweise über mehrere Spalten hinweg (row-major) - genau
+    das Muster, das PyMuPDF zu einem breiten Mehrspalten-Block verschmilzt.
+    rows: Liste von Zeilen, jede Zeile eine Liste von Zell-Texten (eine pro x in xs)."""
+    c = canvas.Canvas(str(path))
+    y = 700
+    for row in rows:
+        for x, text in zip(xs, row):
+            c.drawString(x, y, text)
+        y -= 15
+    c.showPage()
+    c.save()
+
+
+def test_split_wide_blocks_schmale_bloecke_bleiben_unveraendert(tmp_path):
+    """Schmale, klar getrennte Blöcke (<= _SPLIT_THRESHOLD_PT) haben keine
+    Mehrspalten-Struktur, die aufgelöst werden müsste - split_wide_blocks()
+    darf sie unverändert durchreichen."""
+    pdf_path = tmp_path / "narrow.pdf"
+    c = canvas.Canvas(str(pdf_path))
+    c.drawString(70, 700, "Column A")
+    c.drawString(200, 650, "Column B")
+    c.drawString(330, 600, "Column C")
+    c.drawString(460, 550, "Column D")
+    c.showPage()
+    c.save()
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    blocks = get_text_blocks(page)
+
+    assert len(blocks) == 4
+    assert all(b[2] - b[0] <= 150 for b in blocks)  # alle deutlich unter der Schwelle
+
+    result = split_wide_blocks(blocks, page)
+
+    assert result == blocks
+    doc.close()
+
+
+def test_split_wide_blocks_breiter_block_wird_pro_spalte_aufgeteilt(tmp_path):
+    """Zeilenweise über 3 Spalten geschriebener Text verschmilzt bei PyMuPDF zu
+    einem einzigen breiten Block mit 9 Zeilen (3 Zeilen x 3 Spalten) - siehe
+    Diagnose-Session. split_wide_blocks() muss ihn wieder in 3 spalten-reine
+    Teilblöcke zerlegen, sortiert nach x0-Anker."""
+    pdf_path = tmp_path / "wide_row_major.pdf"
+    xs = [70, 200, 330]
+    rows = [
+        ["Col0Row0", "Col1Row0", "Col2Row0"],
+        ["Col0Row1", "Col1Row1", "Col2Row1"],
+        ["Col0Row2", "Col1Row2", "Col2Row2"],
+    ]
+    _write_row_major_columns_pdf(pdf_path, rows, xs)
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    blocks = get_text_blocks(page)
+
+    # Vorbedingung (siehe Diagnose): PyMuPDF verschmilzt tatsächlich zu 1 Block.
+    assert len(blocks) == 1
+    assert blocks[0][2] - blocks[0][0] > 300
+
+    result = split_wide_blocks(blocks, page)
+
+    assert len(result) == 3
+    result_sorted = sorted(result, key=lambda b: b[0])
+    for sub_block, x in zip(result_sorted, xs):
+        assert sub_block[0] == pytest.approx(x, abs=1)
+        lines = [line for line in sub_block[4].split("\n") if line.strip()]
+        assert lines == [f"Col{xs.index(x)}Row{r}" for r in range(3)]
+    doc.close()
+
+
+def test_split_wide_blocks_breiter_block_mit_einer_spalte_bleibt_unveraendert(tmp_path):
+    """Eine breite Überschrift über mehrere Zeilen, aber mit durchgehend
+    gleichem linken Rand, hat keine Mehrspalten-Struktur - hier darf
+    split_wide_blocks() NICHT aufteilen, obwohl der Block > _SPLIT_THRESHOLD_PT
+    breit ist."""
+    pdf_path = tmp_path / "wide_single_group.pdf"
+    c = canvas.Canvas(str(pdf_path))
+    c.setFont("Helvetica", 10)
+    c.drawString(70, 700, "This is a wide heading spanning many points across the full page width now")
+    c.drawString(70, 688, "Second line same left edge")
+    c.drawString(70, 676, "Third line same left edge too")
+    c.showPage()
+    c.save()
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    blocks = get_text_blocks(page)
+
+    assert len(blocks) == 1
+    assert blocks[0][2] - blocks[0][0] > 300  # Vorbedingung: Block ist "breit"
+
+    result = split_wide_blocks(blocks, page)
+
+    assert result == blocks
+    doc.close()
+
+
+def test_split_wide_blocks_integration_ergibt_spaltenweise_lesereihenfolge(tmp_path):
+    """Integrationstest über _extract_page_text_columns(): zeilenweise über 3
+    Spalten geschriebener Text muss nach split_wide_blocks() + sort_blocks_columns()
+    spaltenweise gelesen werden (alle Zeilen von Spalte 0, dann Spalte 1, dann
+    Spalte 2) statt zeilenweise über die Spalten hinweg."""
+    pdf_path = tmp_path / "wide_row_major_integration.pdf"
+    xs = [70, 200, 330]
+    rows = [
+        ["Col0Row0", "Col1Row0", "Col2Row0"],
+        ["Col0Row1", "Col1Row1", "Col2Row1"],
+        ["Col0Row2", "Col1Row2", "Col2Row2"],
+    ]
+    _write_row_major_columns_pdf(pdf_path, rows, xs)
+
+    doc = fitz.open(str(pdf_path))
+    page = doc[0]
+    text = _extract_page_text_columns(page)
+    doc.close()
+
+    pos_col0_last = text.index("Col0Row2")
+    pos_col1_first = text.index("Col1Row0")
+    pos_col1_last = text.index("Col1Row2")
+    pos_col2_first = text.index("Col2Row0")
+
+    # Spalte 0 vollständig vor Spalte 1, Spalte 1 vollständig vor Spalte 2.
+    assert pos_col0_last < pos_col1_first
+    assert pos_col1_last < pos_col2_first
 
 
 def test_exclude_region_page_zero_and_page_from_combined(tmp_path):
