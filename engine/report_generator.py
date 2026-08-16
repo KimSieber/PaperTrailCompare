@@ -18,7 +18,7 @@ import html
 import io
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import fitz
 from PIL import Image as PILImage
@@ -492,10 +492,47 @@ def _build_delta_detail_pdf_bytes(compare_result: CompareResult) -> bytes:
     return buf.getvalue()
 
 
+def _region_applies_to_page(page: Optional[int], page_from: Optional[int], page_num: int) -> bool:
+    """Dasselbe page/page_from-Wildcard-Matching wie
+    pdf_extractor._region_applies_to_page (page=0 wirkt auf jeder Seite,
+    page=N nur auf Seite N, page_from=N ab Seite N) - hier als eigenständige
+    Funktion auf den rohen (page, page_from)-Werten statt auf einem
+    Region-Objekt, weil _find_delta_rects absichtlich nur die flache
+    (page, page_from, rect)-Tupelliste kennt, nicht die profile_loader-
+    Typen (siehe docs/prompt_region_filter_highlights.md: keine
+    Modulabhängigkeit von report_generator auf pdf_extractor)."""
+    if page is not None:
+        return page == 0 or page == page_num
+    if page_from is not None:
+        return page_num >= page_from
+    return False
+
+
+def _build_delta_filter_regions(
+    profile: Optional[Profile],
+) -> List[Tuple[Optional[int], Optional[int], fitz.Rect]]:
+    """Baut die flache filter_regions-Liste für _find_delta_rects aus
+    profile.exclude_regions UND profile.compare_regions (siehe
+    docs/prompt_region_filter_highlights.md) - beide Regionsarten markieren
+    Seitenbereiche, in denen ein sequenzieller Delta-Treffer als False-
+    Positive gilt (Ausschluss- ebenso wie Vergleichsregionen enthalten
+    typischerweise wiederkehrenden Text wie Fußzeilen oder Absenderblöcke).
+    profile=None liefert eine leere Liste - _find_delta_rects filtert dann
+    nichts (siehe dort)."""
+    if profile is None:
+        return []
+    regions = list(profile.exclude_regions) + list(profile.compare_regions)
+    return [
+        (region.page, region.page_from, fitz.Rect(region.x, region.y, region.x + region.width, region.y + region.height))
+        for region in regions
+    ]
+
+
 def _find_delta_rects(
     doc: fitz.Document,
     texts_by_page: Dict[int, List[Tuple[str, Optional[fitz.Rect]]]],
     fallback_search_all_pages: bool = False,
+    filter_regions: Optional[Sequence[Tuple[Optional[int], Optional[int], fitz.Rect]]] = None,
 ) -> Dict[int, List[fitz.Rect]]:
     """Sucht die übergebenen Delta-Textstellen im PDF und liefert ihre
     Fundstellen-Rechtecke je Seite (1-basiert), transformiert in das
@@ -524,7 +561,24 @@ def _find_delta_rects(
     über das gesamte Dokument verwendet den clip NIE - der Fallback sucht
     per Definition auf ANDEREN Seiten, für die die Region-Koordinaten gar
     nicht gelten.
+
+    filter_regions (docs/prompt_region_filter_highlights.md) ist eine flache
+    Liste von (page, page_from, rect)-Tupeln aus profile.exclude_regions UND
+    profile.compare_regions (siehe generate_report) - page/page_from folgen
+    derselben Wildcard-Konvention wie überall sonst (siehe
+    _region_applies_to_page). Wirkt NUR auf sequenzielle Deltas (clip is
+    None): eine ungebremste search_for() findet einen häufigen Wortdelta-
+    Text (z.B. "SparkassenVersicherung") oft mehrfach auf derselben Seite -
+    Fußzeile, Absenderblock, Adressfenster -, obwohl nur EINE Fundstelle die
+    tatsächliche Delta-Position ist. Ein Treffer wird verworfen, wenn sein
+    Mittelpunkt in IRGENDEINER der für diese Seite aktiven Regionen liegt.
+    Sind danach alle Treffer verworfen, bleibt das Ergebnis für diesen Text
+    absichtlich leer - KEIN Fallback auf die ungefilterte Liste, das wäre
+    wieder die falsche Markierung. Region-Deltas (clip is not None) sind
+    bereits über den clip korrekt eingeschränkt und werden NICHT zusätzlich
+    gefiltert.
     """
+    filter_regions = filter_regions or []
     rects_by_page: Dict[int, List[fitz.Rect]] = {}
     for page_num, texts in texts_by_page.items():
         for text, clip in texts:
@@ -548,6 +602,21 @@ def _find_delta_rects(
                         found_rects = [r * page.rotation_matrix for r in raw_rects]
                         found_page_num = idx
                         break
+
+            if clip is None and found_rects and found_page_num is not None:
+                active_rects = [
+                    region_rect
+                    for region_page, region_page_from, region_rect in filter_regions
+                    if _region_applies_to_page(region_page, region_page_from, found_page_num)
+                ]
+                if active_rects:
+                    found_rects = [
+                        rect for rect in found_rects
+                        if not any(
+                            region_rect.contains(fitz.Point((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2))
+                            for region_rect in active_rects
+                        )
+                    ]
 
             if found_rects and found_page_num is not None:
                 rects_by_page.setdefault(found_page_num, []).extend(found_rects)
@@ -774,12 +843,14 @@ def generate_report(
         ref_texts_by_page.setdefault(delta.page, []).append((delta.ref_text, clip))
         cnd_texts_by_page.setdefault(delta.page, []).append((delta.cnd_text, clip))
 
+    filter_regions = _build_delta_filter_regions(profile)
+
     ref_doc = fitz.open(str(ref_pdf_path))
     cnd_doc = fitz.open(str(cnd_pdf_path))
     ref_rects_by_page = _find_delta_rects(
-        ref_doc, ref_texts_by_page, fallback_search_all_pages=True
+        ref_doc, ref_texts_by_page, fallback_search_all_pages=True, filter_regions=filter_regions
     )
-    cnd_rects_by_page = _find_delta_rects(cnd_doc, cnd_texts_by_page)
+    cnd_rects_by_page = _find_delta_rects(cnd_doc, cnd_texts_by_page, filter_regions=filter_regions)
     total_pages = max(len(ref_doc), len(cnd_doc))
 
     summary_bytes = _build_summary_page_pdf_bytes(

@@ -258,6 +258,102 @@ def test_find_delta_rects_fallback_ignoriert_region_clip(tmp_path):
     doc.close()
 
 
+# --- Region-Filter für sequenzielle (nicht-Region-)Deltas
+# (docs/prompt_region_filter_highlights.md) ---
+
+# fitz-Seitenkoordinaten (top-down, wie CompareRegion/ExcludeRegion.y) der
+# drei "Stuttgart"-Vorkommen.
+_RFH_BODY_XY = (250, 300)  # Fließtext, außerhalb jeder Region
+_RFH_COMPARE_REGION_XY = (250, 750)  # innerhalb einer compare_region
+_RFH_EXCLUDE_REGION_XY = (30, 500)  # innerhalb einer exclude_region
+
+
+def _make_three_occurrence_pdf(path: Path) -> None:
+    """Synthetisches Ein-Seiten-PDF (ReportLab): "Stuttgart" kommt DREIMAL
+    vor - einmal im Fließtext (außerhalb jeder Region), einmal innerhalb
+    einer definierten compare_region, einmal innerhalb einer definierten
+    exclude_region. ReportLab zählt y von unten, fitz/PDF-Seitenkoordinaten
+    (wie auch CompareRegion.y/ExcludeRegion.y) von oben - daher page_h - y
+    beim Zeichnen (siehe auch _make_two_occurrence_pdf)."""
+    page_h = A4[1]
+    c = rl_canvas.Canvas(str(path), pagesize=A4)
+    for x, y in (_RFH_BODY_XY, _RFH_COMPARE_REGION_XY, _RFH_EXCLUDE_REGION_XY):
+        c.drawString(x, page_h - y, "Stuttgart")
+    c.showPage()
+    c.save()
+
+
+_RFH_COMPARE_REGION_RECT = fitz.Rect(150, 700, 450, 800)
+_RFH_EXCLUDE_REGION_RECT = fitz.Rect(0, 450, 150, 550)
+# (page, page_from, rect) - siehe engine.report_generator._find_delta_rects.
+_RFH_FILTER_REGIONS = [
+    (1, None, _RFH_COMPARE_REGION_RECT),
+    (1, None, _RFH_EXCLUDE_REGION_RECT),
+]
+
+
+def test_find_delta_rects_filtert_sequenzielle_treffer_in_regionen(tmp_path):
+    """docs/prompt_region_filter_highlights.md, Test 1: ein sequenzieller
+    Delta (kein region_clip) darf nur außerhalb aller exclude_regions/
+    compare_regions markiert werden - hier bleibt nur das Fließtext-
+    Vorkommen (y≈300) übrig."""
+    pdf_path = tmp_path / "three_occurrences.pdf"
+    _make_three_occurrence_pdf(pdf_path)
+    doc = fitz.open(str(pdf_path))
+
+    texts_by_page = {1: [("Stuttgart", None)]}
+
+    rects_by_page = _find_delta_rects(doc, texts_by_page, filter_regions=_RFH_FILTER_REGIONS)
+
+    assert list(rects_by_page.keys()) == [1]
+    rects = rects_by_page[1]
+    assert len(rects) == 1
+    assert abs(rects[0].y0 - _RFH_BODY_XY[1]) < 20
+
+    doc.close()
+
+
+def test_find_delta_rects_region_delta_wird_nicht_gefiltert(tmp_path):
+    """docs/prompt_region_filter_highlights.md, Test 2: ein Delta MIT
+    region_clip darf vom Region-Filter nicht betroffen sein - der clip
+    schränkt bereits ein, das Ergebnis bleibt das Vorkommen innerhalb der
+    compare_region (y≈750), obwohl dieselbe Region auch in filter_regions
+    steht."""
+    pdf_path = tmp_path / "three_occurrences.pdf"
+    _make_three_occurrence_pdf(pdf_path)
+    doc = fitz.open(str(pdf_path))
+
+    texts_by_page = {1: [("Stuttgart", _RFH_COMPARE_REGION_RECT)]}
+
+    rects_by_page = _find_delta_rects(doc, texts_by_page, filter_regions=_RFH_FILTER_REGIONS)
+
+    assert list(rects_by_page.keys()) == [1]
+    rects = rects_by_page[1]
+    assert len(rects) == 1
+    assert abs(rects[0].y0 - _RFH_COMPARE_REGION_XY[1]) < 20
+
+    doc.close()
+
+
+def test_find_delta_rects_alle_treffer_in_regionen_liefert_leeres_ergebnis(tmp_path):
+    """docs/prompt_region_filter_highlights.md, Test 3: fallen ALLE Treffer
+    in Regionen, bleibt das Ergebnis leer - KEIN Fallback auf die
+    ungefilterte Trefferliste."""
+    pdf_path = tmp_path / "three_occurrences.pdf"
+    _make_three_occurrence_pdf(pdf_path)
+    doc = fitz.open(str(pdf_path))
+
+    body_region_rect = fitz.Rect(200, 280, 400, 320)  # deckt auch das Fließtext-Vorkommen ab
+    filter_regions = _RFH_FILTER_REGIONS + [(1, None, body_region_rect)]
+    texts_by_page = {1: [("Stuttgart", None)]}
+
+    rects_by_page = _find_delta_rects(doc, texts_by_page, filter_regions=filter_regions)
+
+    assert rects_by_page == {}
+
+    doc.close()
+
+
 def test_generate_report_ignoriert_leeren_text_und_seite_ausserhalb_dokument(tmp_path):
     """Deckt die Randfälle in _find_delta_rects ab: ein Delta ohne
     Text (reine Einfügung/Löschung) und eine Delta-Seite außerhalb des
