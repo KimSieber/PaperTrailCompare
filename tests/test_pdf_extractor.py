@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-import fitz
+import pymupdf
 from reportlab.pdfgen import canvas
 
 from engine.pdf_extractor import (
@@ -244,7 +244,7 @@ def test_calibrate_spacewidths_nutzt_echte_leerzeichen_wenn_vorhanden():
     """Ein Dokument mit normalem Fließtext (echte Leerzeichen-Glyphen) muss
     calibrate_spacewidths() über die reale rawdict-Extraktion (nicht über
     handgefertigte Dicts) auf source='real_spaces' kalibrieren."""
-    doc = fitz.open(str(FIXTURES / "TC-T-009" / "cnd.pdf"))
+    doc = pymupdf.open(str(FIXTURES / "TC-T-009" / "cnd.pdf"))
     try:
         calibration = calibrate_spacewidths(doc)
     finally:
@@ -550,7 +550,7 @@ def test_split_wide_blocks_schmale_bloecke_bleiben_unveraendert(tmp_path):
     c.showPage()
     c.save()
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
 
@@ -577,7 +577,7 @@ def test_split_wide_blocks_breiter_block_wird_pro_spalte_aufgeteilt(tmp_path):
     ]
     _write_row_major_columns_pdf(pdf_path, rows, xs)
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
 
@@ -610,7 +610,7 @@ def test_split_wide_blocks_breiter_block_mit_einer_spalte_bleibt_unveraendert(tm
     c.showPage()
     c.save()
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
 
@@ -637,7 +637,7 @@ def test_split_wide_blocks_integration_ergibt_spaltenweise_lesereihenfolge(tmp_p
     ]
     _write_row_major_columns_pdf(pdf_path, rows, xs)
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     text, _ = _extract_page_text_columns(page)
     doc.close()
@@ -718,7 +718,7 @@ def test_separate_compare_region_blocks_trennt_blocke_bei_match(tmp_path):
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
     compare_regions = [CompareRegion(condition="ACME Insurance", page=1, **_COMPARE_REGION_LEFT)]
@@ -737,7 +737,7 @@ def test_separate_compare_region_blocks_condition_matcht_nicht(tmp_path):
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
     compare_regions = [CompareRegion(condition="Nicht Vorhanden", page=1, **_COMPARE_REGION_LEFT)]
@@ -754,7 +754,7 @@ def test_separate_compare_region_blocks_page_zero_wirkt_auf_jeder_seite(tmp_path
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     compare_regions = [CompareRegion(condition="ACME Insurance", page=0, **_COMPARE_REGION_LEFT)]
 
     for page_index in (0, 1):
@@ -768,7 +768,7 @@ def test_separate_compare_region_blocks_page_from_wirkt_erst_ab_angegebener_seit
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     compare_regions = [CompareRegion(condition="ACME Insurance", page_from=2, **_COMPARE_REGION_LEFT)]
 
     blocks_page1 = get_text_blocks(doc[0])
@@ -787,7 +787,7 @@ def test_separate_compare_region_blocks_mehrere_regionen_unabhaengig_gematcht(tm
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", second_footer_text="Contact Support Team")
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
     compare_regions = [
@@ -814,7 +814,7 @@ def test_separate_compare_region_blocks_nach_exclude_region_kein_crash(tmp_path)
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     exclude_regions = [Region(page=1, x=0, y=700, w=300, h=100, page_from=None)]
     blocks_after_exclude = filter_blocks_by_regions(get_text_blocks(page), 1, exclude_regions)
@@ -834,7 +834,7 @@ def test_extract_page_text_columns_integriert_compare_regions(tmp_path):
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company")
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     compare_regions = [CompareRegion(condition="ACME Insurance", page=1, **_COMPARE_REGION_LEFT)]
 
@@ -872,7 +872,7 @@ def test_separate_compare_region_blocks_condition_matcht_trotz_type3_fragmentier
     c.showPage()
     c.save()
 
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     page = doc[0]
     blocks = get_text_blocks(page)
 

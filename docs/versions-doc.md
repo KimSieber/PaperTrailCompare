@@ -5,7 +5,9 @@
 Sprint PTC-S4: Bugfixes  (siehe sep. Doku-File)
 -----------------------
 Prio 1-Bugs: B1 - B4
-Prio 2-Bugs: B5 - B
+Prio 2-Bugs: B5 - B8
+Prio 3-Bugs: B9 - B12
+Prio 
 
 Sprint PTC-S3: Erkennung optimieren
 -----------------------------------

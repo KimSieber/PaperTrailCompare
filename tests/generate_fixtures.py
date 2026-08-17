@@ -44,7 +44,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
-import fitz
+import pymupdf
 
 # ---------------------------------------------------------------------------
 # Konfiguration
@@ -888,8 +888,8 @@ def generate_tc_o_002() -> None:
         ["SCAN-SEITE 2", "Lieferdatum: 25.07.2026", "Gesamtbetrag: 1234,56 EUR"],
     )
 
-    doc = fitz.open(str(d / "ref.pdf"))
-    page2_doc = fitz.open(str(d / "_page2_only.pdf"))
+    doc = pymupdf.open(str(d / "ref.pdf"))
+    page2_doc = pymupdf.open(str(d / "_page2_only.pdf"))
     doc.insert_pdf(page2_doc)
     doc.saveIncr()
     doc.close()
@@ -1067,7 +1067,7 @@ def generate_tc_b_001_003() -> None:
  </rdf:RDF>
 </x:xmpmeta>
 <?xpacket end="w"?>"""
-        xmp_doc = fitz.open(str(path))
+        xmp_doc = pymupdf.open(str(path))
         xmp_doc.set_xml_metadata(xmp_packet)
         xmp_doc.saveIncr()
         xmp_doc.close()
@@ -1270,7 +1270,7 @@ def generate_tc_r_005_rotierte_seite() -> None:
 
     for name in ("ref.pdf", "cnd.pdf"):
         path = d / name
-        doc = fitz.open(str(path))
+        doc = pymupdf.open(str(path))
         doc[0].set_rotation(90)
         doc.saveIncr()
         doc.close()
@@ -1520,7 +1520,7 @@ def generate_tc_tr_003() -> None:
 
     # Vorbedingung: ref.pdf hat wirklich KEINEN nativen Text (sonst testet
     # dieses Fixture nicht den OCR-Zweig, siehe docs/prompt_table_regions_ocr_branch.md).
-    ref_doc = fitz.open(str(d / "ref.pdf"))
+    ref_doc = pymupdf.open(str(d / "ref.pdf"))
     assert ref_doc[0].get_text() == "", "TC-TR-003/ref.pdf darf keinen nativen Text haben"
     ref_doc.close()
 

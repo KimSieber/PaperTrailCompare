@@ -22,7 +22,7 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import fitz
+import pymupdf
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as rl_canvas
@@ -48,13 +48,13 @@ def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
 
     assert output_path.is_file()
 
-    with fitz.open(str(ref_path)) as d:
+    with pymupdf.open(str(ref_path)) as d:
         ref_page_count = len(d)
-    with fitz.open(str(cnd_path)) as d:
+    with pymupdf.open(str(cnd_path)) as d:
         cnd_page_count = len(d)
     side_by_side_page_count = max(ref_page_count, cnd_page_count)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     # Seite 1: Zusammenfassung. Danach die Querformat-Vergleichsseiten,
     # zum Schluss die Delta-Detailliste (mind. 1 Seite, da has_delta=True).
     assert len(report) > 1 + side_by_side_page_count
@@ -64,8 +64,8 @@ def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
     assert "cnd.pdf" in summary_text
     assert "Deltas gefunden" in summary_text
 
-    ref_doc = fitz.open(str(ref_path))
-    cnd_doc = fitz.open(str(cnd_path))
+    ref_doc = pymupdf.open(str(ref_path))
+    cnd_doc = pymupdf.open(str(cnd_path))
     for i in range(1, 1 + side_by_side_page_count):
         page = report[i]
         assert page.rect.width > page.rect.height  # Querformat
@@ -108,14 +108,14 @@ def test_tc_r_001_seitenumbruch_referenz_markierung_mit_fallback(tmp_path):
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path)
 
-    with fitz.open(str(ref_path)) as d:
+    with pymupdf.open(str(ref_path)) as d:
         ref_page_count = len(d)
-    with fitz.open(str(cnd_path)) as d:
+    with pymupdf.open(str(cnd_path)) as d:
         cnd_page_count = len(d)
     side_by_side_page_count = max(ref_page_count, cnd_page_count)
 
-    report = fitz.open(str(output_path))
-    ref_doc = fitz.open(str(ref_path))
+    report = pymupdf.open(str(output_path))
+    ref_doc = pymupdf.open(str(ref_path))
 
     # Seite 1 ist die Zusammenfassung; danach folgen die Vergleichsseiten.
     # Markierung erfolgt vor dem Einbetten der Seiten (Fallback-Suche über
@@ -150,9 +150,9 @@ def test_tc_r_005_rotierte_seite_wird_unverzerrt_eingebettet_und_delta_korrekt_p
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path)
 
-    report = fitz.open(str(output_path))
-    ref_doc = fitz.open(str(ref_path))
-    cnd_doc = fitz.open(str(cnd_path))
+    report = pymupdf.open(str(output_path))
+    ref_doc = pymupdf.open(str(ref_path))
+    cnd_doc = pymupdf.open(str(cnd_path))
     sbs_page = report[1]
 
     # Kein Rasterbild, Original-Text (inkl. Rotation) unverändert extrahierbar.
@@ -168,7 +168,7 @@ def test_tc_r_005_rotierte_seite_wird_unverzerrt_eingebettet_und_delta_korrekt_p
     # Annotation gezeichnet - stattdessen über die Pixelfarbe verifizieren:
     # an einem Punkt innerhalb des jeweiligen Zahl-Rechtecks muss die
     # gelbe Overlay-Füllung sichtbar sein.
-    pix = sbs_page.get_pixmap(matrix=fitz.Matrix(3, 3))
+    pix = sbs_page.get_pixmap(matrix=pymupdf.Matrix(3, 3))
     for rect in (ref_number_rect, cnd_number_rect):
         cx, cy = int(rect.x0 * 3) + 1, int((rect.y0 + rect.height / 2) * 3)
         r, g, b = pix.pixel(cx, cy)
@@ -202,9 +202,9 @@ def test_find_delta_rects_region_clip_beschraenkt_suche_auf_region(tmp_path):
     - hier das obere Vorkommen (y≈100), nicht das untere (y≈700)."""
     pdf_path = tmp_path / "two_occurrences.pdf"
     _make_two_occurrence_pdf(pdf_path)
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
 
-    clip = fitz.Rect(0, 0, A4[0], 200)  # obere Region (y 0..200)
+    clip = pymupdf.Rect(0, 0, A4[0], 200)  # obere Region (y 0..200)
     texts_by_page = {1: [("Stuttgart", clip)]}
 
     rects_by_page = _find_delta_rects(doc, texts_by_page)
@@ -223,7 +223,7 @@ def test_find_delta_rects_ohne_region_clip_durchsucht_ganze_seite(tmp_path):
     Deltas - werden beide Vorkommen gefunden."""
     pdf_path = tmp_path / "two_occurrences.pdf"
     _make_two_occurrence_pdf(pdf_path)
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
 
     texts_by_page = {1: [("Stuttgart", None)]}
 
@@ -245,9 +245,9 @@ def test_find_delta_rects_fallback_ignoriert_region_clip(tmp_path):
     Vorkommen finden."""
     pdf_path = tmp_path / "two_occurrences.pdf"
     _make_two_occurrence_pdf(pdf_path)
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
 
-    clip = fitz.Rect(0, 0, A4[0], 200)  # würde die untere Fundstelle ausschließen
+    clip = pymupdf.Rect(0, 0, A4[0], 200)  # würde die untere Fundstelle ausschließen
     texts_by_page = {999: [("Stuttgart", clip)]}  # Seite außerhalb des Dokuments
 
     rects_by_page = _find_delta_rects(doc, texts_by_page, fallback_search_all_pages=True)
@@ -283,8 +283,8 @@ def _make_three_occurrence_pdf(path: Path) -> None:
     c.save()
 
 
-_RFH_COMPARE_REGION_RECT = fitz.Rect(150, 700, 450, 800)
-_RFH_EXCLUDE_REGION_RECT = fitz.Rect(0, 450, 150, 550)
+_RFH_COMPARE_REGION_RECT = pymupdf.Rect(150, 700, 450, 800)
+_RFH_EXCLUDE_REGION_RECT = pymupdf.Rect(0, 450, 150, 550)
 # (page, page_from, rect) - siehe engine.report_generator._find_delta_rects.
 _RFH_FILTER_REGIONS = [
     (1, None, _RFH_COMPARE_REGION_RECT),
@@ -299,7 +299,7 @@ def test_find_delta_rects_filtert_sequenzielle_treffer_in_regionen(tmp_path):
     Vorkommen (y≈300) übrig."""
     pdf_path = tmp_path / "three_occurrences.pdf"
     _make_three_occurrence_pdf(pdf_path)
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
 
     texts_by_page = {1: [("Stuttgart", None)]}
 
@@ -321,7 +321,7 @@ def test_find_delta_rects_region_delta_wird_nicht_gefiltert(tmp_path):
     steht."""
     pdf_path = tmp_path / "three_occurrences.pdf"
     _make_three_occurrence_pdf(pdf_path)
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
 
     texts_by_page = {1: [("Stuttgart", _RFH_COMPARE_REGION_RECT)]}
 
@@ -341,9 +341,9 @@ def test_find_delta_rects_alle_treffer_in_regionen_liefert_leeres_ergebnis(tmp_p
     ungefilterte Trefferliste."""
     pdf_path = tmp_path / "three_occurrences.pdf"
     _make_three_occurrence_pdf(pdf_path)
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
 
-    body_region_rect = fitz.Rect(200, 280, 400, 320)  # deckt auch das Fließtext-Vorkommen ab
+    body_region_rect = pymupdf.Rect(200, 280, 400, 320)  # deckt auch das Fließtext-Vorkommen ab
     filter_regions = _RFH_FILTER_REGIONS + [(1, None, body_region_rect)]
     texts_by_page = {1: [("Stuttgart", None)]}
 
@@ -384,13 +384,13 @@ def test_tc_r_003_detaillierter_report_kein_delta(tmp_path):
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path)
 
-    with fitz.open(str(ref_path)) as d:
+    with pymupdf.open(str(ref_path)) as d:
         ref_page_count = len(d)
-    with fitz.open(str(cnd_path)) as d:
+    with pymupdf.open(str(cnd_path)) as d:
         cnd_page_count = len(d)
     side_by_side_page_count = max(ref_page_count, cnd_page_count)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     # Kein Delta -> keine Detailliste am Ende, nur Zusammenfassung + Vergleichsseiten.
     assert len(report) == 1 + side_by_side_page_count
     summary_text = report[0].get_text()
@@ -419,7 +419,7 @@ def test_ocr_verwendet_zeigt_tatsaechlichen_laufzeitwert_nicht_profil_flag(tmp_p
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path, profile=profile)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     summary_text = report[0].get_text()
     report.close()
 
@@ -439,7 +439,7 @@ def test_ausgeschlossene_regionen_zeigt_angewendet_ohne_warnungen(tmp_path):
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path, profile=profile, region_warnings=[])
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     summary_text = report[0].get_text()
     report.close()
 
@@ -465,7 +465,7 @@ def test_ausgeschlossene_regionen_zeigt_warnung_bei_nicht_vollstaendiger_anwendu
         region_warnings=[warning_text],
     )
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     summary_text = report[0].get_text()
     report.close()
 
@@ -489,7 +489,7 @@ def test_summary_page_shows_profile_settings(tmp_path):
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path, profile=profile)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     summary_text = report[0].get_text()
     report.close()
 
@@ -520,7 +520,7 @@ def test_summary_page_shows_exclude_regions_detail(tmp_path):
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path, profile=profile)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     summary_text = report[0].get_text()
     report.close()
 
@@ -542,7 +542,7 @@ def test_summary_page_without_profile_shows_defaults(tmp_path):
     output_path = tmp_path / "report.pdf"
     generate_report(result, ref_path, cnd_path, output_path)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     summary_text = report[0].get_text()
     report.close()
 
@@ -628,7 +628,7 @@ def test_tc_r_002_batch_report_uebersicht_aller_vergleiche(tmp_path):
 
     assert output_path.is_file()
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     text = "".join(page.get_text() for page in report)
     report.close()
 
@@ -667,7 +667,7 @@ def test_tc_r_002_batch_report_kennzahlen_kacheln_erfolgsquote_und_seiten_gesamt
     output_path = tmp_path / "batch_report.pdf"
     generate_batch_report(batch_result, output_path, duration_seconds=5.0)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     text = report[0].get_text()
     report.close()
 
@@ -692,7 +692,7 @@ def test_tc_r_002_batch_report_zeigt_verwendetes_profil(tmp_path):
         profile=Profile(version="2.0"), profile_path="mein_profil.json",
     )
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     text = report[0].get_text()
     report.close()
 
@@ -713,7 +713,7 @@ def test_tc_r_002_batch_report_fehlerpaar_zeigt_fehlertext_statt_zahlenwerten(tm
     output_path = tmp_path / "batch_report.pdf"
     generate_batch_report(batch_result, output_path)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     text = "".join(page.get_text() for page in report)
     report.close()
 
@@ -738,7 +738,7 @@ def test_tc_r_002_batch_report_lange_dateinamen_bleiben_im_satzspiegel(tmp_path)
     output_path = tmp_path / "batch_report.pdf"
     generate_batch_report(batch_result, output_path)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     right_edge = report[0].rect.width - 20 * mm
     for page in report:
         for x0, y0, x1, y1, *_ in page.get_text("words"):
@@ -761,7 +761,7 @@ def test_tc_r_002_batch_report_wiederholt_tabellenkopf_auf_folgeseiten(tmp_path)
     output_path = tmp_path / "batch_report.pdf"
     generate_batch_report(batch_result, output_path)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     assert len(report) > 1
     for page in report:
         assert "Referenz" in page.get_text()
@@ -786,7 +786,7 @@ def test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt(tmp
     generate_batch_report(batch_result, output_path, duration_seconds=12.5)
     after = datetime.now()
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     text = "".join(page.get_text() for page in report)
     report.close()
 
@@ -828,7 +828,7 @@ def test_batch_report_summe_deltas_kachel_ersetzt_zeitpunkt_kachel(tmp_path):
     output_path = tmp_path / "batch_report.pdf"
     generate_batch_report(batch_result, output_path, duration_seconds=1.0)
 
-    report = fitz.open(str(output_path))
+    report = pymupdf.open(str(output_path))
     text = "".join(page.get_text() for page in report)
     report.close()
 
