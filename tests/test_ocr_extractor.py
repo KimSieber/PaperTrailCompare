@@ -214,3 +214,8 @@ def test_extract_pages_with_ocr_fallback_stimmt_mit_direkter_rekonstruktion_uebe
 
     assert ocr_used is False
     assert pages[0] == expected
+
+
+def test_extract_text_via_ocr_raises_on_nonexistent_file():
+    with pytest.raises(FileNotFoundError, match="nicht gefunden"):
+        extract_text_via_ocr("/does/not/exist.pdf")

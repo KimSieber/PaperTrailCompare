@@ -16,6 +16,7 @@ doc/PaperTrailCompare_Architekturspezifikation.docx Abschnitt 4/6.2.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import pymupdf
@@ -640,6 +641,8 @@ def _extract_pages_reconstructed(
     Wortrekonstruktion statt PyMuPDFs Leerzeichen-Heuristik. Tabellenerkennung
     (pdfplumber) bleibt unverändert und hat weiterhin Vorrang, wie in
     extract_pages() - siehe Plan Punkt (e)."""
+    if not Path(pdf_path).is_file():
+        raise FileNotFoundError(f"PDF-Datei nicht gefunden: {pdf_path}")
     pages_text: List[str] = []
     doc = pymupdf.open(pdf_path)
     try:
@@ -684,6 +687,8 @@ def extract_pages(
     dict für Tabellenseiten - Tabellenerkennung ist nicht block-basiert,
     siehe _warn_if_table_page_has_regions für dasselbe Problem bei
     exclude_regions)."""
+    if not Path(pdf_path).is_file():
+        raise FileNotFoundError(f"PDF-Datei nicht gefunden: {pdf_path}")
     pages_text: List[str] = []
     doc = pymupdf.open(pdf_path)
     try:
