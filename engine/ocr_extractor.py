@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-import fitz
+import pymupdf
 import pytesseract
 from PIL import Image, ImageDraw
 
@@ -105,7 +105,7 @@ def extract_text_via_ocr(
     Seitenbild geweißt, damit exclude_regions auch unter OCR wirkt.
     """
     pages_text: List[str] = []
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         for page_index, page in enumerate(doc):
             pages_text.append(_ocr_page(page, lang=lang, dpi=dpi, page_num=page_index + 1, regions=regions))
@@ -115,7 +115,7 @@ def extract_text_via_ocr(
 
 
 def _ocr_page(
-    page: "fitz.Page",
+    page: "pymupdf.Page",
     lang: str = _DEFAULT_LANG,
     dpi: int = _DEFAULT_DPI,
     page_num: int = 1,
@@ -186,7 +186,7 @@ def extract_pages_with_ocr_fallback(
     pages_text: List[str] = []
     per_page_compare_region_texts: List[dict] = []
     ocr_used = False
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         calibration = calibrate_spacewidths(doc)
         for page_index, page in enumerate(doc):

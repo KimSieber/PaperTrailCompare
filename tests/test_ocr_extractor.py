@@ -197,7 +197,7 @@ def test_extract_pages_with_ocr_fallback_stimmt_mit_direkter_rekonstruktion_uebe
     hat echte Leerzeichen-Glyphen (source='real_spaces', siehe
     test_calibrate_spacewidths_nutzt_echte_leerzeichen_wenn_vorhanden) und
     genau eine Seite mit nativem Text - kein Tesseract nötig."""
-    import fitz
+    import pymupdf
 
     from engine.pdf_extractor import calibrate_spacewidths, get_text_blocks_reconstructed, join_block_text
 
@@ -205,7 +205,7 @@ def test_extract_pages_with_ocr_fallback_stimmt_mit_direkter_rekonstruktion_uebe
 
     pages, ocr_used, _ = extract_pages_with_ocr_fallback(pdf_path)
 
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         calibration = calibrate_spacewidths(doc)
         expected = join_block_text(get_text_blocks_reconstructed(doc[0], calibration))

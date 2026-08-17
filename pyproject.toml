@@ -35,5 +35,5 @@ parallel = true
 sigterm = true
 
 [[tool.mypy.overrides]]
-module = ["fitz", "pytesseract"]
+module = ["pymupdf", "pytesseract"]
 ignore_missing_imports = true

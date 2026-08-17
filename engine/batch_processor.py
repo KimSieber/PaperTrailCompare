@@ -24,7 +24,7 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple, Union
 
-import fitz
+import pymupdf
 
 from engine.models import BatchResult, PairResult
 from engine.page_group_detector import extract_page_groups
@@ -226,13 +226,13 @@ def split_batch_pdf(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_paths: List[Path] = []
-    src_doc = fitz.open(str(pdf_path))
+    src_doc = pymupdf.open(str(pdf_path))
     try:
         for index, group in enumerate(groups, start=1):
             first_page_index = group.start_page - 1
             last_page_index = first_page_index + len(group.pages) - 1
 
-            single_doc = fitz.open()
+            single_doc = pymupdf.open()
             single_doc.insert_pdf(src_doc, from_page=first_page_index, to_page=last_page_index)
 
             out_path = output_dir / f"{index:03d}_{group.name}.pdf"
@@ -251,7 +251,7 @@ def _read_document_id(pdf_path: Path) -> Optional[str]:
     Tech-Stack: 'XMP-Metadaten: python-xmp-toolkit / PyMuPDF'. PyMuPDF
     liest/schreibt XMP direkt, ohne zusätzliche Systemabhängigkeit
     (python-xmp-toolkit würde die C-Bibliothek 'exempi' voraussetzen)."""
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     try:
         xmp_packet = doc.get_xml_metadata() or ""
     finally:

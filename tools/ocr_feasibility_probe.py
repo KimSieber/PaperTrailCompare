@@ -18,7 +18,7 @@ Aufruf: .venv/bin/python tools/ocr_feasibility_probe.py
 import time
 from pathlib import Path
 
-import fitz
+import pymupdf
 import pytesseract
 from PIL import Image
 import io
@@ -37,8 +37,8 @@ PROBLEM_TERMS = [
 def render_page(doc, page_no, dpi):
     page = doc[page_no]
     zoom = dpi / 72
-    mat = fitz.Matrix(zoom, zoom)
-    pix = page.get_pixmap(matrix=mat, colorspace=fitz.csGRAY)
+    mat = pymupdf.Matrix(zoom, zoom)
+    pix = page.get_pixmap(matrix=mat, colorspace=pymupdf.csGRAY)
     img = Image.open(io.BytesIO(pix.tobytes("png")))
     return img
 
@@ -60,7 +60,7 @@ def main():
     print(f"Referenzdatei: {REF_PDF.name}")
     print(f"Existiert: {REF_PDF.exists()}\n")
 
-    doc = fitz.open(REF_PDF)
+    doc = pymupdf.open(REF_PDF)
     print(f"Seitenanzahl gesamt: {doc.page_count}\n")
 
     print("=" * 70)

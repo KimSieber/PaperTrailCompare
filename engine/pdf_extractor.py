@@ -9,7 +9,7 @@
 """PDF-Textextraktion: liefert pro Seite einen normalisierten Text-String,
 passend als Eingabe für engine.text_comparator.compare().
 
-Nutzt PyMuPDF (fitz) als primäre Extraktions-Engine (Koordinaten, Spalten)
+Nutzt PyMuPDF (pymupdf) als primäre Extraktions-Engine (Koordinaten, Spalten)
 und pdfplumber ergänzend für Tabellenerkennung, siehe
 doc/PaperTrailCompare_Architekturspezifikation.docx Abschnitt 4/6.2.
 """
@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-import fitz
+import pymupdf
 import pdfplumber
 
 from engine.profile_loader import Profile, CompareRegion
@@ -252,7 +252,7 @@ def separate_compare_region_blocks(
     return remaining, compare_region_texts
 
 
-def get_text_blocks(page: "fitz.Page") -> List[TextBlock]:
+def get_text_blocks(page: "pymupdf.Page") -> List[TextBlock]:
     """Liefert die nicht-leeren Textblöcke einer Seite, unsortiert.
 
     Wiederverwendbarer Baustein für andere Schicht-1-Module (z.B.
@@ -275,7 +275,7 @@ def join_block_text(blocks: Sequence[TextBlock]) -> str:
     return "\n".join(b[4].strip() for b in blocks)
 
 
-def split_wide_blocks(blocks: List[TextBlock], page: "fitz.Page") -> List[TextBlock]:
+def split_wide_blocks(blocks: List[TextBlock], page: "pymupdf.Page") -> List[TextBlock]:
     """Zerlegt breite Blöcke, die mehrere visuelle Spalten überdecken, wieder
     in schmale Teilblöcke - eine je Spalte (siehe CLAUDE-Diagnose-Session:
     schreibt der Formatierer zeilenweise über alle Spalten hinweg, verschmilzt
@@ -363,7 +363,7 @@ def split_wide_blocks(blocks: List[TextBlock], page: "fitz.Page") -> List[TextBl
 
 
 def _extract_page_text_columns(
-    page: "fitz.Page",
+    page: "pymupdf.Page",
     page_num: int = 1,
     regions: Sequence[Region] = (),
     compare_regions: Sequence[CompareRegion] = (),
@@ -401,7 +401,7 @@ def _linearize_tables(tables: List[List[List[Optional[str]]]]) -> str:
     return "\n".join(lines)
 
 
-def _iter_rawdict_lines(doc: "fitz.Document"):
+def _iter_rawdict_lines(doc: "pymupdf.Document"):
     """Iteriert alle horizontalen Textzeilen aller Seiten als rawdict-Zeilen-
     Dicts. Vertikale/rotierte Zeilen (dir != (1,0)/(-1,0)) werden ausgelassen -
     die Wortrekonstruktion beschränkt sich bewusst auf den Normalfall."""
@@ -427,7 +427,7 @@ def _flatten_line_chars(line) -> List[RawChar]:
     return flat
 
 
-def _collect_font_measurements(doc: "fitz.Document") -> Dict[Tuple[str, float], dict]:
+def _collect_font_measurements(doc: "pymupdf.Document") -> Dict[Tuple[str, float], dict]:
     """Sammelt pro (Font, Größe) die Breiten echter Leerzeichen-Einträge, die
     Breiten der Nicht-Leerzeichen-Glyphen (als Plausibilitäts-Referenz) sowie
     die horizontalen Lücken zwischen aufeinanderfolgenden Nicht-Leerzeichen
@@ -494,7 +494,7 @@ def _calibrate_from_gaps(gaps: List[float]) -> Tuple[Optional[float], bool]:
     return (low_max + high_min) / 2, True
 
 
-def calibrate_spacewidths(doc: "fitz.Document") -> Dict[Tuple[str, float], SpacewidthCalibration]:
+def calibrate_spacewidths(doc: "pymupdf.Document") -> Dict[Tuple[str, float], SpacewidthCalibration]:
     """Ermittelt je (Font, Größe) eine belastbare Space-Breite für die
     Wortrekonstruktion (siehe Modul-Docstring von get_text_blocks_reconstructed).
 
@@ -582,7 +582,7 @@ def _reconstruct_line_text(line, calibration: Dict[Tuple[str, float], Spacewidth
 
 
 def get_text_blocks_reconstructed(
-    page: "fitz.Page", calibration: Dict[Tuple[str, float], SpacewidthCalibration]
+    page: "pymupdf.Page", calibration: Dict[Tuple[str, float], SpacewidthCalibration]
 ) -> List[TextBlock]:
     """Wie get_text_blocks(), liefert aber Blocktext über die eigene
     Wortrekonstruktion (_reconstruct_line_text) statt über rawdicts eigene,
@@ -603,7 +603,7 @@ def get_text_blocks_reconstructed(
 
 
 def _extract_page_text_columns_reconstructed(
-    page: "fitz.Page",
+    page: "pymupdf.Page",
     calibration: Dict[Tuple[str, float], SpacewidthCalibration],
     page_num: int = 1,
     regions: Sequence[Region] = (),
@@ -641,7 +641,7 @@ def _extract_pages_reconstructed(
     (pdfplumber) bleibt unverändert und hat weiterhin Vorrang, wie in
     extract_pages() - siehe Plan Punkt (e)."""
     pages_text: List[str] = []
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         calibration = calibrate_spacewidths(doc)
         with pdfplumber.open(pdf_path) as plumber_pdf:
@@ -685,7 +685,7 @@ def extract_pages(
     siehe _warn_if_table_page_has_regions für dasselbe Problem bei
     exclude_regions)."""
     pages_text: List[str] = []
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         with pdfplumber.open(pdf_path) as plumber_pdf:
             for page_index, page in enumerate(doc):

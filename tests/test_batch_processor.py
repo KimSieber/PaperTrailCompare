@@ -143,9 +143,9 @@ def test_batch_compare_einzel_report_zeigt_verarbeitungsdauer_statt_strich(tmp_p
 
     import re
 
-    import fitz
+    import pymupdf
 
-    doc = fitz.open(report_files[0])
+    doc = pymupdf.open(report_files[0])
     page_text = doc[0].get_text()
     doc.close()
 

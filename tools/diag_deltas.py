@@ -47,7 +47,7 @@ from collections import Counter
 from difflib import SequenceMatcher
 from typing import List, Optional
 
-import fitz
+import pymupdf
 import pdfplumber
 
 from engine.pdf_extractor import calibrate_spacewidths, extract_pages, get_text_blocks, sort_blocks_columns
@@ -125,7 +125,7 @@ def _print_deltas(ref_pages: List[str], cnd_pages: List[str], case_sensitive: bo
 
 def _print_footer_buckets(pdf_path: str, label: str, num_pages: int = 3, bucket_pt: float = 50.0) -> None:
     print(f"\n--- Fußzeilen-Blöcke (letzte Blöcke je Seite, x0 -> Bucket round(x0/{bucket_pt:.0f})): {label} ---")
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         for page_index in range(min(num_pages, len(doc))):
             page = doc[page_index]
@@ -144,7 +144,7 @@ def _print_footer_buckets(pdf_path: str, label: str, num_pages: int = 3, bucket_
         doc.close()
 
 
-def _page_render_summary(page: "fitz.Page") -> None:
+def _page_render_summary(page: "pymupdf.Page") -> None:
     """(a) Bildbasiert oder nativ? Bilder, nativer Textumfang, Bildflächenanteil."""
     images = page.get_images(full=True)
     image_infos = page.get_image_info(xrefs=True)
@@ -255,7 +255,7 @@ def _find_char_run_lenient(texttrace, search_term: str):
     return run, (target_letters, is_umlaut_slot)
 
 
-def _inspect_char_run(run) -> fitz.Rect:
+def _inspect_char_run(run) -> pymupdf.Rect:
     """(b) Render-Mode je Span, (c) Zeichenebene inkl. Lücken-Analyse."""
     print("\n--- b) Text-Render-Mode der betroffenen Spans ---")
     seen_spans = []
@@ -278,7 +278,7 @@ def _inspect_char_run(run) -> fitz.Rect:
     run_rect = None
     for char, codepoint, span, ch in run:
         origin = ch[2]
-        bbox = fitz.Rect(ch[3])
+        bbox = pymupdf.Rect(ch[3])
         run_rect = bbox if run_rect is None else run_rect | bbox
         gap = ""
         if prev_bbox is not None and prev_span is span:
@@ -306,20 +306,20 @@ def _inspect_char_run(run) -> fitz.Rect:
     return run_rect
 
 
-def _cross_check_extractions(pdf_path: str, page_index: int, run_rect: fitz.Rect, search_term: str) -> None:
+def _cross_check_extractions(pdf_path: str, page_index: int, run_rect: pymupdf.Rect, search_term: str) -> None:
     """(d) Gegenprobe mit alternativen Extraktionsmethoden derselben Stelle."""
     margin = 3.0
-    clip = fitz.Rect(
+    clip = pymupdf.Rect(
         run_rect.x0 - margin, run_rect.y0 - margin, run_rect.x1 + margin, run_rect.y1 + margin
     )
 
     print("\n--- d) Gegenprobe mit alternativen Extraktionen derselben Stelle ---")
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         page = doc[page_index]
         standard = page.get_text("text", clip=clip).strip().replace("\n", " \\n ")
         print(f"  page.get_text('text')                         -> {standard!r}")
-        inhibit = page.get_text("text", clip=clip, flags=fitz.TEXT_INHIBIT_SPACES).strip().replace("\n", " \\n ")
+        inhibit = page.get_text("text", clip=clip, flags=pymupdf.TEXT_INHIBIT_SPACES).strip().replace("\n", " \\n ")
         print(f"  page.get_text('text', TEXT_INHIBIT_SPACES)    -> {inhibit!r}")
     finally:
         doc.close()
@@ -338,7 +338,7 @@ def _cross_check_extractions(pdf_path: str, page_index: int, run_rect: fitz.Rect
 
 
 def _inspect_word(pdf_path: str, search_term: str, page_number: int) -> int:
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         if not (1 <= page_number <= len(doc)):
             print(f"Fehler: Seite {page_number} existiert nicht (Dokument hat {len(doc)} Seiten).", file=sys.stderr)
@@ -378,14 +378,14 @@ def _inspect_word(pdf_path: str, search_term: str, page_number: int) -> int:
     return 0
 
 
-def _print_char_run_ab(run, target_info) -> fitz.Rect:
+def _print_char_run_ab(run, target_info) -> pymupdf.Rect:
     """(a) Codepoint/Zeichen/Glyph/Font/bbox je Zeichen der Fundstelle.
     (b) Ob get_texttrace() an einer Umlaut-Position ein Zeichen liefert,
     keines liefert (Position fehlt) oder U+FFFD liefert."""
     print("\n--- a) get_texttrace() je Zeichen an der Fundstelle ---")
     run_rect = None
     for char, codepoint, span, ch in run:
-        bbox = fitz.Rect(ch[3])
+        bbox = pymupdf.Rect(ch[3])
         run_rect = bbox if run_rect is None else run_rect | bbox
         glyph_id = ch[1]
         print(
@@ -417,15 +417,15 @@ def _print_char_run_ab(run, target_info) -> fitz.Rect:
     return run_rect
 
 
-def _cross_check_encoding(pdf_path: str, page_index: int, run_rect: fitz.Rect) -> None:
+def _cross_check_encoding(pdf_path: str, page_index: int, run_rect: pymupdf.Rect) -> None:
     """(c) Gegenprobe über rawdict, get_text('words') und pdfplumber .chars."""
     margin = 2.0
-    clip = fitz.Rect(
+    clip = pymupdf.Rect(
         run_rect.x0 - margin, run_rect.y0 - margin, run_rect.x1 + margin, run_rect.y1 + margin
     )
 
     print("\n--- c) Gegenprobe über drei weitere Extraktionswege ---")
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         page = doc[page_index]
 
@@ -469,7 +469,7 @@ def _analyze_fonts(pdf_path: str, page_index: int, run) -> None:
     print("\n--- d) Font-Analyse ---")
     font_names = sorted({span.get("font") for _, _, span, _ in run})
 
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         page = doc[page_index]
         fonts = page.get_fonts(full=True)
@@ -511,7 +511,7 @@ def _analyze_fonts(pdf_path: str, page_index: int, run) -> None:
 
 
 def _inspect_encoding(pdf_path: str, search_term: str, page_number: int) -> int:
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         if not (1 <= page_number <= len(doc)):
             print(f"Fehler: Seite {page_number} existiert nicht (Dokument hat {len(doc)} Seiten).", file=sys.stderr)
@@ -605,7 +605,7 @@ def _find_rawdict_run(flat_chars: List[tuple], search_term: str) -> Optional[Lis
 
 
 def _inspect_rawdict(pdf_path: str, search_term: str, page_number: int) -> int:
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         if not (1 <= page_number <= len(doc)):
             print(f"Fehler: Seite {page_number} existiert nicht (Dokument hat {len(doc)} Seiten).", file=sys.stderr)
@@ -630,7 +630,7 @@ def _inspect_rawdict(pdf_path: str, search_term: str, page_number: int) -> int:
         run_rect = None
         space_entries = []
         for char, bbox_tuple, font, size in run:
-            bbox = fitz.Rect(bbox_tuple)
+            bbox = pymupdf.Rect(bbox_tuple)
             run_rect = bbox if run_rect is None else run_rect | bbox
             marker = "  <-- LEERZEICHEN-EINTRAG" if char == " " else ""
             print(
@@ -641,7 +641,7 @@ def _inspect_rawdict(pdf_path: str, search_term: str, page_number: int) -> int:
                 space_entries.append(bbox)
 
         margin = 2.0
-        clip = fitz.Rect(
+        clip = pymupdf.Rect(
             run_rect.x0 - margin, run_rect.y0 - margin, run_rect.x1 + margin, run_rect.y1 + margin
         )
         text_at_clip = page.get_text("text", clip=clip)
@@ -683,7 +683,7 @@ def _inspect_rawdict(pdf_path: str, search_term: str, page_number: int) -> int:
             print("  (keine rawdict-Einträge mit c=' ' an dieser Fundstelle)")
 
         print("\n--- d.1) Gegenprobe: rawdict MIT TEXT_INHIBIT_SPACES an derselben Stelle ---")
-        rawdict_inhibited = page.get_text("rawdict", clip=clip, flags=fitz.TEXT_INHIBIT_SPACES)
+        rawdict_inhibited = page.get_text("rawdict", clip=clip, flags=pymupdf.TEXT_INHIBIT_SPACES)
         flat_inhibited = _flatten_rawdict(rawdict_inhibited)
         inhibited_text = "".join(c for c, _, _, _ in flat_inhibited)
         inhibited_space_count = sum(1 for c, _, _, _ in flat_inhibited if c == " ")
@@ -735,7 +735,7 @@ _MIN_SAMPLE_TEXT_LEN = 30  # Mindestlänge, damit eine Stichprobe aussagekräfti
 def _count_real_spaces(pdf_path: str):
     """(a) Gesamtzahl echter chr(32)-Zeichen im Zeichenstrom über alle Seiten,
     plus Anzahl Seiten mit mindestens einem solchen Zeichen."""
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         total_spaces = 0
         pages_with_space = 0
@@ -760,7 +760,7 @@ def _flow_text_samples(pdf_path: str, num_samples: int) -> List[tuple]:
     seitenweise, bis num_samples Stichproben gefunden sind. Gibt
     (page_index, bbox_tuple, text_preview) zurück."""
     samples = []
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         for page_index in range(len(doc)):
             if len(samples) >= num_samples:
@@ -793,13 +793,13 @@ def _print_inhibit_samples(pdf_path: str, label: str, num_samples: int) -> bool:
         return False
 
     merged_words_detected = False
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         for sample_no, (page_index, bbox) in enumerate(samples, start=1):
             page = doc[page_index]
-            clip = fitz.Rect(bbox)
+            clip = pymupdf.Rect(bbox)
             normal = page.get_text("text", clip=clip).strip().replace("\n", " \\n ")
-            inhibited = page.get_text("text", clip=clip, flags=fitz.TEXT_INHIBIT_SPACES).strip().replace("\n", " \\n ")
+            inhibited = page.get_text("text", clip=clip, flags=pymupdf.TEXT_INHIBIT_SPACES).strip().replace("\n", " \\n ")
             normal_words = len(normal.split())
             inhibited_words = len(inhibited.split())
             print(f"\n  Stichprobe {sample_no} (Seite {page_index + 1}):")
@@ -856,7 +856,7 @@ def _calibration_report(pdf_path: str) -> int:
     Wortrekonstruktion (engine.pdf_extractor.calibrate_spacewidths): pro
     Schrift Quelle, Datenbasis und ob das Klarheits-Kriterium erfüllt war."""
     print(f"Datei: {pdf_path}")
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         calibration = calibrate_spacewidths(doc)
     finally:

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import List, Sequence
 
-import fitz
+import pymupdf
 
 from engine.pdf_extractor import (
     Region,
@@ -62,7 +62,7 @@ def extract_pages_excluding_regions(
     und text_extraction="reconstruct", die extract_pages_for_profile
     zusätzlich abdeckt."""
     pages_text: List[str] = []
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         for page_index, page in enumerate(doc):
             page_num = page_index + 1

@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-import fitz
+import pymupdf
 from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -510,7 +510,7 @@ def _region_applies_to_page(page: Optional[int], page_from: Optional[int], page_
 
 def _build_delta_filter_regions(
     profile: Optional[Profile],
-) -> List[Tuple[Optional[int], Optional[int], fitz.Rect]]:
+) -> List[Tuple[Optional[int], Optional[int], pymupdf.Rect]]:
     """Baut die flache filter_regions-Liste für _find_delta_rects aus
     profile.exclude_regions UND profile.compare_regions (siehe
     docs/prompt_region_filter_highlights.md) - beide Regionsarten markieren
@@ -523,17 +523,17 @@ def _build_delta_filter_regions(
         return []
     regions = list(profile.exclude_regions) + list(profile.compare_regions)
     return [
-        (region.page, region.page_from, fitz.Rect(region.x, region.y, region.x + region.width, region.y + region.height))
+        (region.page, region.page_from, pymupdf.Rect(region.x, region.y, region.x + region.width, region.y + region.height))
         for region in regions
     ]
 
 
 def _find_delta_rects(
-    doc: fitz.Document,
-    texts_by_page: Dict[int, List[Tuple[str, Optional[fitz.Rect]]]],
+    doc: pymupdf.Document,
+    texts_by_page: Dict[int, List[Tuple[str, Optional[pymupdf.Rect]]]],
     fallback_search_all_pages: bool = False,
-    filter_regions: Optional[Sequence[Tuple[Optional[int], Optional[int], fitz.Rect]]] = None,
-) -> Dict[int, List[fitz.Rect]]:
+    filter_regions: Optional[Sequence[Tuple[Optional[int], Optional[int], pymupdf.Rect]]] = None,
+) -> Dict[int, List[pymupdf.Rect]]:
     """Sucht die übergebenen Delta-Textstellen im PDF und liefert ihre
     Fundstellen-Rechtecke je Seite (1-basiert), transformiert in das
     page.rect-Koordinatensystem (berücksichtigt page.rotation - siehe
@@ -579,13 +579,13 @@ def _find_delta_rects(
     gefiltert.
     """
     filter_regions = filter_regions or []
-    rects_by_page: Dict[int, List[fitz.Rect]] = {}
+    rects_by_page: Dict[int, List[pymupdf.Rect]] = {}
     for page_num, texts in texts_by_page.items():
         for text, clip in texts:
             if not text:
                 continue
 
-            found_rects: List[fitz.Rect] = []
+            found_rects: List[pymupdf.Rect] = []
             found_page_num: Optional[int] = None
 
             if 1 <= page_num <= len(doc):
@@ -613,7 +613,7 @@ def _find_delta_rects(
                     found_rects = [
                         rect for rect in found_rects
                         if not any(
-                            region_rect.contains(fitz.Point((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2))
+                            region_rect.contains(pymupdf.Point((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2))
                             for region_rect in active_rects
                         )
                     ]
@@ -640,8 +640,8 @@ _DELTA_OVERLAY_FILL_OPACITY = 0.4
 
 
 def _place_source_page(
-    page: fitz.Page, doc: Optional[fitz.Document], src_page_num: Optional[int],
-    delta_rects: List[fitz.Rect],
+    page: pymupdf.Page, doc: Optional[pymupdf.Document], src_page_num: Optional[int],
+    delta_rects: List[pymupdf.Rect],
     x0: float, y0: float, x1: float, y1: float,
 ) -> None:
     """Bettet Seite src_page_num (1-basiert) aus doc als Vektor-Inhalt
@@ -662,11 +662,11 @@ def _place_source_page(
     Weg, der in Tests mit /Rotate 90/180/270 exakt dem direkten
     page.get_pixmap()-Rendering entsprach: die page.rotation der
     Quellseite auf 0 setzen (reine In-Memory-Mutation des offenen
-    fitz.Document, nicht der Originaldatei) und stattdessen die
+    pymupdf.Document, nicht der Originaldatei) und stattdessen die
     komplementäre Drehung (360 - rotation) % 360 explizit über den
     rotate-Parameter anfordern.
     """
-    target = fitz.Rect(x0, y0, x1, y1)
+    target = pymupdf.Rect(x0, y0, x1, y1)
     if doc is None or src_page_num is None or not (1 <= src_page_num <= len(doc)):
         page.insert_textbox(target, _SBS_NO_PAGE_TEXT, fontsize=10, align=1)
         return
@@ -680,14 +680,14 @@ def _place_source_page(
     w, h = src_rect.width * scale, src_rect.height * scale
     rx0 = x0 + (avail_w - w) / 2
     ry0 = y0 + (avail_h - h) / 2
-    embed_rect = fitz.Rect(rx0, ry0, rx0 + w, ry0 + h)
+    embed_rect = pymupdf.Rect(rx0, ry0, rx0 + w, ry0 + h)
 
     if rotation:
         src_page.set_rotation(0)
     page.show_pdf_page(embed_rect, doc, pno=src_page_num - 1, rotate=(360 - rotation) % 360)
 
     for rect in delta_rects:
-        overlay_rect = fitz.Rect(
+        overlay_rect = pymupdf.Rect(
             rx0 + (rect.x0 - src_rect.x0) * scale,
             ry0 + (rect.y0 - src_rect.y0) * scale,
             rx0 + (rect.x1 - src_rect.x0) * scale,
@@ -700,30 +700,30 @@ def _place_source_page(
 
 
 def _build_side_by_side_document(
-    ref_doc: fitz.Document, cnd_doc: fitz.Document,
-    ref_rects_by_page: Dict[int, List[fitz.Rect]],
-    cnd_rects_by_page: Dict[int, List[fitz.Rect]],
-) -> fitz.Document:
+    ref_doc: pymupdf.Document, cnd_doc: pymupdf.Document,
+    ref_rects_by_page: Dict[int, List[pymupdf.Rect]],
+    cnd_rects_by_page: Dict[int, List[pymupdf.Rect]],
+) -> pymupdf.Document:
     """Erzeugt den Seite-für-Seite Nebeneinander-Vergleich in Querformat:
     links die Referenz-, rechts die Kandidat-Seite, jeweils als
     eingebetteter Vektor-Inhalt mit Delta-Overlay (siehe _place_source_page)."""
     page_count = max(len(ref_doc), len(cnd_doc))
-    out_doc = fitz.open()
+    out_doc = pymupdf.open()
 
     for i in range(page_count):
         page = out_doc.new_page(width=_SBS_PAGE_W, height=_SBS_PAGE_H)
 
         page.insert_textbox(
-            fitz.Rect(_SBS_MARGIN_LR, _SBS_MARGIN_TOP, _SBS_DIVIDER_X - 1, _SBS_CONTENT_TOP),
+            pymupdf.Rect(_SBS_MARGIN_LR, _SBS_MARGIN_TOP, _SBS_DIVIDER_X - 1, _SBS_CONTENT_TOP),
             "Referenz", fontsize=8,
         )
         page.insert_textbox(
-            fitz.Rect(_SBS_DIVIDER_X + 1, _SBS_MARGIN_TOP, _SBS_PAGE_W - _SBS_MARGIN_LR, _SBS_CONTENT_TOP),
+            pymupdf.Rect(_SBS_DIVIDER_X + 1, _SBS_MARGIN_TOP, _SBS_PAGE_W - _SBS_MARGIN_LR, _SBS_CONTENT_TOP),
             "Kandidat", fontsize=8,
         )
         page.draw_line(
-            fitz.Point(_SBS_DIVIDER_X, _SBS_MARGIN_TOP),
-            fitz.Point(_SBS_DIVIDER_X, _SBS_PAGE_H - _SBS_MARGIN_BOTTOM),
+            pymupdf.Point(_SBS_DIVIDER_X, _SBS_MARGIN_TOP),
+            pymupdf.Point(_SBS_DIVIDER_X, _SBS_PAGE_H - _SBS_MARGIN_BOTTOM),
             width=1,
         )
 
@@ -739,7 +739,7 @@ def _build_side_by_side_document(
         )
 
         page.insert_textbox(
-            fitz.Rect(0, _SBS_PAGE_H - _SBS_FOOTER_HEIGHT, _SBS_PAGE_W, _SBS_PAGE_H),
+            pymupdf.Rect(0, _SBS_PAGE_H - _SBS_FOOTER_HEIGHT, _SBS_PAGE_W, _SBS_PAGE_H),
             f"Seite {i + 1} von {page_count}", fontsize=8, align=1,
         )
 
@@ -834,19 +834,19 @@ def generate_report(
 
     # region_clip (siehe text_comparator.Delta, docs/prompt_region_clip_highlighting.md)
     # ist ein (x0, y0, x1, y1)-Tupel - für _find_delta_rects wird es hier in
-    # ein fitz.Rect umgewandelt (None bleibt None: nicht-regionsbasierte
+    # ein pymupdf.Rect umgewandelt (None bleibt None: nicht-regionsbasierte
     # Deltas durchsuchen weiterhin die ganze Seite).
-    ref_texts_by_page: Dict[int, List[Tuple[str, Optional[fitz.Rect]]]] = {}
-    cnd_texts_by_page: Dict[int, List[Tuple[str, Optional[fitz.Rect]]]] = {}
+    ref_texts_by_page: Dict[int, List[Tuple[str, Optional[pymupdf.Rect]]]] = {}
+    cnd_texts_by_page: Dict[int, List[Tuple[str, Optional[pymupdf.Rect]]]] = {}
     for delta in compare_result.deltas:
-        clip = fitz.Rect(*delta.region_clip) if delta.region_clip is not None else None
+        clip = pymupdf.Rect(*delta.region_clip) if delta.region_clip is not None else None
         ref_texts_by_page.setdefault(delta.page, []).append((delta.ref_text, clip))
         cnd_texts_by_page.setdefault(delta.page, []).append((delta.cnd_text, clip))
 
     filter_regions = _build_delta_filter_regions(profile)
 
-    ref_doc = fitz.open(str(ref_pdf_path))
-    cnd_doc = fitz.open(str(cnd_pdf_path))
+    ref_doc = pymupdf.open(str(ref_pdf_path))
+    cnd_doc = pymupdf.open(str(cnd_pdf_path))
     ref_rects_by_page = _find_delta_rects(
         ref_doc, ref_texts_by_page, fallback_search_all_pages=True, filter_regions=filter_regions
     )
@@ -860,7 +860,7 @@ def generate_report(
         duration_seconds=duration_seconds,
         region_warnings=region_warnings,
     )
-    report_doc = fitz.open(stream=summary_bytes, filetype="pdf")
+    report_doc = pymupdf.open(stream=summary_bytes, filetype="pdf")
 
     side_by_side = _build_side_by_side_document(
         ref_doc, cnd_doc, ref_rects_by_page, cnd_rects_by_page
@@ -869,7 +869,7 @@ def generate_report(
 
     if compare_result.has_delta:
         detail_bytes = _build_delta_detail_pdf_bytes(compare_result)
-        detail_doc = fitz.open(stream=detail_bytes, filetype="pdf")
+        detail_doc = pymupdf.open(stream=detail_bytes, filetype="pdf")
         report_doc.insert_pdf(detail_doc)
         detail_doc.close()
 
