@@ -2,12 +2,13 @@
 *** V0.2.0    16.08.2025
 *******************************
 
-Sprint PTC-4: Bugfixes
-----------------------
+Sprint PTC-S4: Bugfixes  (siehe sep. Doku-File)
+-----------------------
+Prio 1-Bugs: B1 - B4
+Prio 2-Bugs: B5 - B
 
-
-Sprint PTC-3: Erkennung optimieren
-----------------------------------
+Sprint PTC-S3: Erkennung optimieren
+-----------------------------------
 Task A - Bindestriche behandeln
 Task A2 - Bugfixes
 Task B - compare_regions eingeführt
