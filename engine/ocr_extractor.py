@@ -104,6 +104,8 @@ def extract_text_via_ocr(
     regions (siehe _mask_regions_on_image) werden vor der Erkennung auf dem
     Seitenbild geweißt, damit exclude_regions auch unter OCR wirkt.
     """
+    if not Path(pdf_path).is_file():
+        raise FileNotFoundError(f"PDF-Datei nicht gefunden: {pdf_path}")
     pages_text: List[str] = []
     doc = pymupdf.open(pdf_path)
     try:

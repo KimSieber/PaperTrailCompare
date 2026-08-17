@@ -846,44 +846,52 @@ def generate_report(
     filter_regions = _build_delta_filter_regions(profile)
 
     ref_doc = pymupdf.open(str(ref_pdf_path))
-    cnd_doc = pymupdf.open(str(cnd_pdf_path))
-    ref_rects_by_page = _find_delta_rects(
-        ref_doc, ref_texts_by_page, fallback_search_all_pages=True, filter_regions=filter_regions
-    )
-    cnd_rects_by_page = _find_delta_rects(cnd_doc, cnd_texts_by_page, filter_regions=filter_regions)
-    total_pages = max(len(ref_doc), len(cnd_doc))
+    try:
+        cnd_doc = pymupdf.open(str(cnd_pdf_path))
+        try:
+            ref_rects_by_page = _find_delta_rects(
+                ref_doc, ref_texts_by_page, fallback_search_all_pages=True, filter_regions=filter_regions
+            )
+            cnd_rects_by_page = _find_delta_rects(cnd_doc, cnd_texts_by_page, filter_regions=filter_regions)
+            total_pages = max(len(ref_doc), len(cnd_doc))
 
-    summary_bytes = _build_summary_page_pdf_bytes(
-        compare_result, ref_pdf_path, cnd_pdf_path,
-        total_pages=total_pages, comparisons=1,
-        profile=profile, profile_path=profile_path,
-        duration_seconds=duration_seconds,
-        region_warnings=region_warnings,
-    )
-    report_doc = pymupdf.open(stream=summary_bytes, filetype="pdf")
+            summary_bytes = _build_summary_page_pdf_bytes(
+                compare_result, ref_pdf_path, cnd_pdf_path,
+                total_pages=total_pages, comparisons=1,
+                profile=profile, profile_path=profile_path,
+                duration_seconds=duration_seconds,
+                region_warnings=region_warnings,
+            )
+            report_doc = pymupdf.open(stream=summary_bytes, filetype="pdf")
+            try:
+                side_by_side = _build_side_by_side_document(
+                    ref_doc, cnd_doc, ref_rects_by_page, cnd_rects_by_page
+                )
+                try:
+                    report_doc.insert_pdf(side_by_side)
 
-    side_by_side = _build_side_by_side_document(
-        ref_doc, cnd_doc, ref_rects_by_page, cnd_rects_by_page
-    )
-    report_doc.insert_pdf(side_by_side)
+                    if compare_result.has_delta:
+                        detail_bytes = _build_delta_detail_pdf_bytes(compare_result)
+                        detail_doc = pymupdf.open(stream=detail_bytes, filetype="pdf")
+                        try:
+                            report_doc.insert_pdf(detail_doc)
+                        finally:
+                            detail_doc.close()
 
-    if compare_result.has_delta:
-        detail_bytes = _build_delta_detail_pdf_bytes(compare_result)
-        detail_doc = pymupdf.open(stream=detail_bytes, filetype="pdf")
-        report_doc.insert_pdf(detail_doc)
-        detail_doc.close()
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    # garbage=4 dedupliziert Ressourcen (dieselbe Quellseite wird ggf.
-    # mehrfach als Form-XObject referenziert), deflate=True komprimiert
-    # die Streams - beides senkt die Dateigröße zusätzlich zum Wegfall
-    # der Rasterbilder.
-    report_doc.save(str(output_path), garbage=4, deflate=True)
-
-    report_doc.close()
-    side_by_side.close()
-    ref_doc.close()
-    cnd_doc.close()
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    # garbage=4 dedupliziert Ressourcen (dieselbe Quellseite wird ggf.
+                    # mehrfach als Form-XObject referenziert), deflate=True komprimiert
+                    # die Streams - beides senkt die Dateigröße zusätzlich zum Wegfall
+                    # der Rasterbilder.
+                    report_doc.save(str(output_path), garbage=4, deflate=True)
+                finally:
+                    side_by_side.close()
+            finally:
+                report_doc.close()
+        finally:
+            cnd_doc.close()
+    finally:
+        ref_doc.close()
 
     return output_path
 

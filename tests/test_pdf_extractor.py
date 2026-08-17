@@ -889,3 +889,8 @@ def test_separate_compare_region_blocks_condition_matcht_trotz_type3_fragmentier
     assert compare_region_texts[0] == ("SVSparkassenVersicherung", "SV Spa r ka ssen Ver si ch eru n g")
     assert not any("Spa" in b[4] for b in remaining)
     doc.close()
+
+
+def test_extract_pages_raises_on_nonexistent_file():
+    with pytest.raises(FileNotFoundError, match="nicht gefunden"):
+        extract_pages("/does/not/exist.pdf")

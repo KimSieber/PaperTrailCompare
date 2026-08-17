@@ -233,11 +233,13 @@ def split_batch_pdf(
             last_page_index = first_page_index + len(group.pages) - 1
 
             single_doc = pymupdf.open()
-            single_doc.insert_pdf(src_doc, from_page=first_page_index, to_page=last_page_index)
+            try:
+                single_doc.insert_pdf(src_doc, from_page=first_page_index, to_page=last_page_index)
 
-            out_path = output_dir / f"{index:03d}_{group.name}.pdf"
-            single_doc.save(str(out_path))
-            single_doc.close()
+                out_path = output_dir / f"{index:03d}_{group.name}.pdf"
+                single_doc.save(str(out_path))
+            finally:
+                single_doc.close()
             output_paths.append(out_path)
     finally:
         src_doc.close()
