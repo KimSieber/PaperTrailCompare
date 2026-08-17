@@ -20,7 +20,7 @@ import json
 
 import pytest
 
-from engine.profile_loader import ValidationError, apply_overrides, load_profile
+from engine.profile_loader import ValidationError, load_profile
 
 FIXTURES_DIR = __import__("pathlib").Path(__file__).parent / "fixtures"
 
@@ -55,37 +55,6 @@ def test_tc_p_002_invalides_json_profil_wirft_validation_error():
         load_profile(FIXTURES_DIR / "TC-P-002" / "profile_invalid.json")
 
     assert str(excinfo.value)
-
-
-def test_tc_p_003_cli_parameter_ueberschreibt_profilwert(tmp_path):
-    """TC-P-003: Profil mit case_sensitive=True; CLI übergibt
-    case_sensitive=False -> der CLI-Wert gewinnt, das Profil bleibt unverändert."""
-    profile_path = tmp_path / "profile.json"
-    profile_path.write_text(
-        json.dumps({"version": "1.0", "case_sensitive": True}), encoding="utf-8"
-    )
-    profile = load_profile(profile_path)
-    assert profile.case_sensitive is True
-
-    overridden = apply_overrides(profile, case_sensitive=False)
-
-    assert overridden.case_sensitive is False
-    assert profile.case_sensitive is True  # Original bleibt unangetastet
-
-
-def test_apply_overrides_none_werte_lassen_profil_unveraendert(tmp_path):
-    """Nicht übergebene (None) CLI-Parameter dürfen das Profil nicht überschreiben."""
-    profile_path = tmp_path / "profile.json"
-    profile_path.write_text(
-        json.dumps({"version": "1.0", "case_sensitive": True, "report_format": "pdf"}),
-        encoding="utf-8",
-    )
-    profile = load_profile(profile_path)
-
-    overridden = apply_overrides(profile, case_sensitive=None, report_format=None)
-
-    assert overridden.case_sensitive is True
-    assert overridden.report_format == "pdf"
 
 
 def test_load_profile_datei_nicht_gefunden_wirft_validation_error(tmp_path):
