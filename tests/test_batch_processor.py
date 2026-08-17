@@ -24,7 +24,7 @@ from pathlib import Path
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-from engine.batch_processor import batch_compare, batch_compare_by_xmp, read_filelist, split_batch_pdf
+from engine.batch_processor import _compare_pair, batch_compare, batch_compare_by_xmp, read_filelist, split_batch_pdf
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import ExcludeRegion, OcrConfig, PageGroupPattern, Profile, CompareRegion
 
@@ -226,6 +226,52 @@ def test_tc_b_002_fehlende_datei_wird_protokolliert_rest_verarbeitet(local_filel
         assert pair.compare_result.has_delta is False
 
 
+def test_compare_pair_corrupt_pdf_returns_error_status(tmp_path):
+    """B11: Eine defekte/nicht lesbare PDF darf den Batch nicht crashen -
+    _compare_pair() muss PairResult(status="error") mit Fehlermeldung
+    zurückgeben statt eine Exception zu propagieren (Code Review Finding
+    B11, Rule 11 - Fehlerbehandlung; siehe
+    docs/prompt_B11_B12_shared_comparison.md)."""
+    ref_path = tmp_path / "ref.pdf"
+    _write_single_page_pdf(ref_path, "Hallo Welt")
+
+    corrupt_cnd_path = tmp_path / "cnd.pdf"
+    corrupt_cnd_path.write_bytes(b"not a valid pdf, just random bytes")
+
+    result = _compare_pair(str(ref_path), str(corrupt_cnd_path), None)
+
+    assert result.status == "error"
+    assert result.error is not None and len(result.error) > 0
+    assert result.compare_result is None
+
+
+def test_batch_compare_continues_after_corrupt_pdf(tmp_path):
+    """B11: Ein Batch mit einer defekten PDF zwischen gültigen Paaren muss
+    alle anderen Paare trotzdem vollständig verarbeiten."""
+    ref1, cnd1 = tmp_path / "ref1.pdf", tmp_path / "cnd1.pdf"
+    ref2, cnd2 = tmp_path / "ref2.pdf", tmp_path / "cnd2.pdf"
+    ref3, cnd3 = tmp_path / "ref3.pdf", tmp_path / "cnd3.pdf"
+
+    _write_single_page_pdf(ref1, "Paar eins")
+    _write_single_page_pdf(cnd1, "Paar eins")
+    _write_single_page_pdf(ref2, "Paar zwei")
+    cnd2.write_bytes(b"not a valid pdf, just random bytes")
+    _write_single_page_pdf(ref3, "Paar drei")
+    _write_single_page_pdf(cnd3, "Paar drei")
+
+    filelist_path = tmp_path / "filelist.csv"
+    filelist_path.write_text(
+        f"{ref1},{cnd1}\n{ref2},{cnd2}\n{ref3},{cnd3}\n", encoding="utf-8"
+    )
+
+    result = batch_compare(filelist_path)
+
+    assert len(result.pairs) == 3
+    assert result.ok_count == 2
+    assert result.error_count == 1
+    assert result.pairs[1].status == "error"
+
+
 def test_tc_b_003_batch_per_xmp_metadaten_document_id():
     # ref_*.pdf und cnd_*.pdf liegen in einem gemeinsamen Verzeichnis (siehe
     # Fixture-Vorbedingung: "Verzeichnis mit 20 PDFs"); ref_glob/cnd_glob
@@ -315,9 +361,9 @@ def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypa
         pages = extract_pages(pdf_path)
         return pages, False, [{} for _ in pages]
 
-    import engine.batch_processor as batch_processor_module
+    import engine.comparison as comparison_module
 
-    monkeypatch.setattr(batch_processor_module, "extract_pages_for_profile", fake_extract)
+    monkeypatch.setattr(comparison_module, "extract_pages_for_profile", fake_extract)
 
     batch_compare(local_filelist("TC-B-001", 10))
 
@@ -629,7 +675,12 @@ def test_batch_compare_mit_profile_normalize_whitespace_end_to_end(tmp_path):
 def test_batch_compare_reicht_text_extraction_reconstruct_durch(monkeypatch, local_filelist):
     """Verdrahtungstest: profile.text_extraction muss bei batch_compare über
     extract_pages_for_profile ankommen (als Attribut des übergebenen
-    profile-Objekts), nicht nur im Profil geladen/validiert werden."""
+    profile-Objekts), nicht nur im Profil geladen/validiert werden.
+
+    Die Pipeline (inkl. extract_pages_for_profile) liegt seit
+    docs/prompt_B11_B12_shared_comparison.md in engine.comparison
+    (run_comparison), nicht mehr direkt in engine.batch_processor - daher
+    wird hier engine.comparison gepatcht."""
     from engine.pdf_extractor import extract_pages_for_profile as real_extract
 
     seen_profiles = []
@@ -638,9 +689,9 @@ def test_batch_compare_reicht_text_extraction_reconstruct_durch(monkeypatch, loc
         seen_profiles.append(profile)
         return real_extract(pdf_path, profile, role=role, warnings=warnings)
 
-    import engine.batch_processor as batch_processor_module
+    import engine.comparison as comparison_module
 
-    monkeypatch.setattr(batch_processor_module, "extract_pages_for_profile", fake_extract)
+    monkeypatch.setattr(comparison_module, "extract_pages_for_profile", fake_extract)
 
     profile = Profile(version="1.0", text_extraction="reconstruct")
     result = batch_compare(local_filelist("TC-B-001", 10), profile=profile)
@@ -718,17 +769,22 @@ def test_batch_compare_mit_profile_exclude_region_page_from_end_to_end(tmp_path)
 def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch, local_filelist):
     """Verdrahtungstest: profile.compare_mode muss bei batch_compare an
     text_comparator.compare durchgereicht werden, nicht nur im Profil
-    geladen/validiert werden."""
+    geladen/validiert werden.
+
+    Die Pipeline (inkl. compare()) liegt seit
+    docs/prompt_B11_B12_shared_comparison.md in engine.comparison
+    (run_comparison), nicht mehr direkt in engine.batch_processor - daher
+    wird hier engine.comparison gepatcht."""
     seen_modes = []
 
-    import engine.batch_processor as batch_processor_module
-    real_compare = batch_processor_module.compare
+    import engine.comparison as comparison_module
+    real_compare = comparison_module.compare
 
     def spy_compare(*args, **kwargs):
         seen_modes.append(kwargs.get("compare_mode"))
         return real_compare(*args, **kwargs)
 
-    monkeypatch.setattr(batch_processor_module, "compare", spy_compare)
+    monkeypatch.setattr(comparison_module, "compare", spy_compare)
 
     profile = Profile(version="1.0", compare_mode="chars")
     result = batch_compare(local_filelist("TC-B-001", 10), profile=profile)

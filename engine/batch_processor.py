@@ -4,35 +4,35 @@
 #          Generates per-pair reports and aggregated batch results.
 # author:  Kim Sieber
 # created: YYYY-MM-DD
-# changed: 2026-08-09
+# changed: 2026-08-17
 
 """Massenvergleich von Dokumentenpaaren: per Dateiliste (CSV) oder per
 XMP-Metadaten (Document-ID).
 
-Kombiniert die Schicht-1/2-Bausteine pdf_extractor (Textextraktion),
-text_comparator (Diff) und profile_loader (Konfiguration) zu einem
-Batch-Ablauf; daher Integrationstests statt Unit-Tests (siehe CLAUDE.md).
+Die Extraktion→Vergleich→Merge→Sortierung-Pipeline liegt seit
+docs/prompt_B11_B12_shared_comparison.md in engine.comparison.run_comparison()
+(gemeinsam mit engine.__main__._run_compare) - hier verbleiben nur
+Batch-spezifische Aspekte: Dateiexistenz, Fehlerbehandlung pro Paar (B11:
+eine defekte PDF darf den restlichen Batch nicht abbrechen),
+Report-Erzeugung und Aggregation; daher Integrationstests statt
+Unit-Tests (siehe CLAUDE.md).
 """
 from __future__ import annotations
 
 import csv
-import dataclasses
 import re
 import sys
-import time
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple, Union
 
 import pymupdf
 
+from engine.comparison import run_comparison
 from engine.models import BatchResult, PairResult
 from engine.page_group_detector import extract_page_groups
-from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile
 from engine.report_generator import generate_report
-from engine.compare_region_comparator import merge_compare_region_comparison
-from engine.text_comparator import compare
 
 _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
 _FILENAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]")
@@ -86,57 +86,34 @@ def _compare_pair(
             error=f"Datei(en) nicht gefunden: {', '.join(missing)}",
         )
 
-    case_sensitive = profile.case_sensitive if profile is not None else True
-    normalize_whitespace = profile.normalize_whitespace if profile is not None else False
-    compare_mode = profile.compare_mode if profile is not None else "words"
-    merge_hyphenation = profile.merge_hyphenation if profile is not None else True
-    normalize_orphan_hyphens = profile.normalize_orphan_hyphens if profile is not None else True
-    region_warnings: List[str] = []
-    start = time.perf_counter()
-    ref_pages, ref_ocr_used, ref_tr_texts = extract_pages_for_profile(
-        str(ref_file), profile, role="reference", warnings=region_warnings
-    )
-    cnd_pages, cnd_ocr_used, cnd_tr_texts = extract_pages_for_profile(
-        str(cnd_file), profile, role="candidate", warnings=region_warnings
-    )
-    for warning in region_warnings:
-        print(f"Warnung ({ref_path} / {cnd_path}): {warning}", file=sys.stderr)
-    result = compare(
-        ref_pages, cnd_pages,
-        case_sensitive=case_sensitive,
-        normalize_whitespace=normalize_whitespace,
-        ocr_used=ref_ocr_used or cnd_ocr_used,
-        compare_mode=compare_mode,
-        merge_hyphenation=merge_hyphenation,
-        normalize_orphan_hyphens=normalize_orphan_hyphens,
-    )
-    # Dieselbe Merge-Logik wie engine.__main__._run_compare (siehe
-    # docs/prompt_table_regions.md, Step 4) - gemeinsam genutzt über
-    # engine.compare_region_comparator.merge_compare_region_comparison.
-    compare_region_deltas = merge_compare_region_comparison(ref_tr_texts, cnd_tr_texts, profile)
-    if compare_region_deltas:
-        result = dataclasses.replace(
-            result,
-            deltas=result.deltas + compare_region_deltas,
-            has_delta=True,
+    # B11: try/except so a corrupt PDF doesn't crash the entire batch (Code
+    # Review Finding B11, Rule 11 - Fehlerbehandlung) - der Pfad wird als
+    # PairResult(status="error") zurückgemeldet statt die Exception
+    # unbehandelt bis zum Pool/Batch-Aufrufer durchschlagen zu lassen.
+    try:
+        output = run_comparison(str(ref_file), str(cnd_file), profile)
+    except Exception as exc:  # noqa: BLE001 - fehlerhaftes Paar darf den Batch nicht abbrechen
+        return PairResult(
+            ref_path=ref_path,
+            cnd_path=cnd_path,
+            status="error",
+            error=str(exc),
         )
-    # Stabil NUR nach Seite sortieren - siehe engine.__main__._run_compare für
-    # die identische Begründung (docs/prompt_compare_regions_mode.md, Task 3).
-    result = dataclasses.replace(result, deltas=sorted(result.deltas, key=lambda d: d.page))
-    duration_seconds = time.perf_counter() - start
-    total_pages = max(len(ref_pages), len(cnd_pages))
+
+    for warning in output.region_warnings:
+        print(f"Warnung ({ref_path} / {cnd_path}): {warning}", file=sys.stderr)
 
     if report_dir is not None:
         report_path = _unique_report_path(Path(report_dir), ref_file, cnd_file)
         generate_report(
-            result, ref_file, cnd_file, report_path,
-            profile=profile, region_warnings=region_warnings,
-            duration_seconds=duration_seconds,
+            output.result, ref_file, cnd_file, report_path,
+            profile=profile, region_warnings=output.region_warnings,
+            duration_seconds=output.duration_seconds,
         )
 
     return PairResult(
         ref_path=ref_path, cnd_path=cnd_path, status="ok",
-        compare_result=result, total_pages=total_pages,
+        compare_result=output.result, total_pages=output.total_pages,
     )
 
 
