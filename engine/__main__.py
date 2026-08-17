@@ -4,7 +4,7 @@
 #          Tauri shell via local IPC (no network socket).
 # author:  Kim Sieber
 # created: YYYY-MM-DD
-# changed: 2026-08-09
+# changed: 2026-08-17
 
 """CLI-Einstiegspunkt der Python Core Engine.
 
@@ -70,12 +70,10 @@ from pathlib import Path
 
 from engine import __expiry__, __version__
 from engine.batch_processor import batch_compare
+from engine.comparison import run_comparison
 from engine.models import PairResult
-from engine.pdf_extractor import extract_pages_for_profile
 from engine.profile_loader import Profile, ValidationError, load_profile
 from engine.report_generator import generate_batch_report, generate_report
-from engine.compare_region_comparator import merge_compare_region_comparison
-from engine.text_comparator import compare
 
 
 def _run_compare(args: argparse.Namespace) -> int:
@@ -87,55 +85,18 @@ def _run_compare(args: argparse.Namespace) -> int:
             print(str(exc), file=sys.stderr)
             return 1
 
-    region_warnings: list[str] = []
-    start = time.perf_counter()
     try:
-        ref_pages, ref_ocr_used, ref_tr_texts = extract_pages_for_profile(
-            args.ref_pdf, profile, role="reference", warnings=region_warnings
-        )
-        cnd_pages, cnd_ocr_used, cnd_tr_texts = extract_pages_for_profile(
-            args.cnd_pdf, profile, role="candidate", warnings=region_warnings
-        )
+        output = run_comparison(args.ref_pdf, args.cnd_pdf, profile)
     except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
         print(str(exc), file=sys.stderr)
         return 1
 
-    for warning in region_warnings:
+    for warning in output.region_warnings:
         print(f"Warnung: {warning}", file=sys.stderr)
 
-    result = compare(
-        ref_pages, cnd_pages,
-        case_sensitive=profile.case_sensitive if profile else True,
-        normalize_whitespace=profile.normalize_whitespace if profile else False,
-        ocr_used=ref_ocr_used or cnd_ocr_used,
-        compare_mode=profile.compare_mode if profile else "words",
-        merge_hyphenation=profile.merge_hyphenation if profile else True,
-        normalize_orphan_hyphens=profile.normalize_orphan_hyphens if profile else True,
-    )
-    # compare_region_texts (3. Rückgabewert von extract_pages_for_profile) wurde
-    # bereits aus ref_pages/cnd_pages herausgefiltert (siehe
-    # pdf_extractor.separate_compare_region_blocks) - hier fließen die
-    # zugehörigen Multiset-Deltas zusätzlich in has_delta/deltas ein (siehe
-    # docs/prompt_table_regions.md, Step 4).
-    compare_region_deltas = merge_compare_region_comparison(ref_tr_texts, cnd_tr_texts, profile)
-    if compare_region_deltas:
-        result = dataclasses.replace(
-            result,
-            deltas=result.deltas + compare_region_deltas,
-            has_delta=True,
-        )
-    # Stabil NUR nach Seite sortieren (siehe docs/prompt_compare_regions_mode.md,
-    # Task 3): compare_region-Deltas wurden bisher immer ans Ende angehängt, egal
-    # zu welcher Seite sie gehören (siehe oben) - eine Seite-1-Region-Delta
-    # erschien so hinter Seite-17-Deltas und wurde von Testern übersehen.
-    # Bewusst KEIN sekundärer Sortierschlüssel auf position: Region-interne
-    # Positionen haben einen anderen Bezugsrahmen als Dokumentpositionen, und
-    # bei Spalten/Tabellen/Querformat entspricht die Lesereihenfolge ohnehin
-    # nicht dem visuellen Eindruck im Viewer. Pythons sort ist stabil, die
-    # ursprüngliche Generierungsreihenfolge innerhalb einer Seite bleibt also
-    # erhalten.
-    result = dataclasses.replace(result, deltas=sorted(result.deltas, key=lambda d: d.page))
-    duration_seconds = time.perf_counter() - start
+    result = output.result
+    region_warnings = output.region_warnings
+    duration_seconds = output.duration_seconds
 
     report_path = None
     if args.report:

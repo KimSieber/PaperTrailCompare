@@ -264,9 +264,9 @@ def test_compare_ruft_extraktion_mit_korrekter_role_fuer_ref_und_cnd_auf(tmp_pat
         pages = extract_pages(pdf_path)
         return pages, False, [{} for _ in pages]
 
-    import engine.__main__ as main_module
+    import engine.comparison as comparison_module
 
-    monkeypatch.setattr(main_module, "extract_pages_for_profile", fake_extract)
+    monkeypatch.setattr(comparison_module, "extract_pages_for_profile", fake_extract)
 
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
@@ -336,14 +336,14 @@ def test_compare_ruft_compare_mit_profile_compare_mode_auf(tmp_path, capsys, mon
     Muster wie die vorherige Verdrahtungslücke bei exclude_regions)."""
     seen_modes = []
 
-    import engine.__main__ as main_module
-    real_compare = main_module.compare
+    import engine.comparison as comparison_module
+    real_compare = comparison_module.compare
 
     def spy_compare(*args, **kwargs):
         seen_modes.append(kwargs.get("compare_mode"))
         return real_compare(*args, **kwargs)
 
-    monkeypatch.setattr(main_module, "compare", spy_compare)
+    monkeypatch.setattr(comparison_module, "compare", spy_compare)
 
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
@@ -428,9 +428,9 @@ def test_compare_reicht_text_extraction_reconstruct_an_extract_pages_for_profile
         seen_profiles.append(profile)
         return real_extract(pdf_path, profile, role=role, warnings=warnings)
 
-    import engine.__main__ as main_module
+    import engine.comparison as comparison_module
 
-    monkeypatch.setattr(main_module, "extract_pages_for_profile", fake_extract)
+    monkeypatch.setattr(comparison_module, "extract_pages_for_profile", fake_extract)
 
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
