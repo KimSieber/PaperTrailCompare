@@ -38,6 +38,10 @@ RUNS = {
 
 
 def main():
+    """Vergleicht REF_PDF/CND_PDF einmal je OCR-Konfiguration aus RUNS (A:
+    beide nativ, B: nur Referenz per OCR, C: beide per OCR) und druckt
+    Laufzeit, Delta-Anzahl und eine Stichprobe der ersten 5 Deltas -
+    Entscheidungsgrundlage für ocr.mode_reference/mode_candidate."""
     print(f"Referenz: {REF_PDF.name}")
     print(f"Kandidat: {CND_PDF.name}\n")
 

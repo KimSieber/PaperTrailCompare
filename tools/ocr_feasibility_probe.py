@@ -35,6 +35,8 @@ PROBLEM_TERMS = [
 
 
 def render_page(doc, page_no, dpi):
+    """Rastert page_no (0-basiert) aus doc mit gegebener Auflösung (dpi) als
+    Graustufenbild und liefert es als PIL Image - Eingabe für ocr_page()."""
     page = doc[page_no]
     zoom = dpi / 72
     mat = pymupdf.Matrix(zoom, zoom)
@@ -44,6 +46,9 @@ def render_page(doc, page_no, dpi):
 
 
 def ocr_page(img, lang="deu"):
+    """Führt Tesseract-OCR auf dem gerenderten Seitenbild img aus und liefert
+    (erkannter_text, Laufzeit_in_Sekunden) - die Laufzeit fließt in die
+    Machbarkeits-Hochrechnung in main() (SCHRITT 4) ein."""
     t0 = time.perf_counter()
     text = pytesseract.image_to_string(img, lang=lang)
     elapsed = time.perf_counter() - t0
@@ -51,12 +56,20 @@ def ocr_page(img, lang="deu"):
 
 
 def report_terms(label, text):
+    """Prüft für jeden Begriff aus PROBLEM_TERMS, ob er wörtlich in text
+    vorkommt, und druckt je Begriff OK/FEHL mit dem übergebenen label
+    (z.B. "nativ"/"ocr") - macht auf einen Blick sichtbar, welche
+    Extraktionsmethode die bekannten Problem-Begriffe korrekt erkennt."""
     for term in PROBLEM_TERMS:
         found = term in text
         print(f"    [{label}] {'OK  ' if found else 'FEHL'} '{term}'")
 
 
 def main():
+    """Führt den vollständigen Machbarkeitsnachweis auf REF_PDF durch: nativer
+    Text vs. OCR auf Seite 1+4, Laufzeitmessung Rendern+OCR pro Seite
+    hochgerechnet auf das Gesamtdokument, sowie ein DPI-Vergleich
+    (200/300/400) auf Seite 1 - druckt alle Zwischenergebnisse."""
     print(f"Referenzdatei: {REF_PDF.name}")
     print(f"Existiert: {REF_PDF.exists()}\n")
 

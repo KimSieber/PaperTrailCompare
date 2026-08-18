@@ -32,6 +32,10 @@ class PageGroup:
 
 
 def _match_group_name(first_line: str, compiled_patterns) -> Optional[str]:
+    """Prüft die erste Zeile einer Seite gegen alle compiled_patterns
+    (Reihenfolge wie im Profil) und liefert den Namen des ersten treffenden
+    Patterns, oder None, falls keins passt - die Seite gehört dann zur
+    zuletzt begonnenen Gruppe (siehe extract_page_groups)."""
     for pattern, name in compiled_patterns:
         if pattern.match(first_line):
             return name

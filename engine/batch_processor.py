@@ -76,6 +76,12 @@ def _compare_pair(
     profile: Optional[Profile],
     report_dir: Optional[Union[str, Path]] = None,
 ) -> PairResult:
+    """Vergleicht ein einzelnes Dateipaar für den Batch: prüft, ob beide Dateien
+    existieren, ruft run_comparison() auf und erzeugt bei gesetztem report_dir
+    zusätzlich einen Einzel-Report (_unique_report_path). Fehlt eine Datei
+    oder schlägt der Vergleich fehl, wird dies als PairResult(status="error")
+    zurückgegeben statt eine Exception zu werfen - eine defekte PDF darf den
+    restlichen Batch nicht abbrechen (siehe Kommentar unten, B11)."""
     ref_file = Path(ref_path)
     cnd_file = Path(cnd_path)
 
