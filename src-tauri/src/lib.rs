@@ -21,11 +21,6 @@ use tauri_plugin_shell::ShellExt;
 /// None, solange kein Batch läuft.
 struct BatchChildState(Mutex<Option<CommandChild>>);
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 /// Entspricht 1:1 engine.text_comparator.Delta (siehe engine/__main__.py
 /// `compare --json`) – keine eigenen Feldnamen, damit die JSON-Ausgabe der
 /// Engine ohne Übersetzungsschicht deserialisiert werden kann.
@@ -519,7 +514,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(BatchChildState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
-            greet,
             engine_version,
             compare_documents,
             get_default_output_dir,
