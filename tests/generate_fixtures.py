@@ -999,7 +999,7 @@ def generate_tc_b_001_003() -> None:
                 f"Betrag: {i * 100},00 EUR"]
         simple_pdf(ref_path, [text])
         simple_pdf(cnd_path, [text])
-        filelist_rows.append([str(ref_path), str(cnd_path)])
+        filelist_rows.append([os.path.relpath(ref_path, d), os.path.relpath(cnd_path, d)])
 
     with open(d / "filelist.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -1027,7 +1027,7 @@ def generate_tc_b_001_003() -> None:
         simple_pdf(ref_path, [text])
         if i != 3:  # Datei 03_cnd.pdf absichtlich nicht erzeugen
             simple_pdf(cnd_path, [text])
-        filelist_rows.append([str(ref_path), str(cnd_path)])
+        filelist_rows.append([os.path.relpath(ref_path, d), os.path.relpath(cnd_path, d)])
 
     with open(d / "filelist.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -1141,7 +1141,7 @@ def generate_tc_b_005() -> None:
         text = [f"Dokument {i:03d}: Auftragsnummer AU-2026-{i:05d}"]
         simple_pdf(ref_path, [text])
         simple_pdf(cnd_path, [text])
-        filelist_rows.append([str(ref_path), str(cnd_path)])
+        filelist_rows.append([os.path.relpath(ref_path, d), os.path.relpath(cnd_path, d)])
 
     with open(d / "filelist.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)

@@ -42,10 +42,30 @@ _FILENAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]")
 
 def read_filelist(filelist_path: Union[str, Path]) -> List[Tuple[str, str]]:
     """Liest eine CSV-Dateiliste ohne Kopfzeile: jede Zeile ist
-    'Referenzdatei,Kandidatendatei'."""
+    'Referenzdatei,Kandidatendatei'.
+
+    Relative Pfadeinträge werden gegen das Verzeichnis der CSV-Datei
+    aufgelöst, nicht gegen das aktuelle Arbeitsverzeichnis - damit ist eine
+    Dateiliste wie tests/fixtures/TC-B-*/filelist.csv (Einträge im Format
+    'pairs/doc_01_ref.pdf') unabhängig vom Aufrufort lauffähig (siehe
+    docs/prompt_H20_relative_paths.md). Absolute Pfadeinträge bleiben
+    unverändert."""
+    base_dir = Path(filelist_path).resolve().parent
     with open(filelist_path, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
-        return [(row[0], row[1]) for row in reader if row]
+        rows = [(row[0], row[1]) for row in reader if row]
+    return [
+        (str(_resolve_filelist_entry(ref, base_dir)), str(_resolve_filelist_entry(cnd, base_dir)))
+        for ref, cnd in rows
+    ]
+
+
+def _resolve_filelist_entry(entry: str, base_dir: Path) -> Path:
+    """Löst einen einzelnen Pfadeintrag aus der Dateiliste auf: absolute
+    Pfade bleiben unverändert, relative Pfade werden gegen base_dir (das
+    Verzeichnis der CSV-Datei) aufgelöst."""
+    path = Path(entry)
+    return path if path.is_absolute() else base_dir / path
 
 
 def _sanitize_filename_part(name: str) -> str:
