@@ -19,7 +19,7 @@ import pytest
 from engine.text_comparator import compare, normalize_text
 
 
-def test_tc_t_001_identische_texte_kein_delta():
+def test_tc_t_001_identical_texts_no_delta():
     ref_pages = ["Dies ist ein identischer Text."]
     cnd_pages = ["Dies ist ein identischer Text."]
 
@@ -29,7 +29,7 @@ def test_tc_t_001_identische_texte_kein_delta():
     assert result.deltas == []
 
 
-def test_tc_t_002_silbentrennung_am_zeilenende_normalisieren():
+def test_tc_t_002_normalize_hyphenation_at_line_end():
     ref_pages = ["Das ist eine Silben-\ntrennung im Text."]
     cnd_pages = ["Das ist eine Silbentrennung im Text."]
 
@@ -39,14 +39,14 @@ def test_tc_t_002_silbentrennung_am_zeilenende_normalisieren():
     assert result.deltas == []
 
 
-def test_normalize_text_silbentrennung_wird_zusammengefuehrt():
+def test_normalize_text_hyphenation_is_merged():
     """TC-T-002 auf Funktionsebene: Wortzeichen unmittelbar vor dem
     Bindestrich UND unmittelbar nach dem Umbruch -> echte Silbentrennung,
     wird zusammengeführt."""
     assert normalize_text("Silben-\ntrennung") == "Silbentrennung"
 
 
-def test_normalize_text_isolierter_bindestrich_nach_zeilenumbruch_bleibt_erhalten():
+def test_normalize_text_isolated_hyphen_after_line_break_is_preserved():
     """Bindestrich mit Whitespace/Zeilenumbruch DAVOR ist kein
     Silbentrennungs-Bindestrich, sondern ein eigenständiger Gedankenstrich
     (z.B. Ein-Wort-pro-Zeile-Layout eines Type3-Dokuments) - _HYPHENATION_RE
@@ -55,7 +55,7 @@ def test_normalize_text_isolierter_bindestrich_nach_zeilenumbruch_bleibt_erhalte
     assert normalize_text("Wort\n-\nnächstes") == "Wort- nächstes"
 
 
-def test_normalize_text_bindestrich_mit_leerzeichen_davor_bleibt_erhalten():
+def test_normalize_text_hyphen_with_space_before_is_preserved():
     """Bindestrich mit Leerzeichen davor (kein Wortzeichen unmittelbar vor
     dem Strich) ist ebenfalls kein Silbentrennungs-Bindestrich - wird aber
     mit dem neuen Default normalize_orphan_hyphens=True ans vorangehende
@@ -63,7 +63,7 @@ def test_normalize_text_bindestrich_mit_leerzeichen_davor_bleibt_erhalten():
     assert normalize_text("Ende -\nAnfang") == "Ende- Anfang"
 
 
-def test_isolierter_gedankenstrich_ergibt_kein_falsches_delta():
+def test_isolated_dash_produces_no_false_delta():
     """Reproduziert den auf TC_REAL gefundenen Fall: ein eigenständiger
     Gedankenstrich, der im Referenzdokument zufällig allein auf einer Zeile
     steht, wurde vor dem Fix von der Silbentrennungs-Regex verschluckt
@@ -77,7 +77,7 @@ def test_isolierter_gedankenstrich_ergibt_kein_falsches_delta():
     assert result.deltas == []
 
 
-def test_tc_t_003_unterschiedlicher_seitenumbruch_gleicher_text():
+def test_tc_t_003_different_page_break_same_text():
     ref_pages = ["Gleicher Absatz auf Seite eins."]
     cnd_pages = ["", "Gleicher Absatz auf Seite eins."]
 
@@ -87,7 +87,7 @@ def test_tc_t_003_unterschiedlicher_seitenumbruch_gleicher_text():
     assert result.deltas == []
 
 
-def test_tc_t_004_echter_textunterschied_ergibt_delta():
+def test_tc_t_004_real_text_difference_produces_delta():
     ref_pages = ["Betrag: 100 EUR"]
     cnd_pages = ["Betrag: 200 EUR"]
 
@@ -102,7 +102,7 @@ def test_tc_t_004_echter_textunterschied_ergibt_delta():
     assert "200" in delta.cnd_text
 
 
-def test_tc_t_005_leerzeichennormalisierung():
+def test_tc_t_005_whitespace_normalization():
     ref_pages = ["Dies  ist   ein Text  mit doppelten Leerzeichen."]
     cnd_pages = ["Dies ist ein Text mit doppelten Leerzeichen."]
 
@@ -112,7 +112,7 @@ def test_tc_t_005_leerzeichennormalisierung():
     assert result.deltas == []
 
 
-def test_tc_t_006_case_sensitivity_ignoriert_bei_case_insensitive():
+def test_tc_t_006_case_sensitivity_ignored_when_case_insensitive():
     ref_pages = ["MUSTER"]
     cnd_pages = ["muster"]
 
@@ -122,7 +122,7 @@ def test_tc_t_006_case_sensitivity_ignoriert_bei_case_insensitive():
     assert result.deltas == []
 
 
-def test_tc_t_006_case_sensitivity_delta_bei_case_sensitive():
+def test_tc_t_006_case_sensitivity_delta_when_case_sensitive():
     ref_pages = ["MUSTER"]
     cnd_pages = ["muster"]
 
@@ -132,7 +132,7 @@ def test_tc_t_006_case_sensitivity_delta_bei_case_sensitive():
     assert len(result.deltas) == 1
 
 
-def test_tc_t_009_ocr_wort_trennfehler_wird_bei_normalize_whitespace_ignoriert():
+def test_tc_t_009_ocr_word_split_error_is_ignored_with_normalize_whitespace():
     """OCR erzeugt fälschlich ein Leerzeichen mitten im Wort
     ('Vertragsbedingungen' -> 'Vertrags bedingungen'); mit
     normalize_whitespace=True darf das nicht als Delta gemeldet werden."""
@@ -145,7 +145,7 @@ def test_tc_t_009_ocr_wort_trennfehler_wird_bei_normalize_whitespace_ignoriert()
     assert result.deltas == []
 
 
-def test_tc_t_009_echter_unterschied_bleibt_trotz_normalize_whitespace_delta():
+def test_tc_t_009_real_difference_remains_delta_despite_normalize_whitespace():
     """Ein echter Textunterschied (nicht nur Leerzeichen) muss auch mit
     normalize_whitespace=True weiterhin als Delta erkannt werden."""
     ref_pages = ["Betrag: 100 EUR"]
@@ -159,7 +159,7 @@ def test_tc_t_009_echter_unterschied_bleibt_trotz_normalize_whitespace_delta():
     assert "200" in result.deltas[0].cnd_text
 
 
-def test_tc_t_009_ocr_wort_trennfehler_ohne_normalize_whitespace_bleibt_delta():
+def test_tc_t_009_ocr_word_split_error_remains_delta_without_normalize_whitespace():
     """Default-Verhalten (normalize_whitespace=False) bleibt unverändert:
     der Wort-Trennfehler wird weiterhin als Delta gemeldet."""
     ref_pages = ["Die Vertragsbedingungen gelten sofort."]
@@ -171,7 +171,7 @@ def test_tc_t_009_ocr_wort_trennfehler_ohne_normalize_whitespace_bleibt_delta():
     assert len(result.deltas) == 1
 
 
-def test_ocr_used_wird_in_compare_result_uebernommen():
+def test_ocr_used_is_carried_into_compare_result():
     result = compare(["Text"], ["Text"], ocr_used=True)
 
     assert result.ocr_was_used is True
@@ -181,7 +181,7 @@ def test_ocr_used_wird_in_compare_result_uebernommen():
     assert result_default.ocr_was_used is False
 
 
-def test_compare_mode_chars_ignoriert_fragmentierte_wortgrenzen():
+def test_compare_mode_chars_ignores_fragmented_word_boundaries():
     """Kernanforderung: 'Versicherung' vs. 'Versi ch e ru n g' wird im
     Zeichenmodus identisch - genau das Type3-Fragmentierungsmuster aus der
     Diagnose-Session, das im Wortmodus als Delta gemeldet wird."""
@@ -196,7 +196,7 @@ def test_compare_mode_chars_ignoriert_fragmentierte_wortgrenzen():
     assert result_chars.deltas == []
 
 
-def test_compare_mode_chars_erkennt_echten_unterschied():
+def test_compare_mode_chars_detects_real_difference():
     """'100 EUR' vs. '200 EUR' bleibt ein Delta - Zeichenmodus ignoriert
     nur Whitespace, keine echten Inhaltsunterschiede."""
     ref_pages = ["Der Betrag ist 100 EUR."]
@@ -210,7 +210,7 @@ def test_compare_mode_chars_erkennt_echten_unterschied():
     assert result.deltas[0].cnd_text == "2"
 
 
-def test_compare_mode_chars_liefert_lesbaren_text_mit_leerzeichen():
+def test_compare_mode_chars_returns_readable_text_with_spaces():
     """Delta-Texte im Zeichenmodus müssen aus dem Originaltext (mit
     Leerzeichen) stammen, nicht aus der kompakten Vergleichsform - sonst
     ist die Delta-Detailliste im Report unlesbar."""
@@ -225,7 +225,7 @@ def test_compare_mode_chars_liefert_lesbaren_text_mit_leerzeichen():
     assert delta.cnd_text == "222"
 
 
-def test_compare_mode_chars_seitenzuordnung_bezieht_sich_auf_kandidat():
+def test_compare_mode_chars_page_assignment_refers_to_candidate():
     """Wie im Wortmodus (Delta.page bezieht sich auf das Kandidat-Dokument):
     ein Unterschied auf Kandidat-Seite 2 wird als Seite 2 gemeldet, auch
     wenn die Referenz an anderer Stelle umbricht."""
@@ -238,7 +238,7 @@ def test_compare_mode_chars_seitenzuordnung_bezieht_sich_auf_kandidat():
     assert result.deltas[0].page == 2
 
 
-def test_compare_mode_chars_case_sensitive_wird_respektiert():
+def test_compare_mode_chars_case_sensitive_is_respected():
     result_sensitive = compare(["Text"], ["text"], compare_mode="chars", case_sensitive=True)
     result_insensitive = compare(["Text"], ["text"], compare_mode="chars", case_sensitive=False)
 
@@ -246,7 +246,7 @@ def test_compare_mode_chars_case_sensitive_wird_respektiert():
     assert result_insensitive.has_delta is False
 
 
-def test_compare_mode_hybrid_ignoriert_fragmentierte_wortgrenzen():
+def test_compare_mode_hybrid_ignores_fragmented_word_boundaries():
     """Wie chars-Modus: 'Versicherung' vs. 'Versi ch e ru n g' wird identisch."""
     ref_pages = ["Der Versi ch e ru n gssch u tz umfasst alles."]
     cnd_pages = ["Der Versicherungsschutz umfasst alles."]
@@ -257,7 +257,7 @@ def test_compare_mode_hybrid_ignoriert_fragmentierte_wortgrenzen():
     assert result.deltas == []
 
 
-def test_compare_mode_hybrid_erkennt_echten_unterschied():
+def test_compare_mode_hybrid_detects_real_difference():
     ref_pages = ["Der Betrag ist 100 EUR."]
     cnd_pages = ["Der Betrag ist 200 EUR."]
 
@@ -267,7 +267,7 @@ def test_compare_mode_hybrid_erkennt_echten_unterschied():
     assert len(result.deltas) == 1
 
 
-def test_compare_mode_hybrid_fasst_fragmentierung_ueber_zufallstreffer_zusammen():
+def test_compare_mode_hybrid_merges_fragmentation_over_random_matches():
     """Reproduziert wortgetreu einen auf TC_REAL gefundenen Fall (Opcode
     #251 der echten Referenz/Kandidat-Ausrichtung, siehe Diagnose-Session):
     das eigene Fragment 'der' (Teil von 'besteh'+'en'+'der' = 'bestehender')
@@ -296,7 +296,7 @@ def test_compare_mode_hybrid_fasst_fragmentierung_ueber_zufallstreffer_zusammen(
     assert result_hybrid.deltas == []
 
 
-def test_compare_mode_hybrid_zwei_woerter_gleich_bleibt_grenze():
+def test_compare_mode_hybrid_two_words_equal_keeps_boundary():
     """Ab zwei aufeinanderfolgenden übereinstimmenden Wörtern gilt der
     Treffer als echte Synchronisation - zwei getrennte, echte
     Unterschiede links und rechts davon bleiben zwei separate Deltas,
@@ -309,7 +309,7 @@ def test_compare_mode_hybrid_zwei_woerter_gleich_bleibt_grenze():
     assert len(result.deltas) == 2
 
 
-def test_compare_mode_hybrid_case_sensitive_wird_respektiert():
+def test_compare_mode_hybrid_case_sensitive_is_respected():
     result_sensitive = compare(["Text"], ["text"], compare_mode="hybrid", case_sensitive=True)
     result_insensitive = compare(["Text"], ["text"], compare_mode="hybrid", case_sensitive=False)
 
@@ -317,12 +317,12 @@ def test_compare_mode_hybrid_case_sensitive_wird_respektiert():
     assert result_insensitive.has_delta is False
 
 
-def test_compare_mode_ungueltiger_wert_wirft_value_error():
+def test_compare_mode_invalid_value_raises_value_error():
     with pytest.raises(ValueError):
         compare(["Text"], ["Text"], compare_mode="sentences")
 
 
-def test_compare_mode_chars_ignoriert_normalize_whitespace_flag():
+def test_compare_mode_chars_ignores_normalize_whitespace_flag():
     """normalize_whitespace gilt laut Docstring nur für compare_mode="words"
     - im "chars"-Modus ist Whitespace ohnehin komplett draußen, das Flag
     darf keinen Unterschied machen (weder Fehler noch Verhaltensänderung)."""
@@ -371,7 +371,7 @@ def _build_synthetic_pages(fragment_ref_word: bool):
     return pages
 
 
-def test_compare_mode_chars_qualitaetstest_grosses_dokument_autojunk():
+def test_compare_mode_chars_quality_test_large_document_autojunk():
     ref_pages = _build_synthetic_pages(fragment_ref_word=True)
     cnd_pages = _build_synthetic_pages(fragment_ref_word=False)
 
@@ -439,7 +439,7 @@ def test_compare_mode_chars_qualitaetstest_grosses_dokument_autojunk():
     )
 
 
-def test_compare_mode_hybrid_qualitaetstest_grosses_dokument():
+def test_compare_mode_hybrid_quality_test_large_document():
     """Dasselbe Qualitätskriterium wie beim chars-Qualitätstest, für den
     zweistufigen Modus: alle 5 bekannten Änderungen müssen gefunden
     werden, keine Zusatzfunde durch das Fragmentierungsrauschen - UND

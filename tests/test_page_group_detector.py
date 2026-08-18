@@ -35,7 +35,7 @@ PATTERNS = [
 ]
 
 
-def test_tc_g_001_seitengruppe_per_such_pattern_identifizieren():
+def test_tc_g_001_identify_page_group_by_search_pattern():
     groups = extract_page_groups(str(FIXTURES / "TC-G-001" / "ref.pdf"), PATTERNS)
 
     assert [g.name for g in groups] == [
@@ -48,7 +48,7 @@ def test_tc_g_001_seitengruppe_per_such_pattern_identifizieren():
     assert "Fortsetzung des Dokuments" in groups[2].pages[1]
 
 
-def test_tc_g_002_nur_bestimmte_seitengruppen_vergleichen():
+def test_tc_g_002_compare_only_specific_page_groups():
     groups = extract_page_groups(
         str(FIXTURES / "TC-G-001" / "ref.pdf"), PATTERNS, group_filter=["Rechnung"]
     )
@@ -58,7 +58,7 @@ def test_tc_g_002_nur_bestimmte_seitengruppen_vergleichen():
     assert [len(g.pages) for g in groups] == [1, 2, 1]
 
 
-def test_tc_g_003_seitengruppen_mit_unterschiedlichem_seitenumfang():
+def test_tc_g_003_page_groups_with_different_page_counts():
     ref_path = str(FIXTURES / "TC-G-003" / "ref.pdf")
     cnd_path = str(FIXTURES / "TC-G-003" / "cnd.pdf")
     rechnung_pattern = [PageGroupPattern(pattern=r"^Rechnung Nr\. \S+$", name="Rechnung")]

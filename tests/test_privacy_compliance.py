@@ -29,7 +29,7 @@ from engine.text_comparator import compare
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def test_tc_s_001_keine_netzwerkverbindung_waehrend_verarbeitung(monkeypatch, tmp_path):
+def test_tc_s_001_no_network_connection_during_processing(monkeypatch, tmp_path):
     """Blockiert socket.socket/socket.create_connection während eines
     vollständigen Vergleichslaufs (Extraktion, Diff, Report-Erzeugung) –
     jeder Versuch, eine Netzwerkverbindung zu öffnen, lässt den Test
@@ -59,7 +59,7 @@ def test_tc_s_001_keine_netzwerkverbindung_waehrend_verarbeitung(monkeypatch, tm
     assert output_path.is_file()
 
 
-def test_tc_s_002_temporaere_dateien_werden_bereinigt(monkeypatch):
+def test_tc_s_002_temporary_files_are_cleaned_up(monkeypatch):
     """Vergleicht den Inhalt eines isolierten Temp-Verzeichnisses vor und
     nach einem vollständigen Vergleichslauf – es dürfen keine neuen
     Dateien zurückbleiben.

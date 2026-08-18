@@ -47,14 +47,14 @@ from engine.text_comparator import compare
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def test_tc_x_001_nativen_text_aus_einseitigem_pdf_extrahieren():
+def test_tc_x_001_extract_native_text_from_single_page_pdf():
     pages = extract_pages(str(FIXTURES / "TC-X-001" / "doc.pdf"))
 
     assert len(pages) == 1
     assert "einfacher, einseitiger Testtext" in pages[0]
 
 
-def test_tc_x_002_text_aus_mehrseitigem_pdf_seitenweise_extrahieren():
+def test_tc_x_002_extract_text_from_multi_page_pdf_page_by_page():
     pages = extract_pages(str(FIXTURES / "TC-X-002" / "doc.pdf"))
 
     assert len(pages) == 3
@@ -63,7 +63,7 @@ def test_tc_x_002_text_aus_mehrseitigem_pdf_seitenweise_extrahieren():
     assert "Seite drei" in pages[2]
 
 
-def test_tc_t_007_mehrspaltiger_text_korrekte_lesereihenfolge():
+def test_tc_t_007_multi_column_text_correct_reading_order():
     ref_pages = extract_pages(str(FIXTURES / "TC-T-007" / "ref.pdf"))
     cnd_pages = extract_pages(str(FIXTURES / "TC-T-007" / "cnd.pdf"))
 
@@ -81,14 +81,14 @@ def test_tc_t_007_mehrspaltiger_text_korrekte_lesereihenfolge():
     assert result.deltas == []
 
 
-def test_extract_pages_for_profile_ohne_profil_wie_extract_pages():
+def test_extract_pages_for_profile_without_profile_like_extract_pages():
     pages, ocr_used, _ = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), None)
 
     assert pages == extract_pages(str(FIXTURES / "TC-X-002" / "doc.pdf"))
     assert ocr_used is False
 
 
-def test_extract_pages_for_profile_ocr_deaktiviert_wie_extract_pages():
+def test_extract_pages_for_profile_ocr_disabled_like_extract_pages():
     profile = Profile(version="1.0", ocr=OcrConfig(enabled=False))
     pages, ocr_used, _ = extract_pages_for_profile(str(FIXTURES / "TC-X-002" / "doc.pdf"), profile)
 
@@ -100,7 +100,7 @@ def test_extract_pages_for_profile_ocr_deaktiviert_wie_extract_pages():
     shutil.which("tesseract") is None,
     reason="Tesseract-Binary nicht installiert (siehe README.md 'Tesseract OCR')",
 )
-def test_extract_pages_for_profile_ocr_aktiviert_nutzt_fallback():
+def test_extract_pages_for_profile_ocr_enabled_uses_fallback():
     """Bei profile.ocr.enabled=True muss extract_pages_for_profile die
     gescannte Seite (kein nativer Textlayer) via OCR-Fallback lesen,
     statt leeren Text zu liefern (siehe TC-O-002-Fixture)."""
@@ -113,7 +113,7 @@ def test_extract_pages_for_profile_ocr_aktiviert_nutzt_fallback():
     assert ocr_used is True
 
 
-def test_extract_pages_for_profile_mode_off_ignoriert_enabled_flag():
+def test_extract_pages_for_profile_mode_off_ignores_enabled_flag():
     """mode_reference/mode_candidate gewinnen, sobald sie explizit gesetzt
     sind - auch gegen ein 'enabled=True', das sonst (ohne Modus) fallback
     für beide Seiten bedeuten würde."""
@@ -126,7 +126,7 @@ def test_extract_pages_for_profile_mode_off_ignoriert_enabled_flag():
     assert pages[1].strip() == ""  # Seite ohne Textlayer bleibt leer ohne OCR
 
 
-def test_extract_pages_for_profile_mode_candidate_unabhaengig_von_reference(monkeypatch):
+def test_extract_pages_for_profile_mode_candidate_independent_of_reference(monkeypatch):
     """mode_reference und mode_candidate sind unabhängig voneinander
     einstellbar (Kernanforderung: Referenz per OCR, Kandidat nativ).
 
@@ -164,7 +164,7 @@ def test_extract_pages_for_profile_mode_candidate_unabhaengig_von_reference(monk
     shutil.which("tesseract") is None,
     reason="Tesseract-Binary nicht installiert (siehe README.md 'Tesseract OCR')",
 )
-def test_extract_pages_for_profile_mode_force_liest_auch_native_seiten_per_ocr():
+def test_extract_pages_for_profile_mode_force_reads_native_pages_via_ocr_too():
     """'force' muss OCR auch auf Seiten mit vorhandenem, aber unbrauchbarem
     nativem Text anwenden - anders als 'fallback', das nur bei leerem Text
     greift (siehe TC-X-002: Seiten haben sauberen nativen Text, force liest
@@ -183,7 +183,7 @@ def test_extract_pages_for_profile_mode_force_liest_auch_native_seiten_per_ocr()
     shutil.which("tesseract") is None,
     reason="Tesseract-Binary nicht installiert (siehe README.md 'Tesseract OCR')",
 )
-def test_extract_pages_for_profile_dpi_wird_an_ocr_durchgereicht(monkeypatch):
+def test_extract_pages_for_profile_dpi_is_passed_to_ocr(monkeypatch):
     """profile.ocr.dpi (Default 200, siehe Messung) muss bis zum
     OCR-Aufruf durchgereicht werden, nicht der ocr_extractor-eigene
     Default (300) verwendet werden."""
@@ -216,7 +216,7 @@ def _make_line(chars, font="Testfont", size=12.0):
     return {"spans": [{"font": font, "size": size, "chars": chars}]}
 
 
-def test_calibrate_from_gaps_findet_klaren_sprung():
+def test_calibrate_from_gaps_finds_clear_jump():
     """Nachgebaut aus den echten gemessenen Werten der Diagnose-Session:
     Intra-Wort-Rauschen ±0.24pt, Space-Breite 4.08pt."""
     intra = [-0.24, -0.1, 0.0, 0.1, 0.24, -0.2, 0.15, -0.05, 0.05, 0.2] * 3
@@ -226,7 +226,7 @@ def test_calibrate_from_gaps_findet_klaren_sprung():
     assert 0.24 < spacewidth < 4.0
 
 
-def test_calibrate_from_gaps_lehnt_gleichmaessige_verteilung_ab():
+def test_calibrate_from_gaps_rejects_uniform_distribution():
     """Keine zwei erkennbaren Cluster -> Sicherheits-Fallback statt Rateverfahren."""
     gaps = [i * 0.05 for i in range(100)]  # gleichmäßig 0.0 .. 4.95
     spacewidth, criterion_met = _calibrate_from_gaps(gaps)
@@ -234,13 +234,13 @@ def test_calibrate_from_gaps_lehnt_gleichmaessige_verteilung_ab():
     assert spacewidth is None
 
 
-def test_calibrate_from_gaps_lehnt_zu_wenige_messwerte_ab():
+def test_calibrate_from_gaps_rejects_too_few_measurements():
     spacewidth, criterion_met = _calibrate_from_gaps([-0.1, 0.1, 4.0, 4.1])
     assert criterion_met is False
     assert spacewidth is None
 
 
-def test_calibrate_spacewidths_nutzt_echte_leerzeichen_wenn_vorhanden():
+def test_calibrate_spacewidths_uses_real_spaces_when_available():
     """Ein Dokument mit normalem Fließtext (echte Leerzeichen-Glyphen) muss
     calibrate_spacewidths() über die reale rawdict-Extraktion (nicht über
     handgefertigte Dicts) auf source='real_spaces' kalibrieren."""
@@ -255,7 +255,7 @@ def test_calibrate_spacewidths_nutzt_echte_leerzeichen_wenn_vorhanden():
     assert matched, f"Erwartet mindestens eine real_spaces-Kalibrierung, erhalten: {calibration}"
 
 
-def test_reconstruct_line_text_setzt_wortgrenzen_bei_belastbarer_kalibrierung():
+def test_reconstruct_line_text_sets_word_boundaries_with_reliable_calibration():
     """Sperrsatz ohne Leerzeichen-Zeichen, aber mit klar erkennbarer
     Wortgrenze (großer Abstand) - muss zu einem echten Leerzeichen an der
     richtigen Stelle rekonstruiert werden, ohne die Wörter selbst zu zerlegen."""
@@ -274,7 +274,7 @@ def test_reconstruct_line_text_setzt_wortgrenzen_bei_belastbarer_kalibrierung():
     assert result == "Spar Ver"
 
 
-def test_reconstruct_line_text_erhaelt_echte_leerzeichen_unveraendert():
+def test_reconstruct_line_text_preserves_real_spaces_unchanged():
     """Normaler Text mit echten Leerzeichen darf durch die Rekonstruktion
     nicht verändert werden (No-Op-Anforderung aus dem Plan, Punkt c)."""
     chars = _make_rawdict_chars([
@@ -291,7 +291,7 @@ def test_reconstruct_line_text_erhaelt_echte_leerzeichen_unveraendert():
     assert result == "Die Katz"
 
 
-def test_reconstruct_line_text_faellt_bei_fehlender_kalibrierung_auf_native_zurueck():
+def test_reconstruct_line_text_falls_back_to_native_without_calibration():
     """Ohne belastbare Kalibrierung (criterion_met=False) bleibt der Text
     unverändert - kein Rateverfahren, siehe Plan-Ergänzung des Nutzers."""
     chars = _make_rawdict_chars([("S", 0), ("p", 6), ("a", 12), ("r", 18)])
@@ -306,7 +306,7 @@ def test_reconstruct_line_text_faellt_bei_fehlender_kalibrierung_auf_native_zuru
     assert result == "Spar"
 
 
-def test_tc_t_009_sperrsatz_ohne_leerzeichen_faellt_sicher_auf_native_zurueck():
+def test_tc_t_009_letter_spaced_text_without_spaces_falls_back_safely_to_native():
     """Integrationstest über extract_pages_for_profile(): Das reale Muster
     aus dem Großrechner-Befund (jede Buchstabenlücke gleich groß, keine
     Unterscheidung zwischen Intra-Wort- und Wortgrenzen-Abstand möglich)
@@ -320,7 +320,7 @@ def test_tc_t_009_sperrsatz_ohne_leerzeichen_faellt_sicher_auf_native_zurueck():
     assert pages_reconstruct == pages_native
 
 
-def test_tc_t_009_normales_dokument_bleibt_unter_reconstruct_unveraendert():
+def test_tc_t_009_normal_document_remains_unchanged_under_reconstruct():
     """Gegenprobe: ein normales Dokument mit echten Leerzeichen liefert unter
     text_extraction='reconstruct' dieselbe Ausgabe wie im nativen Modus."""
     cnd_path = str(FIXTURES / "TC-T-009" / "cnd.pdf")
@@ -332,7 +332,7 @@ def test_tc_t_009_normales_dokument_bleibt_unter_reconstruct_unveraendert():
     assert pages_reconstruct == pages_native
 
 
-def test_tc_t_008_tabellenerkennung_kein_falsches_delta():
+def test_tc_t_008_table_detection_no_false_delta():
     ref_pages = extract_pages(str(FIXTURES / "TC-T-008" / "ref.pdf"))
     cnd_pages = extract_pages(str(FIXTURES / "TC-T-008" / "cnd.pdf"))
 
@@ -353,7 +353,7 @@ def test_tc_t_008_tabellenerkennung_kein_falsches_delta():
 _HEADER_EXCLUDE_REGION = dict(x=0, y=0, width=250, height=80)
 
 
-def test_exclude_regions_wirkt_ueber_extract_pages_for_profile_tc_e_001():
+def test_exclude_regions_apply_via_extract_pages_for_profile_tc_e_001():
     """Verdrahtungstest: profile.exclude_regions muss über den
     Produktivpfad (extract_pages_for_profile, genutzt von CLI und Batch)
     tatsächlich wirken - nicht nur über den direkten Aufruf von
@@ -376,7 +376,7 @@ def test_exclude_regions_wirkt_ueber_extract_pages_for_profile_tc_e_001():
     assert result.deltas == []
 
 
-def test_exclude_regions_gilt_nur_fuer_definierte_seite_tc_e_002():
+def test_exclude_regions_apply_only_to_defined_page_tc_e_002():
     """Wie TC-E-002: Ausschluss nur für Seite 1 - der Datumsunterschied im
     Kopfbereich auf Seite 2 muss über den Produktivpfad weiterhin als
     Delta erkannt werden (Seitenbezug bleibt bei der Verdrahtung erhalten)."""
@@ -394,7 +394,7 @@ def test_exclude_regions_gilt_nur_fuer_definierte_seite_tc_e_002():
     assert any(delta.page == 2 for delta in result.deltas)
 
 
-def test_exclude_regions_auf_tabellenseite_erzeugt_warnung_statt_stiller_wirkungslosigkeit():
+def test_exclude_regions_on_table_page_produces_warning_instead_of_silent_no_op():
     """Tabellenlinearisierung ist nicht block-basiert und kann eine
     konfigurierte Region daher nicht anwenden - das darf nicht klanglos
     passieren, sondern muss über den warnings-Parameter sichtbar werden
@@ -414,7 +414,7 @@ def test_exclude_regions_auf_tabellenseite_erzeugt_warnung_statt_stiller_wirkung
     assert "Tabellenerkennung" in warnings[0]
 
 
-def test_exclude_regions_wirkt_auch_unter_text_extraction_reconstruct():
+def test_exclude_regions_apply_also_under_text_extraction_reconstruct():
     """Anforderung (a): der Ausschluss muss auch für
     text_extraction='reconstruct' funktionieren, nicht nur für 'native'."""
     profile = Profile(
@@ -537,7 +537,7 @@ def _write_row_major_columns_pdf(path: Path, rows: list, xs: list) -> None:
     c.save()
 
 
-def test_split_wide_blocks_schmale_bloecke_bleiben_unveraendert(tmp_path):
+def test_split_wide_blocks_narrow_blocks_remain_unchanged(tmp_path):
     """Schmale, klar getrennte Blöcke (<= _SPLIT_THRESHOLD_PT) haben keine
     Mehrspalten-Struktur, die aufgelöst werden müsste - split_wide_blocks()
     darf sie unverändert durchreichen."""
@@ -563,7 +563,7 @@ def test_split_wide_blocks_schmale_bloecke_bleiben_unveraendert(tmp_path):
     doc.close()
 
 
-def test_split_wide_blocks_breiter_block_wird_pro_spalte_aufgeteilt(tmp_path):
+def test_split_wide_blocks_wide_block_is_split_per_column(tmp_path):
     """Zeilenweise über 3 Spalten geschriebener Text verschmilzt bei PyMuPDF zu
     einem einzigen breiten Block mit 9 Zeilen (3 Zeilen x 3 Spalten) - siehe
     Diagnose-Session. split_wide_blocks() muss ihn wieder in 3 spalten-reine
@@ -596,7 +596,7 @@ def test_split_wide_blocks_breiter_block_wird_pro_spalte_aufgeteilt(tmp_path):
     doc.close()
 
 
-def test_split_wide_blocks_breiter_block_mit_einer_spalte_bleibt_unveraendert(tmp_path):
+def test_split_wide_blocks_wide_block_with_one_column_remains_unchanged(tmp_path):
     """Eine breite Überschrift über mehrere Zeilen, aber mit durchgehend
     gleichem linken Rand, hat keine Mehrspalten-Struktur - hier darf
     split_wide_blocks() NICHT aufteilen, obwohl der Block > _SPLIT_THRESHOLD_PT
@@ -623,7 +623,7 @@ def test_split_wide_blocks_breiter_block_mit_einer_spalte_bleibt_unveraendert(tm
     doc.close()
 
 
-def test_split_wide_blocks_integration_ergibt_spaltenweise_lesereihenfolge(tmp_path):
+def test_split_wide_blocks_integration_yields_column_wise_reading_order(tmp_path):
     """Integrationstest über _extract_page_text_columns(): zeilenweise über 3
     Spalten geschriebener Text muss nach split_wide_blocks() + sort_blocks_columns()
     spaltenweise gelesen werden (alle Zeilen von Spalte 0, dann Spalte 1, dann
@@ -711,7 +711,7 @@ def _write_footer_pdf(path: Path, footer_text: str, pages: int = 1, second_foote
     c.save()
 
 
-def test_separate_compare_region_blocks_trennt_blocke_bei_match(tmp_path):
+def test_separate_compare_region_blocks_splits_blocks_on_match(tmp_path):
     """Blöcke innerhalb einer zutreffenden compare_region mit passender
     condition werden abgetrennt - compare_region_texts enthält (whitespace-
     freier Text, lesbarer Text), remaining_blocks enthält sie nicht mehr."""
@@ -731,7 +731,7 @@ def test_separate_compare_region_blocks_trennt_blocke_bei_match(tmp_path):
     doc.close()
 
 
-def test_separate_compare_region_blocks_condition_matcht_nicht(tmp_path):
+def test_separate_compare_region_blocks_condition_does_not_match(tmp_path):
     """Trifft condition nicht zu, bleiben die Blöcke unverändert im
     normalen Vergleich - compare_region_texts bleibt für diese Region leer."""
     pdf_path = tmp_path / "footer.pdf"
@@ -750,7 +750,7 @@ def test_separate_compare_region_blocks_condition_matcht_nicht(tmp_path):
     doc.close()
 
 
-def test_separate_compare_region_blocks_page_zero_wirkt_auf_jeder_seite(tmp_path):
+def test_separate_compare_region_blocks_page_zero_applies_to_every_page(tmp_path):
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
 
@@ -764,7 +764,7 @@ def test_separate_compare_region_blocks_page_zero_wirkt_auf_jeder_seite(tmp_path
     doc.close()
 
 
-def test_separate_compare_region_blocks_page_from_wirkt_erst_ab_angegebener_seite(tmp_path):
+def test_separate_compare_region_blocks_page_from_applies_from_given_page(tmp_path):
     pdf_path = tmp_path / "footer.pdf"
     _write_footer_pdf(pdf_path, "ACME Insurance Company", pages=2)
 
@@ -781,7 +781,7 @@ def test_separate_compare_region_blocks_page_from_wirkt_erst_ab_angegebener_seit
     doc.close()
 
 
-def test_separate_compare_region_blocks_mehrere_regionen_unabhaengig_gematcht(tmp_path):
+def test_separate_compare_region_blocks_multiple_regions_matched_independently(tmp_path):
     """Zwei compare_regions auf derselben Seite werden unabhängig voneinander
     ausgewertet - beide matchen, beide werden abgetrennt."""
     pdf_path = tmp_path / "footer.pdf"
@@ -805,7 +805,7 @@ def test_separate_compare_region_blocks_mehrere_regionen_unabhaengig_gematcht(tm
     doc.close()
 
 
-def test_separate_compare_region_blocks_nach_exclude_region_kein_crash(tmp_path):
+def test_separate_compare_region_blocks_after_exclude_region_no_crash(tmp_path):
     """exclude_regions laufen VOR separate_compare_region_blocks (siehe
     Pipeline in _extract_page_text_columns) - überlappt eine exclude_region
     die compare_region vollständig, bleiben dort keine Blöcke mehr übrig;
@@ -827,7 +827,7 @@ def test_separate_compare_region_blocks_nach_exclude_region_kein_crash(tmp_path)
     doc.close()
 
 
-def test_extract_page_text_columns_integriert_compare_regions(tmp_path):
+def test_extract_page_text_columns_integrates_compare_regions(tmp_path):
     """Integrationstest: _extract_page_text_columns() entfernt matchende
     compare_region-Blöcke aus dem Seitentext und liefert deren normalisierten
     Text separat zurück."""
@@ -846,7 +846,7 @@ def test_extract_page_text_columns_integriert_compare_regions(tmp_path):
     doc.close()
 
 
-def test_separate_compare_region_blocks_condition_matcht_trotz_type3_fragmentierung(tmp_path):
+def test_separate_compare_region_blocks_condition_matches_despite_type3_fragmentation(tmp_path):
     """Reproduziert das reale Diagnose-Muster (siehe
     docs/prompt_table_regions_whitespace_free.md): Type3-Schriften (Size=1.0)
     liefern über PyMuPDFs Leerzeichen-Heuristik Silbenfragmente mit falschen
