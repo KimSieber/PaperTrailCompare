@@ -46,6 +46,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import logging
 import sys
 import time
 
@@ -71,9 +72,12 @@ from pathlib import Path
 from engine import __expiry__, __version__
 from engine.batch_processor import batch_compare
 from engine.comparison import run_comparison
+from engine.log_config import configure_logging
 from engine.models import PairResult
 from engine.profile_loader import Profile, ValidationError, load_profile
 from engine.report_generator import generate_batch_report, generate_report
+
+logger = logging.getLogger(__name__)
 
 
 def _run_compare(args: argparse.Namespace) -> int:
@@ -82,17 +86,17 @@ def _run_compare(args: argparse.Namespace) -> int:
         try:
             profile = load_profile(args.profile)
         except ValidationError as exc:
-            print(str(exc), file=sys.stderr)
+            logger.error("%s", exc)
             return 1
 
     try:
         output = run_comparison(args.ref_pdf, args.cnd_pdf, profile)
     except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
-        print(str(exc), file=sys.stderr)
+        logger.error("%s", exc)
         return 1
 
     for warning in output.region_warnings:
-        print(f"Warnung: {warning}", file=sys.stderr)
+        logger.warning("%s", warning)
 
     result = output.result
     region_warnings = output.region_warnings
@@ -108,7 +112,7 @@ def _run_compare(args: argparse.Namespace) -> int:
                 region_warnings=region_warnings,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
-            print(str(exc), file=sys.stderr)
+            logger.error("%s", exc)
             return 1
         report_path = args.report
 
@@ -148,7 +152,7 @@ def _run_batch(args: argparse.Namespace) -> int:
         try:
             profile = load_profile(args.profile)
         except ValidationError as exc:
-            print(str(exc), file=sys.stderr)
+            logger.error("%s", exc)
             return 1
 
     def on_progress(index: int, total: int, pair_result: PairResult) -> None:
@@ -173,7 +177,7 @@ def _run_batch(args: argparse.Namespace) -> int:
             args.filelist, profile=profile, on_progress=on_progress, report_dir=output_dir,
         )
     except OSError as exc:
-        print(str(exc), file=sys.stderr)
+        logger.error("%s", exc)
         return 1
     duration_seconds = time.perf_counter() - start
 
@@ -195,6 +199,8 @@ def _run_batch(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_logging()
+
     parser = argparse.ArgumentParser(prog="papertrail-engine")
     parser.add_argument(
         "--version", action="store_true", help="Version der Engine ausgeben und beenden"
@@ -250,9 +256,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if date.today() > date.fromisoformat(__expiry__):
-        print(f"Diese Testversion ist am {__expiry__} abgelaufen. "
-              f"Bitte wenden Sie sich an PaperTrail@Sieber-BW.de "
-              f"für eine aktuelle Version.", file=sys.stderr)
+        logger.error(
+            "Diese Testversion ist am %s abgelaufen. Bitte wenden Sie sich an "
+            "PaperTrail@Sieber-BW.de für eine aktuelle Version.",
+            __expiry__,
+        )
         return 2
 
     if args.command in ("compare", "batch"):

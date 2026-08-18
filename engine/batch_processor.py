@@ -20,8 +20,8 @@ Unit-Tests (siehe CLAUDE.md).
 from __future__ import annotations
 
 import csv
+import logging
 import re
-import sys
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple, Union
@@ -33,6 +33,8 @@ from engine.models import BatchResult, PairResult
 from engine.page_group_detector import extract_page_groups
 from engine.profile_loader import Profile
 from engine.report_generator import generate_report
+
+logger = logging.getLogger(__name__)
 
 _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
 _FILENAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]")
@@ -101,7 +103,7 @@ def _compare_pair(
         )
 
     for warning in output.region_warnings:
-        print(f"Warnung ({ref_path} / {cnd_path}): {warning}", file=sys.stderr)
+        logger.warning("%s / %s: %s", ref_path, cnd_path, warning)
 
     if report_dir is not None:
         report_path = _unique_report_path(Path(report_dir), ref_file, cnd_file)
