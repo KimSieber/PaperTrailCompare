@@ -22,6 +22,7 @@ Direkter Aufruf zum Testen/Debuggen:
 """
 from __future__ import annotations
 
+import logging
 import os
 import platform
 import shutil
@@ -30,6 +31,18 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Standalone-Skript (kein Teil des engine-Packages, siehe Modul-Docstring) -
+# beim Direktaufruf `python packaging/build_sidecar.py` landet nur
+# packaging/ auf sys.path, nicht REPO_ROOT. Muss deshalb vor dem Import von
+# engine.log_config ergänzt werden.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from engine.log_config import configure_logging  # noqa: E402 - siehe sys.path-Hinweis oben
+
+logger = logging.getLogger(__name__)
+
 SPEC_PATH = REPO_ROOT / "packaging" / "papertrail-engine.spec"
 BINARIES_DIR = REPO_ROOT / "src-tauri" / "binaries"
 BUILD_STAGING_DIR = REPO_ROOT / "packaging" / ".build"
@@ -219,13 +232,15 @@ def _self_check(sidecar_path: Path) -> None:
 
 
 def main() -> int:
+    configure_logging(logging.INFO)
+
     try:
         target_triple = _target_triple()
         sidecar_name = f"papertrail-engine-{target_triple}"
-        print(f"[build_sidecar] Target-Triple: {target_triple}")
+        logger.info("Target-Triple: %s", target_triple)
 
         tesseract_staging = _stage_tesseract(BUILD_STAGING_DIR / "tesseract")
-        print(f"[build_sidecar] Tesseract vorbereitet unter {tesseract_staging}")
+        logger.info("Tesseract vorbereitet unter %s", tesseract_staging)
 
         built_path = _run_pyinstaller(sidecar_name, tesseract_staging)
 
@@ -238,13 +253,13 @@ def main() -> int:
         _self_check(final_path)
 
         size_mb = final_path.stat().st_size / 1024 / 1024
-        print(f"[build_sidecar] Fertig: {final_path} ({size_mb:.1f} MB)")
+        logger.info("Fertig: %s (%.1f MB)", final_path, size_mb)
         return 0
     except BuildError as exc:
-        print(f"[build_sidecar] FEHLER: {exc}", file=sys.stderr)
+        logger.error("%s", exc)
         return 1
     except subprocess.CalledProcessError as exc:
-        print(f"[build_sidecar] FEHLER: Befehl fehlgeschlagen: {exc}", file=sys.stderr)
+        logger.error("Befehl fehlgeschlagen: %s", exc)
         return 1
 
 
