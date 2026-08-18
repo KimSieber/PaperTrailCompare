@@ -27,7 +27,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 HEADER_REGION = dict(x=0, y=0, w=250, h=80)
 
 
-def test_tc_e_001_region_vom_vergleich_ausschliessen():
+def test_tc_e_001_exclude_region_from_comparison():
     """Datum im Kopfbereich unterscheidet sich auf Seite 1 und 2 –
     mit Ausschluss-Region auf beiden Seiten wird das nicht als Delta gemeldet."""
     regions = [Region(page=1, **HEADER_REGION), Region(page=2, **HEADER_REGION)]
@@ -45,7 +45,7 @@ def test_tc_e_001_region_vom_vergleich_ausschliessen():
     assert result.deltas == []
 
 
-def test_tc_e_002_region_ausschluss_gilt_nur_fuer_definierte_seite():
+def test_tc_e_002_region_exclusion_applies_only_to_defined_page():
     """Ausschluss ist nur für Seite 1 konfiguriert – der Datumsunterschied
     im Kopfbereich auf Seite 2 muss weiterhin als Delta erkannt werden."""
     regions = [Region(page=1, **HEADER_REGION)]
@@ -73,7 +73,7 @@ TC_E_003_REGIONS = [
 ]
 
 
-def test_tc_e_003_mehrere_ausschluss_regionen():
+def test_tc_e_003_multiple_exclusion_regions():
     """3 Regionen auf verschiedenen Seiten (Logo S.1, Stempel+Footer S.2)
     unterscheiden sich inhaltlich – mit allen 3 exclude_regions kein Delta,
     da der Körpertext auf beiden Seiten identisch ist."""
@@ -90,7 +90,7 @@ def test_tc_e_003_mehrere_ausschluss_regionen():
     assert result.deltas == []
 
 
-def test_tc_e_003_ohne_regionen_ergeben_sich_deltas():
+def test_tc_e_003_without_regions_deltas_occur():
     """Gegenprobe: ohne Ausschluss-Regionen muss der Unterschied in Logo,
     Stempel und Footer tatsächlich als Delta auffallen – stellt sicher,
     dass der vorherige 'kein Delta'-Test nicht zufällig grün ist."""

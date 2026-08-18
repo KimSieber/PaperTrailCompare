@@ -30,7 +30,7 @@ from engine.compare_region_comparator import compare_region, merge_compare_regio
 from engine.profile_loader import CompareRegion, Profile
 
 
-def test_identische_texte_liefern_keine_deltas():
+def test_identical_texts_yield_no_deltas():
     deltas = compare_region(
         "SVSparkassenVersicherungKundenservice", "SVSparkassenVersicherungKundenservice",
         "SV SparkassenVersicherung Kundenservice", "SV SparkassenVersicherung Kundenservice",
@@ -39,7 +39,7 @@ def test_identische_texte_liefern_keine_deltas():
     assert deltas == []
 
 
-def test_unterschiedlicher_inhalt_liefert_genau_ein_delta_fuer_die_region():
+def test_different_content_yields_exactly_one_delta_for_region():
     deltas = compare_region(
         "AlphaBetaGamma", "AlphaGamma",
         "Alpha Beta Gamma", "Alpha Gamma",
@@ -50,7 +50,7 @@ def test_unterschiedlicher_inhalt_liefert_genau_ein_delta_fuer_die_region():
     assert deltas[0].cnd_text == "Alpha Gamma"
 
 
-def test_delta_enthaelt_die_lesbare_anzeige_version_nicht_die_whitespace_freie():
+def test_delta_contains_readable_display_version_not_whitespace_free():
     """Kernanforderung aus docs/prompt_table_regions_whitespace_free.md,
     Option A: der Report muss lesbaren Text zeigen, nicht die whitespace-
     freie Vergleichsversion."""
@@ -64,7 +64,7 @@ def test_delta_enthaelt_die_lesbare_anzeige_version_nicht_die_whitespace_freie()
     assert deltas[0].cnd_text == "Alpha Gamma"
 
 
-def test_whitespace_platzierung_allein_liefert_keine_deltas():
+def test_whitespace_placement_alone_yields_no_deltas():
     """Kernverhalten des Wechsels auf Whitespace-freien Vergleich: zwei
     Texte mit identischer Zeichenkette, aber unterschiedlicher Leerzeichen-
     Platzierung (z.B. Type3-Silbenfragmentierung), sind identisch."""
@@ -76,12 +76,12 @@ def test_whitespace_platzierung_allein_liefert_keine_deltas():
     assert deltas == []
 
 
-def test_beide_texte_leer_liefert_keine_deltas():
+def test_both_texts_empty_yields_no_deltas():
     deltas = compare_region("", "", "", "", page_num=1, region_index=0)
     assert deltas == []
 
 
-def test_leere_referenz_liefert_ein_delta():
+def test_empty_reference_yields_one_delta():
     deltas = compare_region(
         "", "AlphaBeta", "", "Alpha Beta", page_num=1, region_index=0,
     )
@@ -90,7 +90,7 @@ def test_leere_referenz_liefert_ein_delta():
     assert deltas[0].cnd_text == "Alpha Beta"
 
 
-def test_leerer_kandidat_liefert_ein_delta():
+def test_empty_candidate_yields_one_delta():
     deltas = compare_region(
         "AlphaBeta", "", "Alpha Beta", "", page_num=1, region_index=0,
     )
@@ -99,7 +99,7 @@ def test_leerer_kandidat_liefert_ein_delta():
     assert deltas[0].cnd_text == ""
 
 
-def test_andere_blockreihenfolge_gleiche_zeichen_liefert_keine_deltas():
+def test_different_block_order_same_content_yields_no_deltas():
     """Kernverhalten seit dem Wechsel auf Zeichen-Multiset-Vergleich (siehe
     docs/prompt_table_regions_char_multiset.md): auf echten Kundendokumenten
     liefert die Referenz-Seite EINEN breiten Block pro ZEILE (row-major,
@@ -127,7 +127,7 @@ def test_andere_blockreihenfolge_gleiche_zeichen_liefert_keine_deltas():
     assert deltas == []
 
 
-def test_zeilenweise_vs_spaltenweise_blockreihenfolge_liefert_keine_deltas():
+def test_row_wise_vs_column_wise_block_order_yields_no_deltas():
     """Reales Szenario aus docs/prompt_table_regions_char_multiset.md: ein
     2x2-Fußzeilenraster ("Tel"/"0521" in Zeile 1, "Fax"/"0621" in Zeile 2).
     Referenz konkateniert row-major (ein breiter Block pro Zeile), Kandidat
@@ -144,7 +144,7 @@ def test_zeilenweise_vs_spaltenweise_blockreihenfolge_liefert_keine_deltas():
     assert deltas == []
 
 
-def test_zeilenweise_vs_spaltenweise_mit_geaenderter_ziffer_liefert_ein_delta():
+def test_row_wise_vs_column_wise_with_changed_digit_yields_one_delta():
     """Gleiches 2x2-Raster wie oben, aber im Kandidaten wurde eine Ziffer der
     zweiten Rufnummer geändert (0621 -> 0622) - eine echte inhaltliche
     Änderung, die trotz unterschiedlicher Blockreihenfolge als GENAU EIN
@@ -162,7 +162,7 @@ def test_zeilenweise_vs_spaltenweise_mit_geaenderter_ziffer_liefert_ein_delta():
     assert deltas[0].cnd_text == cnd_display
 
 
-def test_deltas_haben_korrektes_page_attribut():
+def test_deltas_have_correct_page_attribute():
     deltas = compare_region(
         "Alpha", "Beta", "Alpha", "Beta", page_num=7, region_index=2,
     )
@@ -177,7 +177,7 @@ def _region(mode: str, condition: str = "irrelevant condition"):
     return CompareRegion(x=0, y=0, width=1, height=1, condition=condition, page=1, mode=mode)
 
 
-def test_merge_sequential_mode_liefert_mehrere_kleine_deltas_statt_einem_grossen():
+def test_merge_sequential_mode_yields_several_small_deltas_instead_of_one_large():
     """Kerntest aus docs/prompt_compare_regions_mode.md, Task 2: das reale
     Absenderinfo-Feld liefert 'Tel.:' -> 'Tel.' UND ein geändertes Datum -
     im mode='sequential' müssen das MEHRERE kleine Deltas werden (wie beim
@@ -198,7 +198,7 @@ def test_merge_sequential_mode_liefert_mehrere_kleine_deltas_statt_einem_grossen
         assert delta.cnd_text != cnd_display
 
 
-def test_merge_sequential_ist_default_wenn_mode_nicht_gesetzt():
+def test_merge_sequential_is_default_when_mode_not_set():
     """CompareRegion.mode hat bereits per Dataclass-Default 'sequential' -
     dieser Test dokumentiert, dass merge_compare_region_comparison sich
     genauso verhält, wenn eine Region ohne explizites mode-Argument
@@ -206,7 +206,7 @@ def test_merge_sequential_ist_default_wenn_mode_nicht_gesetzt():
     genügend unveränderte Wort-Anker zwischen den geänderten Stellen, sonst
     fasst difflib die komplett unterschiedlichen Resttokens zu einem
     einzigen replace-Opcode zusammen (siehe die ausführlichere Variante in
-    test_merge_sequential_mode_liefert_mehrere_kleine_deltas_statt_einem_grossen)."""
+    test_merge_sequential_mode_yields_several_small_deltas_instead_of_one_large)."""
     ref_display = "Tel.: 0611 178-49830 Wiesbaden, 15.06.2026"
     cnd_display = "Tel. 0611 178-49830 Wiesbaden, 03.07.2026"
     ref_tr_texts = [{0: (ref_display, ref_display)}]
@@ -220,7 +220,7 @@ def test_merge_sequential_ist_default_wenn_mode_nicht_gesetzt():
     assert len(deltas) > 1
 
 
-def test_merge_unordered_mode_ignoriert_weiterhin_blockreihenfolge():
+def test_merge_unordered_mode_still_ignores_block_order():
     """mode='unordered' muss über merge_compare_region_comparison exakt das
     bisherige Verhalten liefern (siehe test_compare_region_comparator.py
     oben, compare_region() direkt): row-major vs. column-major Blöcke mit
@@ -236,7 +236,7 @@ def test_merge_unordered_mode_ignoriert_weiterhin_blockreihenfolge():
     assert deltas == []
 
 
-def test_merge_unordered_mode_liefert_weiterhin_genau_ein_delta_bei_aenderung():
+def test_merge_unordered_mode_still_yields_exactly_one_delta_on_change():
     ref_nows = "Tel0521Fax0621"
     cnd_nows = "TelFax05210622"
     ref_display = "Tel: 0521  Fax: 0621"
@@ -252,7 +252,7 @@ def test_merge_unordered_mode_liefert_weiterhin_genau_ein_delta_bei_aenderung():
     assert deltas[0].cnd_text == cnd_display
 
 
-def test_merge_isoliert_zwei_regionen_auf_derselben_seite_voneinander():
+def test_merge_isolates_two_regions_on_same_page_from_each_other():
     """Zwei compare_regions auf derselben Seite - eine geänderte
     ('sequential'), eine unveränderte ('unordered') - dürfen sich nicht
     gegenseitig beeinflussen: nur die geänderte Region erzeugt Deltas."""
@@ -282,7 +282,7 @@ def test_merge_isoliert_zwei_regionen_auf_derselben_seite_voneinander():
 # --- region_clip (docs/prompt_region_clip_highlighting.md) ---
 
 
-def test_compare_region_setzt_region_clip_wenn_uebergeben():
+def test_compare_region_sets_region_clip_when_provided():
     """compare_region (mode='unordered') muss region_clip 1:1 auf das
     erzeugte Delta durchreichen - der report_generator braucht das
     Bounding-Box-Tupel, um die Fundstellensuche auf die Region
@@ -297,7 +297,7 @@ def test_compare_region_setzt_region_clip_wenn_uebergeben():
     assert deltas[0].region_clip == (10.0, 20.0, 40.0, 60.0)
 
 
-def test_compare_region_ohne_region_clip_liefert_none():
+def test_compare_region_without_region_clip_returns_none():
     """Ohne übergebenes region_clip bleibt das Feld None (Default) - z.B.
     wenn compare_region direkt ohne Profil-Region aufgerufen wird."""
     deltas = compare_region(
@@ -309,7 +309,7 @@ def test_compare_region_ohne_region_clip_liefert_none():
     assert deltas[0].region_clip is None
 
 
-def test_merge_unordered_setzt_region_clip_aus_profil_region():
+def test_merge_unordered_sets_region_clip_from_profile_region():
     """merge_compare_region_comparison muss für mode='unordered' die
     Bounding-Box der CompareRegion aus dem Profil (x, y, x+width, y+height)
     als region_clip auf das erzeugte Delta setzen."""
@@ -327,7 +327,7 @@ def test_merge_unordered_setzt_region_clip_aus_profil_region():
     assert deltas[0].region_clip == (10.0, 20.0, 40.0, 60.0)
 
 
-def test_merge_sequential_setzt_region_clip_aus_profil_region():
+def test_merge_sequential_sets_region_clip_from_profile_region():
     """Wie oben, aber für mode='sequential' - JEDES aus dem sequenziellen
     Vergleich remappte Delta muss dasselbe region_clip tragen."""
     region = CompareRegion(

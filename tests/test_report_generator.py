@@ -36,7 +36,7 @@ from engine.text_comparator import CompareResult, Delta, compare
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
+def test_tc_r_001_delta_marking_in_single_report(tmp_path):
     ref_path = FIXTURES / "TC-R-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-R-001" / "cnd.pdf"
 
@@ -92,7 +92,7 @@ def test_tc_r_001_delta_markierung_im_einzel_report(tmp_path):
     report.close()
 
 
-def test_tc_r_001_seitenumbruch_referenz_markierung_mit_fallback(tmp_path):
+def test_tc_r_001_page_break_reference_marking_with_fallback(tmp_path):
     """ref.pdf verteilt den Text auf 2 Seiten, cnd.pdf hat denselben Inhalt
     (mit Delta '100'->'200') auf nur 1 Seite. Delta.page bezieht sich auf
     die Kandidat-Seite (hier 1); '100' liegt im Referenz-Dokument aber auf
@@ -136,7 +136,7 @@ def test_tc_r_001_seitenumbruch_referenz_markierung_mit_fallback(tmp_path):
     ref_doc.close()
 
 
-def test_tc_r_005_rotierte_seite_wird_unverzerrt_eingebettet_und_delta_korrekt_positioniert(tmp_path):
+def test_tc_r_005_rotated_page_is_embedded_undistorted_and_delta_positioned_correctly(tmp_path):
     """Seite mit /Rotate 90 (z.B. quer eingescanntes Dokument) muss beim
     Vektor-Einbetten (show_pdf_page) unverzerrt erscheinen, und das
     Delta-Rechteck muss trotz Rotation exakt über dem geänderten Text
@@ -196,7 +196,7 @@ def _make_two_occurrence_pdf(path: Path) -> None:
     c.save()
 
 
-def test_find_delta_rects_region_clip_beschraenkt_suche_auf_region(tmp_path):
+def test_find_delta_rects_region_clip_limits_search_to_region(tmp_path):
     """docs/prompt_region_clip_highlighting.md, Test 1: mit region_clip
     gesetzt darf _find_delta_rects den Text NUR innerhalb der Region finden
     - hier das obere Vorkommen (y≈100), nicht das untere (y≈700)."""
@@ -217,7 +217,7 @@ def test_find_delta_rects_region_clip_beschraenkt_suche_auf_region(tmp_path):
     doc.close()
 
 
-def test_find_delta_rects_ohne_region_clip_durchsucht_ganze_seite(tmp_path):
+def test_find_delta_rects_without_region_clip_searches_whole_page(tmp_path):
     """docs/prompt_region_clip_highlighting.md, Test 2: ohne region_clip
     (None) - Backwards-Kompatibilität für alle nicht-regionsbasierten
     Deltas - werden beide Vorkommen gefunden."""
@@ -234,7 +234,7 @@ def test_find_delta_rects_ohne_region_clip_durchsucht_ganze_seite(tmp_path):
     doc.close()
 
 
-def test_find_delta_rects_fallback_ignoriert_region_clip(tmp_path):
+def test_find_delta_rects_fallback_ignores_region_clip(tmp_path):
     """docs/prompt_region_clip_highlighting.md, Test 3: die Fallback-Suche
     (fallback_search_all_pages=True, für Referenz-Seiten bei abweichendem
     Seitenumbruch) darf den clip NICHT anwenden - genau dafür existiert der
@@ -292,7 +292,7 @@ _RFH_FILTER_REGIONS = [
 ]
 
 
-def test_find_delta_rects_filtert_sequenzielle_treffer_in_regionen(tmp_path):
+def test_find_delta_rects_filters_sequential_matches_in_regions(tmp_path):
     """docs/prompt_region_filter_highlights.md, Test 1: ein sequenzieller
     Delta (kein region_clip) darf nur außerhalb aller exclude_regions/
     compare_regions markiert werden - hier bleibt nur das Fließtext-
@@ -313,7 +313,7 @@ def test_find_delta_rects_filtert_sequenzielle_treffer_in_regionen(tmp_path):
     doc.close()
 
 
-def test_find_delta_rects_region_delta_wird_nicht_gefiltert(tmp_path):
+def test_find_delta_rects_region_delta_is_not_filtered(tmp_path):
     """docs/prompt_region_filter_highlights.md, Test 2: ein Delta MIT
     region_clip darf vom Region-Filter nicht betroffen sein - der clip
     schränkt bereits ein, das Ergebnis bleibt das Vorkommen innerhalb der
@@ -335,7 +335,7 @@ def test_find_delta_rects_region_delta_wird_nicht_gefiltert(tmp_path):
     doc.close()
 
 
-def test_find_delta_rects_alle_treffer_in_regionen_liefert_leeres_ergebnis(tmp_path):
+def test_find_delta_rects_all_matches_in_regions_yields_empty_result(tmp_path):
     """docs/prompt_region_filter_highlights.md, Test 3: fallen ALLE Treffer
     in Regionen, bleibt das Ergebnis leer - KEIN Fallback auf die
     ungefilterte Trefferliste."""
@@ -354,7 +354,7 @@ def test_find_delta_rects_alle_treffer_in_regionen_liefert_leeres_ergebnis(tmp_p
     doc.close()
 
 
-def test_generate_report_ignoriert_leeren_text_und_seite_ausserhalb_dokument(tmp_path):
+def test_generate_report_ignores_empty_text_and_page_outside_document(tmp_path):
     """Deckt die Randfälle in _find_delta_rects ab: ein Delta ohne
     Text (reine Einfügung/Löschung) und eine Delta-Seite außerhalb des
     Dokuments (Fallback-Suche findet dann ebenfalls nichts)."""
@@ -372,7 +372,7 @@ def test_generate_report_ignoriert_leeren_text_und_seite_ausserhalb_dokument(tmp
     assert output_path.is_file()
 
 
-def test_tc_r_003_detaillierter_report_kein_delta(tmp_path):
+def test_tc_r_003_detailed_report_no_delta(tmp_path):
     """Vergleich ohne Delta: Report zeigt 'Keine Unterschiede gefunden' und
     enthält keine leere Delta-Tabelle/-Sektion, keine Markierungen."""
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
@@ -406,7 +406,7 @@ def test_tc_r_003_detaillierter_report_kein_delta(tmp_path):
     report.close()
 
 
-def test_ocr_verwendet_zeigt_tatsaechlichen_laufzeitwert_nicht_profil_flag(tmp_path):
+def test_ocr_used_shows_actual_runtime_value_not_profile_flag(tmp_path):
     """OCR verwendet: Ja/Nein muss aus CompareResult.ocr_was_used kommen
     (tatsächlicher Laufzeitwert), nicht aus profile.ocr.enabled (Profil-
     Flag sagt nur, dass OCR erlaubt wäre - nicht, dass es gelaufen ist)."""
@@ -426,7 +426,7 @@ def test_ocr_verwendet_zeigt_tatsaechlichen_laufzeitwert_nicht_profil_flag(tmp_p
     assert "OCR verwendet\nJa" in summary_text
 
 
-def test_ausgeschlossene_regionen_zeigt_angewendet_ohne_warnungen(tmp_path):
+def test_excluded_regions_shows_applied_without_warnings(tmp_path):
     """Die Regionen-Tabelle im Summary muss die konfigurierte Region zeigen;
     ohne region_warnings darf kein Warnhinweis erscheinen (siehe Block 3:
     detaillierte Auflistung statt reinem Zähler)."""
@@ -448,7 +448,7 @@ def test_ausgeschlossene_regionen_zeigt_angewendet_ohne_warnungen(tmp_path):
     assert "Tabellenerkennung" not in summary_text
 
 
-def test_ausgeschlossene_regionen_zeigt_warnung_bei_nicht_vollstaendiger_anwendung(tmp_path):
+def test_excluded_regions_shows_warning_on_incomplete_application(tmp_path):
     """Mit region_warnings (z.B. Tabellenseite, siehe
     pdf_extractor._warn_if_table_page_has_regions) muss der Report den
     tatsächlichen Warnhinweis unter der Regionen-Tabelle anzeigen."""
@@ -554,7 +554,7 @@ def test_summary_page_without_profile_shows_defaults(tmp_path):
     assert "Ausgeschlossene Regionen" not in summary_text
 
 
-def test_tc_r_004_report_format_konfigurierbar_html(tmp_path):
+def test_tc_r_004_report_format_configurable_html(tmp_path):
     """Profil mit report_format='html' -> HTML-Datei statt PDF, mit Datei-
     und Delta-Angaben."""
     ref_path = FIXTURES / "TC-R-001" / "ref.pdf"
@@ -583,7 +583,7 @@ def test_tc_r_004_report_format_konfigurierbar_html(tmp_path):
         assert not f.read(5).startswith(b"%PDF")
 
 
-def test_generate_report_html_ohne_delta(tmp_path):
+def test_generate_report_html_without_delta(tmp_path):
     """HTML-Report ohne Delta zeigt ebenfalls 'Keine Unterschiede gefunden'
     statt einer leeren Delta-Tabelle."""
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
@@ -601,7 +601,7 @@ def test_generate_report_html_ohne_delta(tmp_path):
     assert "<table" not in content
 
 
-def test_tc_r_002_batch_report_uebersicht_aller_vergleiche(tmp_path):
+def test_tc_r_002_batch_report_overview_of_all_comparisons(tmp_path):
     ok_delta_result = CompareResult(
         has_delta=True,
         deltas=[Delta(page=1, position=0, ref_text="A", cnd_text="B")],
@@ -641,7 +641,7 @@ def test_tc_r_002_batch_report_uebersicht_aller_vergleiche(tmp_path):
     assert "nicht gefunden" in text  # Fehlerstatus von Paar 3
 
 
-def test_tc_r_002_batch_report_kennzahlen_kacheln_erfolgsquote_und_seiten_gesamt(tmp_path):
+def test_tc_r_002_batch_report_metric_tiles_success_rate_and_total_pages(tmp_path):
     """Punkt 4 (prompt_batch_fixes.md): Kennzahlen-Kacheln im Kopfbereich
     zeigen u.a. Erfolgsquote in % und Gesamtzahl verarbeiteter Seiten."""
     ok_result = CompareResult(has_delta=False, deltas=[])
@@ -678,7 +678,7 @@ def test_tc_r_002_batch_report_kennzahlen_kacheln_erfolgsquote_und_seiten_gesamt
     assert "5.0 s" in text or "5,0 s" in text  # Laufzeit
 
 
-def test_tc_r_002_batch_report_zeigt_verwendetes_profil(tmp_path):
+def test_tc_r_002_batch_report_shows_used_profile(tmp_path):
     batch_result = BatchResult(pairs=[
         PairResult(
             ref_path="pairs/doc_01_ref.pdf", cnd_path="pairs/doc_01_cnd.pdf",
@@ -700,7 +700,7 @@ def test_tc_r_002_batch_report_zeigt_verwendetes_profil(tmp_path):
     assert "2.0" in text
 
 
-def test_tc_r_002_batch_report_fehlerpaar_zeigt_fehlertext_statt_zahlenwerten(tmp_path):
+def test_tc_r_002_batch_report_error_pair_shows_error_text_instead_of_numbers(tmp_path):
     """Punkt 4: Fehlerpaare werden nur in der Haupttabelle markiert (Fehler-
     hinweis statt Delta-Anzahl/Übereinstimmung), keine eigene Fehlersektion."""
     batch_result = BatchResult(pairs=[
@@ -722,7 +722,7 @@ def test_tc_r_002_batch_report_fehlerpaar_zeigt_fehlertext_statt_zahlenwerten(tm
     assert "Fehlerdetails" not in text
 
 
-def test_tc_r_002_batch_report_lange_dateinamen_bleiben_im_satzspiegel(tmp_path):
+def test_tc_r_002_batch_report_long_filenames_stay_within_page_margins(tmp_path):
     """Punkt 3 (prompt_batch_fixes.md): sehr lange Dateinamen werden in der
     Haupttabelle umgebrochen statt über den rechten Satzspiegel-Rand
     hinauszulaufen (Satzspiegel: A4 abzüglich 20mm Rand je Seite, wie beim
@@ -746,7 +746,7 @@ def test_tc_r_002_batch_report_lange_dateinamen_bleiben_im_satzspiegel(tmp_path)
     report.close()
 
 
-def test_tc_r_002_batch_report_wiederholt_tabellenkopf_auf_folgeseiten(tmp_path):
+def test_tc_r_002_batch_report_repeats_table_header_on_following_pages(tmp_path):
     """Punkt 3: Tabellenkopf (Spaltenüberschriften) wird bei mehrseitigen
     Batch-Reports auf jeder Folgeseite wiederholt."""
     pairs = [
@@ -769,7 +769,7 @@ def test_tc_r_002_batch_report_wiederholt_tabellenkopf_auf_folgeseiten(tmp_path)
     report.close()
 
 
-def test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt(tmp_path):
+def test_tc_r_002_batch_report_header_area_document_count_duration_timestamp(tmp_path):
     """Kopfbereich des Batch-Reports zeigt Gesamtanzahl Dokumente, Laufzeit
     und den Startzeitpunkt als Subtitle-Zeile (Sprint PTC-2, Task C2: der
     Zeitpunkt wandert von der KPI-Kachel in eine Subtitle-Zeile mit
@@ -799,7 +799,7 @@ def test_tc_r_002_batch_report_kopfbereich_dokumentanzahl_laufzeit_zeitpunkt(tmp
     assert before.replace(microsecond=0) <= subtitle_dt <= after.replace(microsecond=0) + timedelta(seconds=1)
 
 
-def test_batch_report_summe_deltas_kachel_ersetzt_zeitpunkt_kachel(tmp_path):
+def test_batch_report_total_deltas_tile_replaces_timestamp_tile(tmp_path):
     """Task C1: Die "Zeitpunkt"-Kachel entfällt zugunsten von "Summe Deltas"
     - Summe aller Deltas über alle status="ok"-Paare hinweg, damit beim
     Profil-Feintuning per Batch-Lauf auf einen Blick erkennbar ist, ob ein

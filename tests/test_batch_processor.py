@@ -65,7 +65,7 @@ def _write_image_pdf(path: Path, text: str) -> None:
     img_path.unlink()
 
 
-def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path, local_filelist):
+def test_batch_compare_generates_single_report_per_ok_pair_in_report_dir(tmp_path, local_filelist):
     """report_dir sorgt dafür, dass batch_compare pro erfolgreich verglichenem
     Paar einen Einzel-Report (analog zum Einzelvergleich) flach im gewählten
     Ausgabeverzeichnis ablegt - auch bei 0 Deltas (siehe prompt_batch_fixes.md,
@@ -84,7 +84,7 @@ def test_batch_compare_erzeugt_einzel_report_pro_ok_paar_im_report_dir(tmp_path,
     assert "PTC-Vergleich_doc_10_ref_doc_10_cnd.pdf" in names
 
 
-def test_batch_compare_erzeugt_keinen_einzel_report_fuer_fehlerpaare(tmp_path, local_filelist):
+def test_batch_compare_generates_no_single_report_for_error_pairs(tmp_path, local_filelist):
     filelist_path = local_filelist("TC-B-002", 5)
     report_dir = tmp_path / "reports"
     report_dir.mkdir()
@@ -98,7 +98,7 @@ def test_batch_compare_erzeugt_keinen_einzel_report_fuer_fehlerpaare(tmp_path, l
     assert not any("doc_03" in p.name for p in report_files)
 
 
-def test_batch_compare_haengt_zaehler_an_bei_namenskollision(tmp_path):
+def test_batch_compare_appends_counter_on_name_collision(tmp_path):
     """Zwei CSV-Zeilen mit identischem Referenz-/Kandidat-Dateinamen (aber
     unterschiedlichem Verzeichnis) dürfen sich beim Einzel-Report nicht
     gegenseitig überschreiben (siehe prompt_batch_fixes.md, Punkt 1)."""
@@ -125,7 +125,7 @@ def test_batch_compare_haengt_zaehler_an_bei_namenskollision(tmp_path):
     assert report_files == ["PTC-Vergleich_ref_cnd.pdf", "PTC-Vergleich_ref_cnd_2.pdf"]
 
 
-def test_batch_compare_einzel_report_zeigt_verarbeitungsdauer_statt_strich(tmp_path, local_filelist):
+def test_batch_compare_single_report_shows_processing_duration_instead_of_dash(tmp_path, local_filelist):
     """_compare_pair() misst die Extraktions-/Vergleichsdauer und reicht sie
     als duration_seconds an generate_report() durch, damit die
     Zusammenfassungsseite des Einzel-Reports aus dem Batch-Lauf einen echten
@@ -154,7 +154,7 @@ def test_batch_compare_einzel_report_zeigt_verarbeitungsdauer_statt_strich(tmp_p
     assert match.group(1) != "--"
 
 
-def test_read_filelist_ohne_kopfzeile(tmp_path):
+def test_read_filelist_without_header(tmp_path):
     """CSV-Dateiliste hat keine Kopfzeile (Architekturentscheidung Batch-GUI-
     Prompt): jede Zeile ist direkt 'Referenzdatei,Kandidatendatei'."""
     filelist_path = tmp_path / "filelist.csv"
@@ -171,7 +171,7 @@ def test_read_filelist_ohne_kopfzeile(tmp_path):
     ]
 
 
-def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf(local_filelist):
+def test_batch_compare_calls_on_progress_after_each_pair(local_filelist):
     """on_progress(index, total, pair_result) wird nach jedem verarbeiteten
     Paar aufgerufen - Grundlage für Live-Progress-Events Richtung GUI
     (siehe prompt_batch_verarbeitung.md)."""
@@ -188,7 +188,7 @@ def test_batch_compare_ruft_on_progress_nach_jedem_paar_auf(local_filelist):
     assert [c[2] for c in calls] == result.pairs
 
 
-def test_batch_compare_liefert_total_pages_pro_paar_fuer_uebereinstimmungs_prozent(local_filelist):
+def test_batch_compare_returns_total_pages_per_pair_for_match_percentage(local_filelist):
     """total_pages (max. Seitenzahl von Referenz/Kandidat) ist Grundlage für
     die Übereinstimmungs-Prozentanzeige je Zeile in der Batch-GUI (siehe
     prompt_batch_verarbeitung.md)."""
@@ -198,7 +198,7 @@ def test_batch_compare_liefert_total_pages_pro_paar_fuer_uebereinstimmungs_proze
         assert pair.total_pages == 1
 
 
-def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet(local_filelist):
+def test_tc_b_001_batch_by_filelist_processes_all_pairs(local_filelist):
     result = batch_compare(local_filelist("TC-B-001", 10))
 
     assert len(result.pairs) == 10
@@ -209,7 +209,7 @@ def test_tc_b_001_batch_per_dateiliste_alle_paare_verarbeitet(local_filelist):
         assert pair.compare_result.has_delta is False
 
 
-def test_tc_b_002_fehlende_datei_wird_protokolliert_rest_verarbeitet(local_filelist):
+def test_tc_b_002_missing_file_is_logged_rest_processed(local_filelist):
     result = batch_compare(local_filelist("TC-B-002", 5))
 
     assert len(result.pairs) == 5
@@ -272,7 +272,7 @@ def test_batch_compare_continues_after_corrupt_pdf(tmp_path):
     assert result.pairs[1].status == "error"
 
 
-def test_tc_b_003_batch_per_xmp_metadaten_document_id():
+def test_tc_b_003_batch_by_xmp_metadata_document_id():
     # ref_*.pdf und cnd_*.pdf liegen in einem gemeinsamen Verzeichnis (siehe
     # Fixture-Vorbedingung: "Verzeichnis mit 20 PDFs"); ref_glob/cnd_glob
     # trennen sie anhand des Dateinamens.
@@ -297,7 +297,7 @@ def test_tc_b_003_batch_per_xmp_metadaten_document_id():
         assert pair.compare_result.has_delta is True
 
 
-def test_tc_b_004_batch_pdf_splitting_per_seitengruppen_pattern(tmp_path):
+def test_tc_b_004_batch_pdf_splitting_by_page_group_pattern(tmp_path):
     profile = Profile(
         version="1.0",
         page_groups=[PageGroupPattern(pattern=r"^Rechnung Nr\. \S+$", name="Rechnung")],
@@ -321,7 +321,7 @@ def test_tc_b_004_batch_pdf_splitting_per_seitengruppen_pattern(tmp_path):
         assert f"Betrag: {i * 10},00 EUR" in pages[0]
 
 
-def test_tc_b_005_parallelverarbeitung_im_batch(local_filelist):
+def test_tc_b_005_parallel_processing_in_batch(local_filelist):
     result = batch_compare(local_filelist("TC-B-005", 100, digits=3), workers=4)
 
     assert len(result.pairs) == 100
@@ -336,7 +336,7 @@ def test_tc_b_005_parallelverarbeitung_im_batch(local_filelist):
         assert pair.compare_result.has_delta is False
 
 
-def test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis(local_filelist):
+def test_tc_b_005_parallel_and_sequential_yield_same_result(local_filelist):
     filelist_path = local_filelist("TC-B-005", 100, digits=3)
     sequential = batch_compare(filelist_path, workers=1)
     parallel = batch_compare(filelist_path, workers=4)
@@ -349,7 +349,7 @@ def test_tc_b_005_parallel_und_sequentiell_liefern_gleiches_ergebnis(local_filel
     )
 
 
-def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypatch, local_filelist):
+def test_batch_compare_calls_extraction_with_correct_role_per_page(monkeypatch, local_filelist):
     """Referenz- und Kandidat-Datei müssen mit ihrer jeweils eigenen role
     an extract_pages_for_profile übergeben werden - sonst würde ein
     vergessener Default den Kandidaten fälschlich mit der
@@ -375,7 +375,7 @@ def test_batch_compare_ruft_extraktion_mit_korrekter_role_pro_seite_auf(monkeypa
     assert seen_roles[1][1] == "candidate"
 
 
-def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path):
+def test_batch_compare_with_profile_exclude_regions_end_to_end_tc_e_002(tmp_path):
     """TC-E-002 end-to-end über den Produktivpfad batch_compare (nicht nur
     über den direkten Aufruf von region_filter.extract_pages_excluding_regions):
     Ausschluss ist nur für Seite 1 konfiguriert, der Datumsunterschied im
@@ -404,7 +404,7 @@ def test_batch_compare_mit_profile_exclude_regions_end_to_end_tc_e_002(tmp_path)
 # docs/prompt_table_regions.md, Step 4) ---
 
 
-def test_batch_compare_compare_region_eliminiert_false_delta_tc_tr_001(tmp_path):
+def test_batch_compare_compare_region_eliminates_false_delta_tc_tr_001(tmp_path):
     """TC-TR-001 über den Produktivpfad batch_compare: ref.pdf schreibt die
     Fußzeile als einen breiten Block, cnd.pdf als vier schmale Blöcke -
     identischer Wortinhalt. Mit korrekt konfigurierter compare_region darf
@@ -438,7 +438,7 @@ def test_batch_compare_compare_region_eliminiert_false_delta_tc_tr_001(tmp_path)
     assert pair.compare_result.deltas == []
 
 
-def test_batch_compare_compare_region_erkennt_echte_aenderung_tc_tr_002(tmp_path):
+def test_batch_compare_compare_region_detects_real_change_tc_tr_002(tmp_path):
     """TC-TR-002 über batch_compare: die Telefonnummer in der Kandidaten-
     Fußzeile ist tatsächlich geändert - der Whitespace-freie Vergleich muss
     das als GENAU EIN Delta für die gesamte Region melden (siehe
@@ -491,7 +491,7 @@ def _write_multi_page_pdf(path: Path, page_1_footer: str, body_lines: list) -> N
     c.save()
 
 
-def test_batch_compare_delta_liste_ist_seitenweise_sortiert(tmp_path):
+def test_batch_compare_delta_list_is_sorted_by_page(tmp_path):
     """Wie test_main.py::test_delta_liste_ist_seitenweise_sortiert_..., aber
     über den batch_compare-Pfad (engine.batch_processor), der dieselbe
     Merge-Logik verwendet - Task 3 muss an BEIDEN Stellen greifen (Einzel-
@@ -543,7 +543,7 @@ def test_batch_compare_delta_liste_ist_seitenweise_sortiert(tmp_path):
 # würde (pytest allein hätte diesen Bug nie gefunden, siehe Root-Cause-
 # Bericht: das Python-JSON war immer syntaktisch valide, nur der WERT
 # verletzte die Rust-Seite unsichtbar für Python-Tests).
-def test_batch_json_lines_positionsfeld_ist_stets_nicht_negativ_tc_tr_002(tmp_path):
+def test_batch_json_lines_position_field_is_always_non_negative_tc_tr_002(tmp_path):
     """Regressionstest für den Progress-Anzeige-Bug: eine compare_region mit
     echtem Delta (TC-TR-002) darf im emittierten JSON keine negativen
     Zahlenwerte enthalten - src-tauri/src/lib.rs::Delta.position ist ein
@@ -627,7 +627,7 @@ def test_batch_json_lines_positionsfeld_ist_stets_nicht_negativ_tc_tr_002(tmp_pa
     assert deltas[0]["position"] == 0
 
 
-def test_batch_compare_mit_profile_case_sensitive_false_end_to_end(tmp_path):
+def test_batch_compare_with_profile_case_sensitive_false_end_to_end(tmp_path):
     """case_sensitive=false muss über den Produktivpfad batch_compare
     wirken: ein reiner Groß-/Kleinschreibungsunterschied darf dann kein
     Delta mehr ergeben."""
@@ -650,7 +650,7 @@ def test_batch_compare_mit_profile_case_sensitive_false_end_to_end(tmp_path):
     assert pair.compare_result.deltas == []
 
 
-def test_batch_compare_mit_profile_normalize_whitespace_end_to_end(tmp_path):
+def test_batch_compare_with_profile_normalize_whitespace_end_to_end(tmp_path):
     """normalize_whitespace=true muss über den Produktivpfad batch_compare
     wirken: ein reiner Leerzeichen-Trennfehler darf dann kein Delta mehr
     ergeben."""
@@ -672,7 +672,7 @@ def test_batch_compare_mit_profile_normalize_whitespace_end_to_end(tmp_path):
     assert pair.compare_result.has_delta is False
 
 
-def test_batch_compare_reicht_text_extraction_reconstruct_durch(monkeypatch, local_filelist):
+def test_batch_compare_passes_through_text_extraction_reconstruct(monkeypatch, local_filelist):
     """Verdrahtungstest: profile.text_extraction muss bei batch_compare über
     extract_pages_for_profile ankommen (als Attribut des übergebenen
     profile-Objekts), nicht nur im Profil geladen/validiert werden.
@@ -701,7 +701,7 @@ def test_batch_compare_reicht_text_extraction_reconstruct_durch(monkeypatch, loc
     assert all(p.text_extraction == "reconstruct" for p in seen_profiles)
 
 
-def test_batch_compare_mit_ocr_mode_reference_force_end_to_end(tmp_path):
+def test_batch_compare_with_ocr_mode_reference_force_end_to_end(tmp_path):
     """ocr.mode_reference="force" muss über den Produktivpfad batch_compare
     wirken: die Referenz ist ein Scan-PDF (kein nativer Text), der Kandidat
     enthält denselben Text nativ - der OCR-gelesene Referenztext muss mit
@@ -727,7 +727,7 @@ def test_batch_compare_mit_ocr_mode_reference_force_end_to_end(tmp_path):
     assert pair.compare_result.has_delta is False
 
 
-def test_batch_compare_mit_profile_exclude_region_page_from_end_to_end(tmp_path):
+def test_batch_compare_with_profile_exclude_region_page_from_end_to_end(tmp_path):
     """exclude_regions mit page_from muss über den Produktivpfad batch_compare
     wirken: ein Kopfbereich, der sich ab Seite 2 unterscheidet, wird ab
     dort ausgeschlossen - der Unterschied auf Seite 1 bleibt als Delta
@@ -766,7 +766,7 @@ def test_batch_compare_mit_profile_exclude_region_page_from_end_to_end(tmp_path)
     assert {delta.page for delta in pair.compare_result.deltas} == {1}
 
 
-def test_batch_compare_reicht_profile_compare_mode_an_compare_durch(monkeypatch, local_filelist):
+def test_batch_compare_passes_profile_compare_mode_to_compare(monkeypatch, local_filelist):
     """Verdrahtungstest: profile.compare_mode muss bei batch_compare an
     text_comparator.compare durchgereicht werden, nicht nur im Profil
     geladen/validiert werden.

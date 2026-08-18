@@ -53,7 +53,7 @@ class _FakeRegion:
     h: float
 
 
-def test_mask_regions_on_image_faerbt_region_weiss_bei_passender_seite():
+def test_mask_regions_on_image_colors_region_white_on_matching_page():
     """Keine Tesseract-Abhängigkeit nötig: prüft direkt, dass
     _mask_regions_on_image die Pixel innerhalb der Region auf der
     richtigen Seite weiß färbt, VOR dem eigentlichen OCR-Lauf - das ist
@@ -68,7 +68,7 @@ def test_mask_regions_on_image_faerbt_region_weiss_bei_passender_seite():
     assert masked.getpixel((90, 90)) == (0, 0, 0)  # außerhalb bleibt unverändert
 
 
-def test_mask_regions_on_image_wirkt_nur_auf_die_definierte_seite():
+def test_mask_regions_on_image_affects_only_defined_page():
     image = Image.new("RGB", (100, 100), color="black")
     region = _FakeRegion(page=2, x=0, y=0, w=50, h=50)
 
@@ -84,7 +84,7 @@ _requires_tesseract = pytest.mark.skipif(
 
 
 @_requires_tesseract
-def test_tc_o_001_gescannten_text_via_ocr_erkennen():
+def test_tc_o_001_recognize_scanned_text_via_ocr():
     ref_pages = extract_text_via_ocr(str(FIXTURES / "TC-O-001" / "ref.pdf"))
     cnd_pages = extract_text_via_ocr(str(FIXTURES / "TC-O-001" / "cnd.pdf"))
 
@@ -99,7 +99,7 @@ def test_tc_o_001_gescannten_text_via_ocr_erkennen():
 
 
 @_requires_tesseract
-def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
+def test_tc_o_002_mixed_pdf_native_and_scanned_text():
     ref_pages, ref_ocr_used, _ = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "ref.pdf"))
     cnd_pages, cnd_ocr_used, _ = extract_pages_with_ocr_fallback(str(FIXTURES / "TC-O-002" / "cnd.pdf"))
 
@@ -120,7 +120,7 @@ def test_tc_o_002_gemischtes_pdf_nativer_und_gescannter_text():
     assert result.ocr_was_used is True
 
 
-def test_extract_pages_with_ocr_fallback_compare_regions_auf_nativer_seite(tmp_path):
+def test_extract_pages_with_ocr_fallback_compare_regions_on_native_page(tmp_path):
     """compare_regions muss im nativen Zweig von extract_pages_with_ocr_fallback
     wirken (Sprint PTC-S3 Task C, siehe docs/prompt_table_regions.md) - das
     ist der tatsächliche Ausführungspfad für ocr.mode='fallback'-Profile.
@@ -148,7 +148,7 @@ def test_extract_pages_with_ocr_fallback_compare_regions_auf_nativer_seite(tmp_p
 # --- Spacewidth-Kalibrierung im Fallback-Pfad (siehe docs/prompt_spacewidth_ocr_fallback.md) ---
 
 
-def test_extract_pages_with_ocr_fallback_nutzt_spacewidth_kalibrierte_extraktion(tmp_path, monkeypatch):
+def test_extract_pages_with_ocr_fallback_uses_spacewidth_calibrated_extraction(tmp_path, monkeypatch):
     """Der native-Text-Zweig von extract_pages_with_ocr_fallback muss
     get_text_blocks_reconstructed() (mit calibrate_spacewidths()-Ergebnis)
     nutzen statt der unkalibrierten get_text_blocks() - sonst liefert dieser
@@ -189,13 +189,13 @@ def test_extract_pages_with_ocr_fallback_nutzt_spacewidth_kalibrierte_extraktion
     assert "Fliesstext" in pages[0]
 
 
-def test_extract_pages_with_ocr_fallback_stimmt_mit_direkter_rekonstruktion_ueberein():
+def test_extract_pages_with_ocr_fallback_matches_direct_reconstruction():
     """Für dieselbe Seite muss der Fallback-Pfad denselben Text liefern wie
     die direkte Nutzung von calibrate_spacewidths() +
     get_text_blocks_reconstructed() (siehe pdf_extractor._extract_page_text_columns_reconstructed)
     - beide nutzen jetzt dieselbe Kalibrierung/Rekonstruktion. TC-T-009/cnd.pdf
     hat echte Leerzeichen-Glyphen (source='real_spaces', siehe
-    test_calibrate_spacewidths_nutzt_echte_leerzeichen_wenn_vorhanden) und
+    test_calibrate_spacewidths_uses_real_spaces_when_available) und
     genau eine Seite mit nativem Text - kein Tesseract nötig."""
     import pymupdf
 

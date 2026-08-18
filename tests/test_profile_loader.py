@@ -25,7 +25,7 @@ from engine.profile_loader import ValidationError, load_profile
 FIXTURES_DIR = __import__("pathlib").Path(__file__).parent / "fixtures"
 
 
-def test_tc_p_001_valides_json_profil_laden():
+def test_tc_p_001_load_valid_json_profile():
     profile = load_profile(FIXTURES_DIR / "TC-P-001" / "profile.json")
 
     assert profile.version == "1.0"
@@ -50,19 +50,19 @@ def test_tc_p_001_valides_json_profil_laden():
     assert profile.ocr.confidence_threshold == 0.85
 
 
-def test_tc_p_002_invalides_json_profil_wirft_validation_error():
+def test_tc_p_002_invalid_json_profile_raises_validation_error():
     with pytest.raises(ValidationError) as excinfo:
         load_profile(FIXTURES_DIR / "TC-P-002" / "profile_invalid.json")
 
     assert str(excinfo.value)
 
 
-def test_load_profile_datei_nicht_gefunden_wirft_validation_error(tmp_path):
+def test_load_profile_file_not_found_raises_validation_error(tmp_path):
     with pytest.raises(ValidationError):
         load_profile(tmp_path / "does_not_exist.json")
 
 
-def test_load_profile_json_kein_objekt_wirft_validation_error(tmp_path):
+def test_load_profile_json_not_an_object_raises_validation_error(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
 
@@ -70,7 +70,7 @@ def test_load_profile_json_kein_objekt_wirft_validation_error(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_fehlendes_pflichtfeld_version_wirft_validation_error(tmp_path):
+def test_load_profile_missing_required_field_version_raises_validation_error(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps({"case_sensitive": True}), encoding="utf-8")
 
@@ -78,7 +78,7 @@ def test_load_profile_fehlendes_pflichtfeld_version_wirft_validation_error(tmp_p
         load_profile(profile_path)
 
 
-def test_load_profile_ungueltiges_report_format_wirft_validation_error(tmp_path):
+def test_load_profile_invalid_report_format_raises_validation_error(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({"version": "1.0", "report_format": "xml"}), encoding="utf-8"
@@ -88,7 +88,7 @@ def test_load_profile_ungueltiges_report_format_wirft_validation_error(tmp_path)
         load_profile(profile_path)
 
 
-def test_load_profile_text_extraction_default_ist_native(tmp_path):
+def test_load_profile_text_extraction_default_is_native(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps({"version": "1.0"}), encoding="utf-8")
 
@@ -97,7 +97,7 @@ def test_load_profile_text_extraction_default_ist_native(tmp_path):
     assert profile.text_extraction == "native"
 
 
-def test_load_profile_ungueltiger_text_extraction_wert_wirft_validation_error(tmp_path):
+def test_load_profile_invalid_text_extraction_value_raises_validation_error(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({"version": "1.0", "text_extraction": "auto"}), encoding="utf-8"
@@ -115,7 +115,7 @@ def test_load_profile_ungueltiger_text_extraction_wert_wirft_validation_error(tm
     ],
     ids=["exclude_region_ohne_height", "page_group_ohne_name"],
 )
-def test_load_profile_fehlendes_feld_in_region_oder_gruppe_wirft_validation_error(
+def test_load_profile_missing_field_in_region_or_group_raises_validation_error(
     tmp_path, profile_data
 ):
     profile_path = tmp_path / "profile.json"
@@ -125,7 +125,7 @@ def test_load_profile_fehlendes_feld_in_region_oder_gruppe_wirft_validation_erro
         load_profile(profile_path)
 
 
-def test_load_profile_ocr_defaults_ohne_ocr_feld(tmp_path):
+def test_load_profile_ocr_defaults_without_ocr_field(tmp_path):
     """Ohne ocr-Feld im Profil bleiben mode_reference/mode_candidate None
     (nicht explizit gesetzt) und dpi hat den per Messung ermittelten
     Default 200."""
@@ -139,7 +139,7 @@ def test_load_profile_ocr_defaults_ohne_ocr_feld(tmp_path):
     assert profile.ocr.dpi == 200
 
 
-def test_load_profile_ocr_mode_reference_und_candidate_getrennt_einstellbar(tmp_path):
+def test_load_profile_ocr_mode_reference_and_candidate_separately_configurable(tmp_path):
     """Kernanforderung: Referenz per OCR erzwingen, Kandidat nativ lassen."""
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
@@ -167,7 +167,7 @@ def test_load_profile_ocr_mode_reference_und_candidate_getrennt_einstellbar(tmp_
     ],
     ids=["ungueltiger_mode_reference", "ungueltiger_mode_candidate"],
 )
-def test_load_profile_ungueltiger_ocr_modus_wirft_validation_error(tmp_path, ocr_data):
+def test_load_profile_invalid_ocr_mode_raises_validation_error(tmp_path, ocr_data):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({"version": "1.0", "ocr": ocr_data}), encoding="utf-8"
@@ -177,7 +177,7 @@ def test_load_profile_ungueltiger_ocr_modus_wirft_validation_error(tmp_path, ocr
         load_profile(profile_path)
 
 
-def test_load_profile_ocr_dpi_nicht_positiv_wirft_validation_error(tmp_path):
+def test_load_profile_ocr_dpi_not_positive_raises_validation_error(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({"version": "1.0", "ocr": {"dpi": 0}}), encoding="utf-8"
@@ -187,7 +187,7 @@ def test_load_profile_ocr_dpi_nicht_positiv_wirft_validation_error(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_compare_mode_default_ist_words(tmp_path):
+def test_load_profile_compare_mode_default_is_words(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps({"version": "1.0"}), encoding="utf-8")
 
@@ -196,7 +196,7 @@ def test_load_profile_compare_mode_default_ist_words(tmp_path):
     assert profile.compare_mode == "words"
 
 
-def test_load_profile_compare_mode_chars_wird_uebernommen(tmp_path):
+def test_load_profile_compare_mode_chars_is_applied(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({"version": "1.0", "compare_mode": "chars"}), encoding="utf-8"
@@ -207,7 +207,7 @@ def test_load_profile_compare_mode_chars_wird_uebernommen(tmp_path):
     assert profile.compare_mode == "chars"
 
 
-def test_load_profile_ungueltiger_compare_mode_wirft_validation_error(tmp_path):
+def test_load_profile_invalid_compare_mode_raises_validation_error(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({"version": "1.0", "compare_mode": "sentences"}), encoding="utf-8"
@@ -217,7 +217,7 @@ def test_load_profile_ungueltiger_compare_mode_wirft_validation_error(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_compare_mode_hybrid_wird_uebernommen(tmp_path):
+def test_load_profile_compare_mode_hybrid_is_applied(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({"version": "1.0", "compare_mode": "hybrid"}), encoding="utf-8"
@@ -401,7 +401,7 @@ def test_load_profile_compare_regions_absent_defaults_to_empty_list(tmp_path):
     assert profile.compare_regions == []
 
 
-def test_load_profile_compare_region_valides_single_region(tmp_path):
+def test_load_profile_compare_region_valid_single_region(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
@@ -430,7 +430,7 @@ def test_load_profile_compare_region_valides_single_region(tmp_path):
     assert region.condition == "SV SparkassenVersicherung"
 
 
-def test_load_profile_compare_region_mode_fehlt_default_ist_sequential(tmp_path):
+def test_load_profile_compare_region_mode_missing_defaults_to_sequential(tmp_path):
     """Default bei fehlendem 'mode'-Feld ist 'sequential' (siehe
     docs/prompt_compare_regions_mode.md, Task 2) - NICHT mehr das alte
     Multiset-Verhalten, das jetzt explizit 'unordered' heißt."""
@@ -450,7 +450,7 @@ def test_load_profile_compare_region_mode_fehlt_default_ist_sequential(tmp_path)
     assert profile.compare_regions[0].mode == "sequential"
 
 
-def test_load_profile_compare_region_mode_unordered_wird_uebernommen(tmp_path):
+def test_load_profile_compare_region_mode_unordered_is_applied(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
@@ -470,7 +470,7 @@ def test_load_profile_compare_region_mode_unordered_wird_uebernommen(tmp_path):
     assert profile.compare_regions[0].mode == "unordered"
 
 
-def test_load_profile_compare_region_mode_sequential_wird_uebernommen(tmp_path):
+def test_load_profile_compare_region_mode_sequential_is_applied(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
@@ -490,7 +490,7 @@ def test_load_profile_compare_region_mode_sequential_wird_uebernommen(tmp_path):
     assert profile.compare_regions[0].mode == "sequential"
 
 
-def test_load_profile_compare_region_ungueltiger_mode_wirft_validation_error(tmp_path):
+def test_load_profile_compare_region_invalid_mode_raises_validation_error(tmp_path):
     """Unbekannte mode-Werte müssen mit einer sprechenden deutschen
     Fehlermeldung abgelehnt werden, die beide erlaubten Werte nennt (siehe
     docs/prompt_compare_regions_mode.md, Task 2)."""
@@ -513,7 +513,7 @@ def test_load_profile_compare_region_ungueltiger_mode_wirft_validation_error(tmp
     assert "unordered" in str(exc_info.value)
 
 
-def test_load_profile_compare_region_valide_mehrere_regionen(tmp_path):
+def test_load_profile_compare_region_valid_multiple_regions(tmp_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps({
@@ -625,7 +625,7 @@ def test_load_profile_compare_region_empty_condition_raises(tmp_path):
         load_profile(profile_path)
 
 
-def test_load_profile_alter_schluessel_table_regions_wird_abgelehnt(tmp_path):
+def test_load_profile_old_key_table_regions_is_rejected(tmp_path):
     """Keine Rückwärtskompatibilität für den alten Schlüssel (siehe
     docs/prompt_compare_regions_mode.md, Task 1): ein Profil, das noch
     'table_regions' statt 'compare_regions' verwendet, muss mit einer
