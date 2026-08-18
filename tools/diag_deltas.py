@@ -70,6 +70,9 @@ _SUSPECT_CHARS = {
 
 
 def _char_inventory(pages: List[str], label: str) -> None:
+    """Zählt und listet alle in pages vorkommenden _SUSPECT_CHARS (nicht-ASCII
+    Whitespace-/Format-Zeichen wie NBSP, Zero-Width-Space) - Diagnosehilfe,
+    um unsichtbare Zeichen als Delta-Ursache auszuschließen oder zu bestätigen."""
     print(f"\n--- Zeichen-Inventur: {label} ---")
     counter: Counter = Counter()
     for page_text in pages:
@@ -84,6 +87,10 @@ def _char_inventory(pages: List[str], label: str) -> None:
 
 
 def _print_deltas(ref_pages: List[str], cnd_pages: List[str], case_sensitive: bool, limit: int = 10) -> None:
+    """Berechnet die Wort-Deltas zwischen ref_pages und cnd_pages exakt wie
+    engine.text_comparator.compare() intern (_words_with_pages,
+    SequenceMatcher, _is_whitespace_only_difference) und druckt die ersten
+    `limit` verbleibenden Deltas inkl. Seite, Roh- und gefilterter Anzahl."""
     ref_words, _ = _words_with_pages(ref_pages)
     cnd_words, cnd_word_pages = _words_with_pages(cnd_pages)
 
@@ -124,6 +131,10 @@ def _print_deltas(ref_pages: List[str], cnd_pages: List[str], case_sensitive: bo
 
 
 def _print_footer_buckets(pdf_path: str, label: str, num_pages: int = 3, bucket_pt: float = 50.0) -> None:
+    """Druckt für die ersten num_pages Seiten die (vermutlichen) Fußzeilen-
+    Blöcke - die Blöcke mit den größten y0-Werten - inklusive x0-Bucket
+    (round(x0 / bucket_pt)), um Spalten-/Tabulator-Ausrichtung zwischen
+    Referenz und Kandidat visuell zu vergleichen."""
     print(f"\n--- Fußzeilen-Blöcke (letzte Blöcke je Seite, x0 -> Bucket round(x0/{bucket_pt:.0f})): {label} ---")
     doc = pymupdf.open(pdf_path)
     try:
@@ -338,6 +349,11 @@ def _cross_check_extractions(pdf_path: str, page_index: int, run_rect: pymupdf.R
 
 
 def _inspect_word(pdf_path: str, search_term: str, page_number: int) -> int:
+    """--inspect-word-Modus: sucht search_term im Zeichenstrom (get_texttrace)
+    von page_number und druckt Render- und Zeichenlauf-Details dazu -
+    klärt, ob ein Wort im Sperrsatz gerendert oder erst nachträglich per OCR
+    fehlerhaft erkannt wurde (H1 vs. H2). Gibt 1 zurück, falls Seite oder
+    Suchbegriff nicht gefunden werden, sonst 0."""
     doc = pymupdf.open(pdf_path)
     try:
         if not (1 <= page_number <= len(doc)):
@@ -511,6 +527,11 @@ def _analyze_fonts(pdf_path: str, page_index: int, run) -> None:
 
 
 def _inspect_encoding(pdf_path: str, search_term: str, page_number: int) -> int:
+    """--inspect-encoding-Modus: sucht search_term mit Umlaut-Toleranz im
+    Zeichenstrom von page_number (_find_char_run_lenient) und druckt Font-/
+    Encoding-Details inkl. ToUnicode-CMap-Auszug - Diagnose für Umlaut-
+    Defekte durch fehlerhaftes Font-Encoding. Gibt 1 zurück, falls Seite
+    oder Suchbegriff nicht gefunden werden, sonst 0."""
     doc = pymupdf.open(pdf_path)
     try:
         if not (1 <= page_number <= len(doc)):
@@ -605,6 +626,11 @@ def _find_rawdict_run(flat_chars: List[tuple], search_term: str) -> Optional[Lis
 
 
 def _inspect_rawdict(pdf_path: str, search_term: str, page_number: int) -> int:
+    """--inspect-rawdict-Modus: sucht search_term in den rawdict-Zeichen
+    (get_text("rawdict")) von page_number und druckt die zugrundeliegenden
+    Zeichen-bboxes - Diagnose für die Leerzeichen-Rekonstruktion (siehe
+    engine.pdf_extractor). Gibt 1 zurück, falls Seite oder Suchbegriff nicht
+    gefunden werden, sonst 0."""
     doc = pymupdf.open(pdf_path)
     try:
         if not (1 <= page_number <= len(doc)):
@@ -815,6 +841,11 @@ def _print_inhibit_samples(pdf_path: str, label: str, num_samples: int) -> bool:
 
 
 def _check_inhibit_spaces(ref_pdf: str, cnd_pdf: str, num_samples: int) -> int:
+    """--check-inhibit-spaces-Modus: prüft für ref_pdf und cnd_pdf, ob das
+    Setzen von TEXT_INHIBIT_SPACES echte Space-Zeichen unterdrücken und
+    dadurch Wörter verschmelzen würde (Stichproben, num_samples je Dokument).
+    Druckt je Dokument die Ergebnisse und ein Gesamt-Fazit; gibt immer 0
+    zurück (Ergebnis ist eine Textausgabe, kein Fehlerfall)."""
     print(f"Referenz: {ref_pdf}")
     print(f"Kandidat: {cnd_pdf}")
 
@@ -884,6 +915,11 @@ def _calibration_report(pdf_path: str) -> int:
 
 
 def main(argv: List[str]) -> int:
+    """CLI-Einstiegspunkt: parst die Argumente und delegiert an den
+    passenden Diagnose-Modus (Delta-Vergleich als Default, oder einer von
+    --inspect-word/--inspect-encoding/--inspect-rawdict/
+    --check-inhibit-spaces/--calibration-report je nach gesetztem Flag,
+    siehe Modul-Docstring für die jeweilige Aufrufsyntax)."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ref_pdf", help="Pfad zur Referenz-PDF (im --inspect-word-Modus: die zu untersuchende PDF)")
     parser.add_argument("cnd_pdf", nargs="?", default=None, help="Pfad zur Kandidat-PDF (nicht im --inspect-word-Modus)")

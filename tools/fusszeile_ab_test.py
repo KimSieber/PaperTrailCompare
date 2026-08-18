@@ -41,6 +41,11 @@ PROFILES = {
 
 
 def main():
+    """Vergleicht REF_PDF/CND_PDF einmal je Profil aus PROFILES und druckt
+    Laufzeit, Delta-Anzahl, Tabellenseiten-Warnungen sowie eine Stichprobe
+    der ersten 5 Deltas - A/B-Vergleich, ob der Fußzeilen-/Randmarken-
+    Ausschluss (profiles/test_fusszeile.json) die Delta-Anzahl gegenüber
+    reinem normalize_whitespace reduziert."""
     print(f"Referenz: {REF_PDF.name}")
     print(f"Kandidat: {CND_PDF.name}\n")
 

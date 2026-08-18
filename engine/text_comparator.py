@@ -109,6 +109,9 @@ def _words_with_pages(
     merge_hyphenation: bool = True,
     normalize_orphan_hyphens: bool = True,
 ):
+    """Normalisiert jede Seite (normalize_text) und zerlegt sie in Wörter,
+    gibt dabei zu jedem Wort die 1-basierte Seitenzahl mit zurück - Grundlage
+    für _compare_words(), das darüber Deltas ihrer Ursprungsseite zuordnet."""
     words: List[str] = []
     word_pages: List[int] = []
     for page_num, page_text in enumerate(pages, start=1):
@@ -235,6 +238,10 @@ def _compare_words(
     merge_hyphenation: bool = True,
     normalize_orphan_hyphens: bool = True,
 ) -> List[Delta]:
+    """Vergleicht Referenz- und Kandidat-Seiten wortweise (nach Normalisierung
+    via _words_with_pages) und liefert die Liste der gefundenen Deltas
+    inklusive Seiten- und Positionsangabe. case_sensitive/normalize_whitespace
+    steuern die Toleranz beim Wortvergleich (siehe CompareResult/Delta)."""
     ref_words, _ = _words_with_pages(
         ref_pages, merge_hyphenation=merge_hyphenation, normalize_orphan_hyphens=normalize_orphan_hyphens
     )

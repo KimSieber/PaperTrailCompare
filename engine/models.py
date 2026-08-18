@@ -40,8 +40,10 @@ class BatchResult:
 
     @property
     def ok_count(self) -> int:
+        """Anzahl der Paare, die erfolgreich verglichen wurden (status="ok")."""
         return sum(1 for p in self.pairs if p.status == "ok")
 
     @property
     def error_count(self) -> int:
+        """Anzahl der Paare, deren Vergleich fehlgeschlagen ist (status="error")."""
         return sum(1 for p in self.pairs if p.status == "error")

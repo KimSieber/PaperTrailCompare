@@ -81,6 +81,11 @@ logger = logging.getLogger(__name__)
 
 
 def _run_compare(args: argparse.Namespace) -> int:
+    """Führt den `compare`-Subcommand aus: lädt optional ein Profil, vergleicht
+    ref_pdf/cnd_pdf und gibt das Ergebnis je nach `--json` als JSON-Zeile oder
+    als lesbare Zusammenfassung auf stdout aus; erzeugt bei `--report`
+    zusätzlich das Delta-PDF. Gibt den Exit-Code zurück (0 = ok, 1 = Fehler
+    bei Profil, Vergleich oder Report-Erzeugung)."""
     profile: Optional[Profile] = None
     if args.profile:
         try:
@@ -156,6 +161,10 @@ def _run_batch(args: argparse.Namespace) -> int:
             return 1
 
     def on_progress(index: int, total: int, pair_result: PairResult) -> None:
+        """Wird von batch_compare() nach jedem verglichenen Paar aufgerufen und
+        streamt dessen Ergebnis sofort als "progress"-JSON-Zeile auf stdout
+        (flush=True) - Grundlage für die Live-Progress-Events der Tauri-Shell
+        (siehe start_batch_compare in src-tauri/src/lib.rs)."""
         pair_payload = dataclasses.asdict(pair_result)
         compare_result_payload = pair_payload.get("compare_result")
         if compare_result_payload is not None:
@@ -199,6 +208,11 @@ def _run_batch(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI-Einstiegspunkt: konfiguriert das Logging, parst die Argumente und
+    delegiert an `_run_compare`/`_run_batch`. Prüft vor jedem Subcommand
+    __expiry__ (Ausnahme: `--version`, siehe Modul-Docstring) und bricht mit
+    Exit-Code 2 ab, falls die Testversion abgelaufen ist. Ohne Subcommand
+    wird die Hilfe ausgegeben (Exit-Code 0)."""
     configure_logging()
 
     parser = argparse.ArgumentParser(prog="papertrail-engine")

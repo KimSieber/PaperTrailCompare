@@ -123,6 +123,9 @@ def _ocr_page(
     page_num: int = 1,
     regions: Optional[Sequence] = None,
 ) -> str:
+    """Rastert eine einzelne PDF-Seite in ein Bild (dpi), weißt darin
+    ausgeschlossene Regionen (_mask_regions_on_image), und liest den Text per
+    Tesseract (lang, z.B. "deu") aus. Gibt den erkannten Text getrimmt zurück."""
     pixmap = page.get_pixmap(dpi=dpi)
     image = Image.open(io.BytesIO(pixmap.tobytes("png")))
     image = _mask_regions_on_image(image, page_num, regions, dpi)

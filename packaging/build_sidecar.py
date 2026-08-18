@@ -56,6 +56,10 @@ class BuildError(Exception):
 
 
 def _target_triple() -> str:
+    """Liefert das Rust-Target-Triple des aktuellen Rechners (via `rustc -vV`,
+    z.B. "aarch64-apple-darwin") - Bestandteil des Sidecar-Dateinamens
+    (papertrail-engine-<target-triple>), damit tauri.conf.json den passenden
+    Sidecar pro Plattform findet."""
     result = subprocess.run(["rustc", "-vV"], capture_output=True, text=True, check=True)
     for line in result.stdout.splitlines():
         if line.startswith("host:"):
@@ -64,6 +68,9 @@ def _target_triple() -> str:
 
 
 def _find_system_tesseract() -> Path:
+    """Sucht die lokal installierte Tesseract-Binary im PATH - Quelle für das
+    Staging (siehe _stage_tesseract); bricht mit BuildError ab, falls keine
+    Installation gefunden wird."""
     found = shutil.which("tesseract")
     if not found:
         raise BuildError(
@@ -170,6 +177,10 @@ def _stage_tesseract_windows(tesseract_binary: Path, tessdata_deu: Path, staging
 
 
 def _stage_tesseract(staging_dir: Path) -> Path:
+    """Ermittelt System-Tesseract und deu-Sprachmodell und delegiert das
+    plattformspezifische Staging (Relozierbarkeit der Binary bzw. DLLs) an
+    _stage_tesseract_macos/_stage_tesseract_windows; staging_dir wird zuvor
+    geleert, falls es von einem vorherigen Build noch existiert."""
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
 
@@ -185,6 +196,10 @@ def _stage_tesseract(staging_dir: Path) -> Path:
 
 
 def _run_pyinstaller(sidecar_name: str, tesseract_staging: Path) -> Path:
+    """Baut die PyInstaller-Executable über papertrail-engine.spec, reicht
+    Sidecar-Namen und Tesseract-Staging-Pfad als Umgebungsvariablen an das
+    Spec-File weiter, und liefert den Pfad der erzeugten Datei. Wirft
+    BuildError, falls PyInstaller keine Datei am erwarteten Ort hinterlässt."""
     work_dir = REPO_ROOT / "packaging" / ".pyinstaller-build"
     dist_dir = REPO_ROOT / "packaging" / ".dist"
 
@@ -232,6 +247,11 @@ def _self_check(sidecar_path: Path) -> None:
 
 
 def main() -> int:
+    """Baut den vollständigen PyInstaller-Sidecar: Target-Triple ermitteln,
+    Tesseract staged (inkl. deu-Sprachmodell), PyInstaller-Lauf, Kopie nach
+    src-tauri/binaries/ und Self-Check (_self_check). Gibt 0 bei Erfolg
+    zurück, 1 bei BuildError oder fehlgeschlagenem Subprozess (Meldung geht
+    per Logging auf stderr)."""
     configure_logging(logging.INFO)
 
     try:

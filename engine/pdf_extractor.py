@@ -98,6 +98,9 @@ class Region:
     page_from: Optional[int] = None  # ab Seite N bis Dokumentende (siehe Block 2 Matching)
 
     def overlaps(self, bbox: Sequence[float]) -> bool:
+        """Prüft, ob die übergebene bbox (x0, y0, x1, y1) diese Region
+        schneidet - Grundlage für den Ausschluss betroffener Blöcke/Zeilen
+        aus dem Vergleich (filter_blocks_by_regions)."""
         x0, y0, x1, y1 = bbox
         return not (
             x1 <= self.x
@@ -419,6 +422,10 @@ def _iter_rawdict_lines(doc: "pymupdf.Document"):
 
 
 def _flatten_line_chars(line) -> List[RawChar]:
+    """Wandelt ein rawdict-Zeilen-Dict (mit verschachtelten spans/chars) in
+    eine flache Liste von RawChar-Tupeln (Zeichen, bbox, Font, Größe) um -
+    Grundlage für die Leerzeichen-Kalibrierung (_collect_font_measurements)
+    und die Wortrekonstruktion (_reconstruct_line_text)."""
     flat: List[RawChar] = []
     for span in line.get("spans", []):
         font = span.get("font")
@@ -436,6 +443,8 @@ def _collect_font_measurements(doc: "pymupdf.Document") -> Dict[Tuple[str, float
     measurements: Dict[Tuple[str, float], dict] = {}
 
     def bucket(font, size):
+        """Liefert (und legt bei Bedarf an) das Messwerte-Dict für (font, size)
+        in measurements - je ein Eintrag pro (Font, Größe)-Kombination."""
         key = (font, size)
         if key not in measurements:
             measurements[key] = {"real_space_widths": [], "nonspace_widths": [], "gaps": []}
@@ -609,6 +618,11 @@ def _extract_page_text_columns_reconstructed(
     page_num: int = 1,
     regions: Sequence[Region] = (),
 ) -> str:
+    """Liefert den vollständigen Seitentext einer einzelnen Seite über die
+    eigene Wortrekonstruktion (get_text_blocks_reconstructed) statt über
+    PyMuPDFs Standard-Textextraktion: wendet Ausschluss-Regionen an, teilt
+    breite Blöcke (split_wide_blocks) und sortiert das Ergebnis
+    spaltenbewusst (sort_blocks_columns) vor dem Zusammenfügen."""
     blocks = filter_blocks_by_regions(
         get_text_blocks_reconstructed(page, calibration), page_num, regions
     )
