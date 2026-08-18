@@ -1,0 +1,36 @@
+{
+      "version": "1.0",                
+      "case_sensitive": true,         
+      "normalize_whitespace": true,
+      "compare_mode": "hybrid",
+      "text_extraction": "native",
+      "merge_hyphenation": false,
+      "normalize_orphan_hyphens": true,
+      "report_format": "pdf",
+      "ocr": {
+            "enabled": true,
+            "confidence_threshold": 0.85,
+            "dpi": 300,
+            "mode_reference": "fallback",
+            "mode_candidate": "fallback"
+      },
+      "exclude_regions": [
+            { "comment": "Linke Seitenleiste mit Druckdaten",
+                  "page": 0,  "x": 0,    "y": 0,   "width": 54,  "height": 840  },
+            { "comment": "Rechte Seitenleiste mit Druckdaten",
+                  "page": 0,  "x": 565,  "y": 0,   "width": 30,  "height": 840  }
+                        ],
+      "compare_regions": [
+            { "comment": "Fußleiste mit Unternehmensdaten",
+                  "page": 0,  "x": 0,    "y": 735, "width": 600, "height": 120,
+                  "mode": "unordered",
+                  "condition": "Registergericht Stuttgart" },
+            { "comment": "Info-Block rechts oben (Es betreut Sie / Es schreibt Ihnen / Datum)",
+                  "page": 0, "x": 330, "y": 105, "width": 225, "height": 130,
+                  "mode": "sequential",
+                  "condition": "Es schreibt Ihnen " },
+            { "comment": "Absenderzeile ueber Adressfenster (Postfach/Ort variiert je Standort)",
+                  "page": 0, "x": 65, "y": 126, "width": 190, "height": 20,
+                  "mode": "sequential",
+                  "condition": "SV SparkassenVersicherung ·" }                        ]
+}

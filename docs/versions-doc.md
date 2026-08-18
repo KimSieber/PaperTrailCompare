@@ -1,4 +1,14 @@
 *******************************
+*** V0.2.1    18.08.2025
+*******************************
+
+Sprint PTC-S5: Housekeeping
+-----------------------
+Prio 4: B13-B18
+
+
+
+*******************************
 *** V0.2.0    16.08.2025
 *******************************
 
@@ -7,7 +17,6 @@ Sprint PTC-S4: Bugfixes  (siehe sep. Doku-File)
 Prio 1-Bugs: B1 - B4
 Prio 2-Bugs: B5 - B8
 Prio 3-Bugs: B9 - B12
-Prio 4-Bugs: B13 - B18
 
 Sprint PTC-S3: Erkennung optimieren
 -----------------------------------
