@@ -279,11 +279,10 @@ def test_compare_calls_extraction_with_correct_role_for_ref_and_cnd(tmp_path, ca
 
 
 def test_compare_with_profile_exclude_regions_end_to_end_tc_e_001(tmp_path, capsys):
-    """TC-E-001 end-to-end über den Produktivpfad (CLI --profile), nicht
-    nur über den direkten Aufruf von region_filter.extract_pages_excluding_regions
-    - genau diese Lücke hatte die fehlende Verdrahtung von exclude_regions
-    verdeckt (Regionen wurden geladen/validiert/im Report gezählt, wirkten
-    aber nicht auf die tatsächliche Extraktion)."""
+    """TC-E-001 end-to-end über den Produktivpfad (CLI --profile) - genau
+    diese Lücke hatte die fehlende Verdrahtung von exclude_regions verdeckt
+    (Regionen wurden geladen/validiert/im Report gezählt, wirkten aber
+    nicht auf die tatsächliche Extraktion)."""
     ref_path = FIXTURES / "TC-E-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-E-001" / "cnd.pdf"
 
