@@ -10,8 +10,7 @@
     {
       "identifier": "opener:allow-open-path",
       "allow": [
-        { "path": "$DOCUMENT/PaperTrailCompare/**" },
-        { "path": "$HOME/**" }
+        { "path": "**" }
       ]
     },
     {
