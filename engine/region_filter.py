@@ -1,17 +1,15 @@
 # file:    engine/region_filter.py
-# purpose: Coordinate-based exclusion of page regions from comparison.
-#          Re-exports Region from pdf_extractor and provides a standalone
-#          extraction function with region filtering (TC-E-001 ff.).
+# purpose: Re-exports Region from pdf_extractor and provides
+#          regions_from_profile() to convert profile exclude-regions into
+#          Region instances (TC-E-001 ff.).
 # author:  Kim Sieber
 # created: YYYY-MM-DD
-# changed: 2026-08-09
+# changed: 2026-08-18
 
 """Koordinatenbasierter Ausschluss definierter Seitenbereiche vom Vergleich.
 
 Regionen werden in PyMuPDF-Koordinaten angegeben (Ursprung oben links, y
-wächst nach unten) – dieselbe Konvention wie engine.pdf_extractor, dessen
-Block-Extraktions-/Spalten-Sortierlogik hier wiederverwendet wird (beide
-Schicht 1, siehe CLAUDE.md Modulübersicht).
+wächst nach unten) – dieselbe Konvention wie engine.pdf_extractor.
 
 Region selbst ist in engine.pdf_extractor definiert (dort direkt von den
 Extraktionspfaden extract_pages()/_extract_pages_reconstructed() genutzt,
@@ -21,58 +19,12 @@ angestammten Namen re-exportiert, damit bestehender Code/Tests
 """
 from __future__ import annotations
 
-from typing import List, Sequence
+from typing import List
 
-import pymupdf
-
-from engine.pdf_extractor import (
-    Region,
-    filter_blocks_by_regions,
-    get_text_blocks,
-    join_block_text,
-    sort_blocks_columns,
-    split_wide_blocks,
-)
+from engine.pdf_extractor import Region
 from engine.profile_loader import Profile
 
-__all__ = ["Region", "extract_pages_excluding_regions", "regions_from_profile"]
-
-
-def extract_pages_excluding_regions(
-    pdf_path: str, regions: Sequence[Region]
-) -> List[str]:
-    """Wie pdf_extractor.extract_pages, aber Textblöcke, die eine der
-    angegebenen Regionen auf ihrer Seite überlappen, werden vor der
-    Extraktion entfernt.
-
-    Eigenständiger, direkt (per Unit-Test) getesteter Baustein - KEIN
-    Bestandteil des Produktivpfads. CLI (engine.__main__) und Batch
-    (engine.batch_processor) rufen ausschließlich
-    pdf_extractor.extract_pages_for_profile() auf, dessen interner
-    Native-Pfad (_extract_page_text_columns) exakt dieselbe Schrittfolge
-    fährt wie hier (filter_blocks_by_regions -> split_wide_blocks ->
-    sort_blocks_columns -> join_block_text) - siehe Befund Bugfix-Sprint
-    "Region Logic Consolidation", Bug B: beide Pipelines wurden verglichen,
-    keine bot Funktionalität, die der anderen fehlt, und die Verdrahtungs-
-    tests (test_pdf_extractor.py::test_exclude_regions_wirkt_ueber_
-    extract_pages_for_profile_tc_e_001/tc_e_002) belegen, dass
-    exclude_regions über den Produktivpfad bereits korrekt wirkt. Diese
-    Funktion bleibt trotzdem bestehen: als isoliert testbarer Baustein für
-    genau diese Schrittfolge, unabhängig von OCR-Modi, Tabellenerkennung
-    und text_extraction="reconstruct", die extract_pages_for_profile
-    zusätzlich abdeckt."""
-    pages_text: List[str] = []
-    doc = pymupdf.open(pdf_path)
-    try:
-        for page_index, page in enumerate(doc):
-            page_num = page_index + 1
-            blocks = filter_blocks_by_regions(get_text_blocks(page), page_num, regions)
-            blocks = split_wide_blocks(blocks, page)
-            blocks = sort_blocks_columns(blocks)
-            pages_text.append(join_block_text(blocks))
-    finally:
-        doc.close()
-    return pages_text
+__all__ = ["Region", "regions_from_profile"]
 
 
 def regions_from_profile(profile: Profile) -> List[Region]:

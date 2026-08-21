@@ -289,8 +289,7 @@ def split_wide_blocks(blocks: List[TextBlock], page: "pymupdf.Page") -> List[Tex
     Reine Funktion, verändert blocks/page nicht. Gehört zwischen
     filter_blocks_by_regions() und sort_blocks_columns() in die
     Extraktions-Pipeline (native wie rekonstruiert, siehe
-    _extract_page_text_columns[_reconstructed] und
-    region_filter.extract_pages_excluding_regions).
+    _extract_page_text_columns[_reconstructed]).
 
     Blöcke <= _SPLIT_THRESHOLD_PT bleiben unverändert (kein Splitkandidat).
     Für breitere Blöcke werden die rawdict-Zeilen über block_no (Index 5 des
@@ -752,9 +751,7 @@ def extract_pages_for_profile(
     "candidate") und profile.ocr.mode_reference/mode_candidate einen der
     drei OCR-Modi an, UND wendet profile.exclude_regions tatsächlich auf
     die Extraktion an (TC-E-001 ff.) - das ist der Produktivpfad, den
-    engine.__main__ und engine.batch_processor nutzen, anders als der
-    direkte Aufruf von engine.region_filter.extract_pages_excluding_regions
-    in den ursprünglichen TC-E-Tests, der nicht in dieser Funktion mündete.
+    engine.__main__ und engine.batch_processor nutzen.
 
     OCR-Modi:
     - "off": kein OCR, heutiger Pfad (native/reconstruct je text_extraction).

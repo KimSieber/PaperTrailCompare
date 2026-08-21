@@ -346,19 +346,16 @@ def test_tc_t_008_table_detection_no_false_delta():
 
 
 # Kopfbereich mit "Druckdatum: ..." und "Seite N" liegt bei y ca. 34-65pt,
-# x ca. 42-152pt (fitz-Koordinaten) - dieselbe Region wie in
-# test_region_filter.py::HEADER_REGION, hier aber über profile.exclude_regions
-# und den Produktivpfad extract_pages_for_profile statt über den direkten
-# Aufruf von region_filter.extract_pages_excluding_regions.
+# x ca. 42-152pt (fitz-Koordinaten), hier über profile.exclude_regions
+# und den Produktivpfad extract_pages_for_profile.
 _HEADER_EXCLUDE_REGION = dict(x=0, y=0, width=250, height=80)
 
 
 def test_exclude_regions_apply_via_extract_pages_for_profile_tc_e_001():
     """Verdrahtungstest: profile.exclude_regions muss über den
     Produktivpfad (extract_pages_for_profile, genutzt von CLI und Batch)
-    tatsächlich wirken - nicht nur über den direkten Aufruf von
-    region_filter.extract_pages_excluding_regions (siehe Befund: die
-    Verdrahtung fehlte, obwohl TC-E-001/002 grün waren)."""
+    tatsächlich wirken (siehe Befund: die Verdrahtung fehlte, obwohl
+    TC-E-001/002 grün waren)."""
     profile = Profile(
         version="1.0",
         exclude_regions=[

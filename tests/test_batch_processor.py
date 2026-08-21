@@ -376,10 +376,9 @@ def test_batch_compare_calls_extraction_with_correct_role_per_page(monkeypatch, 
 
 
 def test_batch_compare_with_profile_exclude_regions_end_to_end_tc_e_002(tmp_path):
-    """TC-E-002 end-to-end über den Produktivpfad batch_compare (nicht nur
-    über den direkten Aufruf von region_filter.extract_pages_excluding_regions):
-    Ausschluss ist nur für Seite 1 konfiguriert, der Datumsunterschied im
-    Kopfbereich auf Seite 2 muss weiterhin als Delta erkannt werden."""
+    """TC-E-002 end-to-end über den Produktivpfad batch_compare: Ausschluss
+    ist nur für Seite 1 konfiguriert, der Datumsunterschied im Kopfbereich
+    auf Seite 2 muss weiterhin als Delta erkannt werden."""
     ref_path = FIXTURES / "TC-E-002" / "ref.pdf"
     cnd_path = FIXTURES / "TC-E-002" / "cnd.pdf"
 
