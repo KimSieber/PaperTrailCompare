@@ -2,12 +2,16 @@
 *** V0.2.1    21.08.2025
 *******************************
 
+Sprint PTC-S7: Optimierung Ausgabe
+----------------------------------
+
+
 Sprint PTC-S6: Dialog-Optimierungen
 -----------------------------------
 Version Number Optimization (Tasks 1–3)
 Liste-Breite (Task 4)
-Vorbelegtes Ausgabeverzeichnis (Task 5)
-
+Vorbelegtes Ausgabeverzeichnis (Task 6)
+Berechtigung Datei aus Dialog zu öffnen (Task 5)
 
 Sprint PTC-S5: Housekeeping (siehe sep. Doku-File)
 --------------------------------------------------
