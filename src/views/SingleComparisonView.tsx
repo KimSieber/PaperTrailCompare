@@ -20,11 +20,20 @@ import type { CompareResult } from "../types";
 
 type DropTarget = "reference" | "candidate" | "outputDir";
 
+/** Erzeugt einen Zeitstempel im Format YYYY-MM-DD_HH-MM-SS für die
+ * Ausgabeverzeichnis-Vorbelegung. */
+function nowTimestamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+}
+
 export function SingleComparisonView() {
   const [refPath, setRefPath] = useState("");
   const [cndPath, setCndPath] = useState("");
   const [profileName, setProfileName] = useState("");
   const [outputDir, setOutputDir] = useState("");
+  const [isCustomDir, setIsCustomDir] = useState(false);
   const [result, setResult] = useState<CompareResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,6 +62,7 @@ export function SingleComparisonView() {
         setCndPath(path);
       } else {
         setOutputDir(path);
+        setIsCustomDir(true);
       }
     },
   });
@@ -72,6 +82,7 @@ export function SingleComparisonView() {
     const path = await open({ multiple: false, directory: true });
     if (typeof path === "string") {
       setOutputDir(path);
+      setIsCustomDir(true);
     }
   }
 
@@ -82,11 +93,14 @@ export function SingleComparisonView() {
     try {
       // Ruft die Python Core Engine als Sidecar-Prozess auf (lokales IPC
       // über Tauri-Commands, kein Netzwerk-Socket).
+      const effectiveOutputDir = isCustomDir
+        ? outputDir
+        : `${outputDir}/${nowTimestamp()}`;
       const compareResult = await invoke<CompareResult>("compare_documents", {
         refPath,
         cndPath,
         profileName: profileName || undefined,
-        outputDir: outputDir || undefined,
+        outputDir: effectiveOutputDir || undefined,
       });
       setResult(compareResult);
     } catch (err) {

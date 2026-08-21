@@ -233,21 +233,43 @@ fn file_stem_sanitized(path: &str) -> String {
     sanitize_filename_part(&stem)
 }
 
-/// Vorbelegung für das Ausgabeverzeichnis im Einzelvergleich (Block 4c):
-/// Dokumente-Verzeichnis des Nutzers + "PaperTrail Compare" + heutiges Datum
-/// als Unterordner, z. B. macOS `~/Documents/PaperTrail Compare/2026-08-14`,
-/// Windows `C:\Users\<user>\Documents\PaperTrail Compare\2026-08-14`. Legt
-/// das Verzeichnis bewusst noch nicht an - das passiert erst beim
-/// tatsächlichen Vergleichslauf (siehe compare_documents).
+/// Ermittelt den Benutzernamen aus der Umgebungsvariable (USER auf
+/// macOS/Linux, USERNAME auf Windows). Fallback "default" falls
+/// keiner gesetzt ist.
+fn current_username() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("USERNAME").unwrap_or_else(|_| "default".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var("USER").unwrap_or_else(|_| "default".to_string())
+    }
+}
+
+/// Vorbelegung für das Ausgabeverzeichnis (Einzel- und Batch-Vergleich).
+/// Gibt den Basispfad OHNE Zeitstempel zurück:
+///   {exe_parent}/../PTC-Vergleich/{username}/
+///
+/// Der Zeitstempel-Unterordner (YYYY-MM-DD_HH-MM-SS) wird erst beim
+/// tatsächlichen Vergleichsstart vom Frontend angehängt — so hat jeder
+/// Lauf ein eigenes Verzeichnis, ohne Kollisionen bei aufeinanderfolgenden
+/// Vergleichen. Wird das Verzeichnis vom Benutzer manuell per
+/// "Durchsuchen…" überschrieben, entfällt der Zeitstempel komplett.
 #[tauri::command]
-fn get_default_output_dir(app: tauri::AppHandle) -> Result<String, String> {
-    let dir = app
-        .path()
-        .document_dir()
-        .map_err(|e| e.to_string())?
-        .join("PaperTrail Compare")
-        .join(chrono::Local::now().format("%Y-%m-%d").to_string());
-    Ok(dir.to_string_lossy().to_string())
+fn get_default_output_dir() -> Result<String, String> {
+    let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or("Konnte Exe-Verzeichnis nicht ermitteln")?;
+    let base_dir = exe_dir
+        .join("..")
+        .join("PTC-Vergleich")
+        .join(current_username());
+    // canonicalize() nicht verwenden - das Verzeichnis existiert noch
+    // nicht. Stattdessen den Pfad mit join("..") belassen; das OS
+    // löst relative Segmente beim tatsächlichen Zugriff auf.
+    Ok(base_dir.to_string_lossy().to_string())
 }
 
 /// Vergleicht zwei PDF-Dateien textlich über die Python Core Engine

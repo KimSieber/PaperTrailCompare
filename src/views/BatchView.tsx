@@ -8,7 +8,7 @@
  * @changed 2026-08-09
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -22,24 +22,22 @@ import type { BatchOutput, BatchPairResult, BatchProgressEvent } from "../types"
 
 type DropTarget = "csv" | "outputDir";
 
-/** Übereinstimmung in % je Paar, analog zur Zusammenfassungsseite des
- * Einzelvergleich-Reports: (Seiten ohne Delta) / (Gesamtseitenzahl). */
-function matchPercent(pair: BatchPairResult): number | null {
-  if (pair.status !== "ok" || !pair.compare_result || !pair.total_pages) {
-    return null;
-  }
-  const deltaPageCount = new Set(pair.compare_result.deltas.map((d) => d.page)).size;
-  const matchRatio = (pair.total_pages - deltaPageCount) / pair.total_pages;
-  return Math.round(matchRatio * 100);
-}
-
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
+}
+
+/** Erzeugt einen Zeitstempel im Format YYYY-MM-DD_HH-MM-SS für die
+ * Ausgabeverzeichnis-Vorbelegung. */
+function nowTimestamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
 }
 
 export function BatchView() {
   const [csvPath, setCsvPath] = useState("");
   const [outputDir, setOutputDir] = useState("");
+  const [isCustomDir, setIsCustomDir] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [rows, setRows] = useState<BatchPairResult[]>([]);
   const [progress, setProgress] = useState({ index: 0, total: 0 });
@@ -53,6 +51,14 @@ export function BatchView() {
   // dagegen immer den aktuellen Wert.
   const cancelledRef = useRef(false);
 
+  // Wird bei jedem frischen Mount (auch Tab-Wechsel) neu geladen - analog zu
+  // SingleComparisonView (siehe get_default_output_dir).
+  useEffect(() => {
+    invoke<string>("get_default_output_dir")
+      .then(setOutputDir)
+      .catch(() => {});
+  }, []);
+
   const { activeDropTarget, isDragPending } = useDragDropTarget<DropTarget>({
     isValidPath: (target, path) => target !== "csv" || path.toLowerCase().endsWith(".csv"),
     onInvalidDrop: () => setError("Für die Dateiliste können nur CSV-Dateien per Drag & Drop abgelegt werden."),
@@ -65,6 +71,7 @@ export function BatchView() {
         setCsvPath(path);
       } else {
         setOutputDir(path);
+        setIsCustomDir(true);
       }
     },
   });
@@ -84,6 +91,7 @@ export function BatchView() {
     const path = await open({ multiple: false, directory: true });
     if (typeof path === "string") {
       setOutputDir(path);
+      setIsCustomDir(true);
     }
   }
 
@@ -103,9 +111,12 @@ export function BatchView() {
     });
 
     try {
+      const effectiveOutputDir = isCustomDir
+        ? outputDir
+        : `${outputDir}/${nowTimestamp()}`;
       const output = await invoke<BatchOutput>("start_batch_compare", {
         filelistPath: csvPath,
-        outputDir,
+        outputDir: effectiveOutputDir,
         profileName: profileName || undefined,
       });
       setDoneResult(output);
@@ -226,23 +237,20 @@ export function BatchView() {
             <div className="max-h-[250px] overflow-y-auto rounded-md border border-slate-200">
               <table className="w-full table-fixed text-sm">
                 <colgroup>
-                  <col className="w-[38%]" />
-                  <col className="w-[38%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[12%]" />
+                  <col className="w-[42%]" />
+                  <col className="w-[42%]" />
+                  <col className="w-[16%]" />
                 </colgroup>
                 <thead className="sticky top-0 bg-slate-50 text-left text-xs font-medium text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Referenz</th>
                     <th className="px-3 py-2">Kandidat</th>
                     <th className="px-3 py-2">Deltas</th>
-                    <th className="px-3 py-2">Übereinstimmung</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((pair, index) => {
                     const isError = pair.status === "error";
-                    const percent = matchPercent(pair);
                     return (
                       <tr
                         key={`${pair.ref_path}-${pair.cnd_path}-${index}`}
@@ -255,21 +263,18 @@ export function BatchView() {
                           <MiddleTruncate text={fileName(pair.cnd_path)} />
                         </td>
                         {isError ? (
-                          <td className="overflow-hidden px-3 py-2" colSpan={2}>
+                          <td className="overflow-hidden px-3 py-2">
                             <MiddleTruncate text={`Fehler: ${pair.error}`} tailLength={16} />
                           </td>
                         ) : (
-                          <>
-                            <td className="px-3 py-2">{pair.compare_result?.deltas.length ?? "—"}</td>
-                            <td className="px-3 py-2">{percent !== null ? `${percent} %` : "—"}</td>
-                          </>
+                          <td className="px-3 py-2">{pair.compare_result?.deltas.length ?? "—"}</td>
                         )}
                       </tr>
                     );
                   })}
                   {cancelled && !loading && (
                     <tr className="bg-red-50 text-red-800">
-                      <td className="px-3 py-2 text-center font-medium" colSpan={4}>
+                      <td className="px-3 py-2 text-center font-medium" colSpan={3}>
                         Abbruch
                       </td>
                     </tr>
