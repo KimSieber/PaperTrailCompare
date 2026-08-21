@@ -16,8 +16,9 @@
 // genau das manuelle Umschalten wurde vergessen, der Dev-Wrapper landete
 // im Release-Bundle).
 //
-// --dev   : schreibt packaging/dev_sidecar.sh (schnell, kein PyInstaller)
-// --build : baut den echten PyInstaller-Sidecar (packaging/build_sidecar.py)
+// --sync-version : synchronisiert VERSION → 4 Konfigurationsdateien
+// --dev          : schreibt packaging/dev_sidecar.sh (schnell, kein PyInstaller)
+// --build        : baut den echten PyInstaller-Sidecar (packaging/build_sidecar.py)
 //
 // Node statt direktem Python-Aufruf in tauri.conf.json, weil Node hier
 // ohnehin Pflicht ist (npm/tauri-cli) und plattformunabhängig zwischen
@@ -56,7 +57,15 @@ function resolvePython() {
 }
 
 let exitCode;
-if (mode === "--dev") {
+if (mode === "--sync-version") {
+  // Synchronisiert Version und Ablaufdatum aus der zentralen VERSION-Datei
+  // in die vier Konfigurationsdateien (engine/__init__.py, package.json,
+  // tauri.conf.json, Cargo.toml). Läuft automatisch vor jedem Dev- und
+  // Release-Build, damit die VERSION-Datei die einzige Pflegestelle bleibt.
+  const pythonCmd = resolvePython();
+  const script = path.join(repoRoot, "tools", "sync_version.py");
+  exitCode = run(pythonCmd, [script]);
+} else if (mode === "--dev") {
   const script = path.join(__dirname, "dev_sidecar.sh");
   exitCode = run("bash", [script]);
 } else if (mode === "--build") {
@@ -64,7 +73,7 @@ if (mode === "--dev") {
   const script = path.join(__dirname, "build_sidecar.py");
   exitCode = run(pythonCmd, [script]);
 } else {
-  console.error(`prepare_sidecar.mjs: unbekannter Modus '${mode}' - erwartet --dev oder --build.`);
+  console.error(`prepare_sidecar.mjs: unbekannter Modus '${mode}' - erwartet --sync-version, --dev oder --build.`);
   exitCode = 1;
 }
 

@@ -29,5 +29,5 @@ Exit-Code 2 ab, wenn das Datum überschritten ist; die GUI prüft es beim
 Start über den engine_version-Command.
 """
 
-__version__ = "0.2.0"
-__expiry__ = "2026-10-31"
+__version__ = "0.2.1"
+__expiry__ = "2026-11-30"
