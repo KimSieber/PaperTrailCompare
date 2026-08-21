@@ -13,7 +13,7 @@
     "windows": [
       {
         "title": "PaperTrail Compare",
-        "width": 1050,
+        "width": 1000,
         "height": 900,
         "minWidth": 700,
         "minHeight": 550,

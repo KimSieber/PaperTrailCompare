@@ -5,6 +5,8 @@
 Sprint PTC-S6: Dialog-Optimierungen
 -----------------------------------
 Version Number Optimization (Tasks 1–3)
+Liste-Breite (Task 4)
+Vorbelegtes Ausgabeverzeichnis (Task 5)
 
 
 Sprint PTC-S5: Housekeeping (siehe sep. Doku-File)
