@@ -1,13 +1,14 @@
 {
   "name": "papertrail-compare",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "sync-version": "node packaging/prepare_sidecar.mjs --sync-version",
     "sidecar:dev": "node packaging/prepare_sidecar.mjs --dev",
     "sidecar:build": "node packaging/prepare_sidecar.mjs --build"
   },

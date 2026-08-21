@@ -506,6 +506,15 @@ async fn engine_version(app: tauri::AppHandle) -> Result<EngineInfo, String> {
     serde_json::from_str::<EngineInfo>(raw.trim()).map_err(|e| e.to_string())
 }
 
+/// Gibt die App-Version als compile-time Konstante zurück (aus
+/// Cargo.toml, ohne Sidecar-Prozess). Für die sofortige
+/// Versionsanzeige in der Sidebar — der vollständige EngineInfo-Abruf
+/// (mit Ablaufdatum) läuft separat im Hintergrund.
+#[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -514,6 +523,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(BatchChildState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
+            get_app_version,
             engine_version,
             compare_documents,
             get_default_output_dir,

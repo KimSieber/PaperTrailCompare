@@ -1,11 +1,16 @@
 *******************************
-*** V0.2.1    18.08.2025
+*** V0.2.1    21.08.2025
 *******************************
+
+Sprint PTC-S6: Dialog-Optimierungen
+-----------------------------------
+Version Number Optimization (Tasks 1–3)
+
 
 Sprint PTC-S5: Housekeeping (siehe sep. Doku-File)
 --------------------------------------------------
 Prio 4-Bugs: B13-B18
-Zusatz-Punkte: H19-
+Zusatz-Punkte: H19-H21
 
 
 *******************************

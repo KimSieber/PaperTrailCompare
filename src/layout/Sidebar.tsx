@@ -7,12 +7,11 @@
  * @changed 2026-08-09
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactElement } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import type { EngineInfo, ViewKey } from "../types";
 import { AboutDialog } from "../components/AboutDialog";
-import { CompareIcon, QueueIcon, SettingsIcon } from "./icons";
+import { CompareIcon, QueueIcon, SettingsIcon, InfoIcon } from "./icons";
 
 interface NavItem {
   key: ViewKey;
@@ -29,31 +28,15 @@ const NAV_ITEMS: NavItem[] = [
 interface SidebarProps {
   active: ViewKey;
   onSelect: (key: ViewKey) => void;
+  appVersion: string | null;
+  engineInfo: EngineInfo | null;
 }
 
-export function Sidebar({ active, onSelect }: SidebarProps) {
-  const [engineInfo, setEngineInfo] = useState<EngineInfo | null>(null);
+export function Sidebar({ active, onSelect, appVersion, engineInfo }: SidebarProps) {
   const [showAbout, setShowAbout] = useState(false);
 
-  async function fetchEngineInfo(): Promise<EngineInfo | null> {
-    try {
-      const info = await invoke<EngineInfo>("engine_version");
-      setEngineInfo(info);
-      return info;
-    } catch {
-      // Engine (noch) nicht erreichbar - Versionsanzeige bleibt leer, kein
-      // Dialog. Der Fehler zeigt sich erst beim tatsächlichen Vergleich.
-      return null;
-    }
-  }
-
-  useEffect(() => {
-    void fetchEngineInfo();
-  }, []);
-
-  async function handleVersionClick() {
-    const info = await fetchEngineInfo();
-    if (info) {
+  function handleVersionClick() {
+    if (engineInfo) {
       setShowAbout(true);
     }
   }
@@ -91,9 +74,10 @@ export function Sidebar({ active, onSelect }: SidebarProps) {
       <button
         type="button"
         onClick={handleVersionClick}
-        className="cursor-pointer border-t border-slate-800 px-5 py-3 text-left text-xs text-slate-500 hover:underline"
+        className="flex w-full items-center gap-2 border-t border-slate-800 px-5 py-3 text-left text-xs text-slate-400 transition-colors hover:text-slate-200"
       >
-        Version {engineInfo?.version ?? "…"}
+        <InfoIcon className="h-3.5 w-3.5 shrink-0" />
+        Version {appVersion ?? "…"}
       </button>
 
       {showAbout && engineInfo && (

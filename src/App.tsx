@@ -20,32 +20,32 @@ const CONTACT_EMAIL = "PaperTrail@Sieber-BW.de";
 
 function App() {
   const [activeView, setActiveView] = useState<ViewKey>("single");
-  const [expiredInfo, setExpiredInfo] = useState<EngineInfo | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [engineInfo, setEngineInfo] = useState<EngineInfo | null>(null);
 
-  // Ablaufprüfung beim Start (siehe engine_version / engine.__expiry__).
-  // Ist die Engine (noch) nicht erreichbar, bleibt die App nutzbar - der
-  // Fehler zeigt sich erst beim tatsächlichen Vergleichsversuch.
+  // Sofortige Versionsanzeige aus Cargo.toml (compile-time, kein Sidecar).
   useEffect(() => {
-    (async () => {
-      try {
-        const info = await invoke<EngineInfo>("engine_version");
-        if (info.expired) {
-          setExpiredInfo(info);
-        }
-      } catch {
-        // Engine (noch) nicht erreichbar - kein Blocker beim Start.
-      }
-    })();
+    invoke<string>("get_app_version")
+      .then((v) => setAppVersion(v))
+      .catch(() => {});
   }, []);
 
-  if (expiredInfo) {
+  // Vollständiger Engine-Check (Sidecar, dauert 10-60s) — läuft im
+  // Hintergrund, blockiert die Versionsanzeige nicht mehr.
+  useEffect(() => {
+    invoke<EngineInfo>("engine_version")
+      .then((info) => setEngineInfo(info))
+      .catch(() => {});
+  }, []);
+
+  if (engineInfo?.expired) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-slate-900/90">
         <div className="max-w-md rounded-lg bg-white p-8 text-center shadow-xl">
           <h1 className="text-lg font-semibold text-red-600">Testversion abgelaufen</h1>
           <p className="mt-3 text-sm text-slate-700">
             Diese Testversion von PaperTrail Compare ist am{" "}
-            {formatGermanDate(expiredInfo.expiry)} abgelaufen. Bitte wenden Sie sich an{" "}
+            {formatGermanDate(engineInfo.expiry)} abgelaufen. Bitte wenden Sie sich an{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-600 hover:underline">
               {CONTACT_EMAIL}
             </a>{" "}
@@ -58,7 +58,12 @@ function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-900">
-      <Sidebar active={activeView} onSelect={setActiveView} />
+      <Sidebar
+        active={activeView}
+        onSelect={setActiveView}
+        appVersion={appVersion}
+        engineInfo={engineInfo}
+      />
 
       {activeView === "single" && <SingleComparisonView />}
       {activeView === "batch" && <BatchView />}

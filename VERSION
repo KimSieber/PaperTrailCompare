@@ -1,0 +1,26 @@
+# =============================================================================
+# PaperTrail Compare — Zentrale Versions- und Ablaufdatei
+# =============================================================================
+#
+# Diese Datei ist die EINZIGE Stelle, an der Version und Ablaufdatum
+# gepflegt werden. Beide Werte werden von tools/sync_version.py in die
+# vier Konfigurationsdateien übertragen, die sie als Literale benötigen:
+#
+#   1. engine/__init__.py        — __version__ und __expiry__
+#   2. package.json              — "version"
+#   3. src-tauri/tauri.conf.json — "version"
+#   4. src-tauri/Cargo.toml      — version
+#
+# Workflow:
+#   1. Werte hier ändern
+#   2. python tools/sync_version.py ausführen
+#   3. Ergebnis prüfen (npm run tauri dev)
+#   4. Committen
+#
+# NIEMALS die Version oder das Ablaufdatum direkt in einer der vier
+# Zieldateien ändern — beim nächsten Sync-Lauf wird der Wert
+# überschrieben.
+# =============================================================================
+
+version=0.2.1
+expiry=2026-11-30
