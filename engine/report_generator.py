@@ -1168,7 +1168,7 @@ def generate_batch_report(
     story.append(_build_kpi_tile_row([
         _build_kpi_tile("Seiten gesamt", str(total_pages), _COLOR_TILE_NEUTRAL),
         _build_kpi_tile(
-            "Laufzeit", f"{duration_seconds:.1f} s" if duration_seconds is not None else "—",
+            "Laufzeit", _format_duration_mmss(duration_seconds),
             _COLOR_TILE_NEUTRAL,
         ),
         _build_kpi_tile("Summe Deltas", str(sum_deltas), delta_sum_accent, delta_sum_value_color),
