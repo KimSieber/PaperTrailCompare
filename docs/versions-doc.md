@@ -2,11 +2,16 @@
 V0.2.1    21.08.2025
 ===============================
 
+Sprint PTC-S8: Erkennungsqualität
+---------------------------------
+Task A: 
+
+
 Sprint PTC-S7: Optimierung Ausgabe
 ----------------------------------
 Task A: compare_regions - Tabelle auf Deckblatt
 Task B: Ausgabe-Dateinamen vereinheitlichen inkl. Überschreib-Regel
-Task C: 
+Task C: Batch-Dauer in MM:SS formatiert
 Task D: Verarbeitungsdauer in die Kopf-Felder 
 
 Sprint PTC-S6: Dialog-Optimierungen

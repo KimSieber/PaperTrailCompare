@@ -869,7 +869,7 @@ def test_tc_r_002_batch_report_metric_tiles_success_rate_and_total_pages(tmp_pat
     assert "3" in text  # Erfolgreich
     assert "75 %" in text  # Erfolgsquote (3 von 4)
     assert "6" in text  # Seiten gesamt (2+3+1)
-    assert "5.0 s" in text or "5,0 s" in text  # Laufzeit
+    assert "00:05" in text  # Laufzeit (MM:SS)
 
 
 def test_tc_r_002_batch_report_shows_used_profile(tmp_path):
@@ -986,7 +986,7 @@ def test_tc_r_002_batch_report_header_area_document_count_duration_timestamp(tmp
     report.close()
 
     assert "1" in text  # Gesamtanzahl Dokumente/Paare
-    assert "12.5" in text or "12,5" in text  # Laufzeit
+    assert "00:12" in text  # Laufzeit (MM:SS, gerundet aus 12.5s)
 
     match = re.search(r"Batch-Lauf vom (\d{2}\.\d{2}\.\d{4}), (\d{2}:\d{2}:\d{2}) Uhr", text)
     assert match is not None, f"Subtitle-Zeitstempel nicht gefunden in: {text!r}"
