@@ -95,6 +95,7 @@ def _compare_pair(
     cnd_path: str,
     profile: Optional[Profile],
     report_dir: Optional[Union[str, Path]] = None,
+    profile_path: Optional[Union[str, Path]] = None,
 ) -> PairResult:
     """Vergleicht ein einzelnes Dateipaar für den Batch: prüft, ob beide Dateien
     existieren, ruft run_comparison() auf und erzeugt bei gesetztem report_dir
@@ -135,7 +136,8 @@ def _compare_pair(
         report_path = _unique_report_path(Path(report_dir), ref_file, cnd_file)
         generate_report(
             output.result, ref_file, cnd_file, report_path,
-            profile=profile, region_warnings=output.region_warnings,
+            profile=profile, profile_path=profile_path,
+            region_warnings=output.region_warnings,
             duration_seconds=output.duration_seconds,
         )
 
@@ -146,12 +148,12 @@ def _compare_pair(
 
 
 def _compare_pair_worker(
-    args: Tuple[str, str, Optional[Profile], Optional[Union[str, Path]]]
+    args: Tuple[str, str, Optional[Profile], Optional[Union[str, Path]], Optional[Union[str, Path]]]
 ) -> PairResult:
     """Modul-Top-Level-Wrapper für multiprocessing.Pool.map – Pool benötigt
     eine picklebare, importierbare Funktion (keine Closure/Lambda)."""
-    ref_path, cnd_path, profile, report_dir = args
-    return _compare_pair(ref_path, cnd_path, profile, report_dir)
+    ref_path, cnd_path, profile, report_dir, profile_path = args
+    return _compare_pair(ref_path, cnd_path, profile, report_dir, profile_path)
 
 
 def batch_compare(
@@ -160,6 +162,7 @@ def batch_compare(
     workers: int = 1,
     on_progress: Optional[Callable[[int, int, PairResult], None]] = None,
     report_dir: Optional[Union[str, Path]] = None,
+    profile_path: Optional[Union[str, Path]] = None,
 ) -> BatchResult:
     """Vergleicht alle Dateipaare aus einer CSV-Dateiliste.
 
@@ -184,6 +187,10 @@ def batch_compare(
     generate_report) flach in diesem Verzeichnis - auch bei 0 Deltas.
     Paare mit status="error" erzeugen keinen Einzel-Report (siehe
     prompt_batch_fixes.md Punkt 1).
+
+    profile_path wird unverändert an generate_report() durchgereicht (zeigt
+    den Profilnamen auf der Zusammenfassungsseite des Einzel-Reports, siehe
+    report_generator._profile_label).
     """
     pairs = read_filelist(filelist_path)
     total = len(pairs)
@@ -192,7 +199,7 @@ def batch_compare(
         with Pool(processes=workers) as pool:
             results_iter = pool.imap(
                 _compare_pair_worker,
-                [(ref, cnd, profile, report_dir) for ref, cnd in pairs],
+                [(ref, cnd, profile, report_dir, profile_path) for ref, cnd in pairs],
             )
             results = []
             for index, pair_result in enumerate(results_iter, start=1):
@@ -202,7 +209,7 @@ def batch_compare(
     else:
         results = []
         for index, (ref, cnd) in enumerate(pairs, start=1):
-            pair_result = _compare_pair(ref, cnd, profile, report_dir)
+            pair_result = _compare_pair(ref, cnd, profile, report_dir, profile_path)
             results.append(pair_result)
             if on_progress is not None:
                 on_progress(index, total, pair_result)

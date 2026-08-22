@@ -129,8 +129,9 @@ def test_batch_compare_single_report_shows_processing_duration_instead_of_dash(t
     """_compare_pair() misst die Extraktions-/Vergleichsdauer und reicht sie
     als duration_seconds an generate_report() durch, damit die
     Zusammenfassungsseite des Einzel-Reports aus dem Batch-Lauf einen echten
-    Sekundenwert statt "--" bei "Verarbeitungsdauer" zeigt (Sprint PTC-2,
-    Task A)."""
+    MM:SS-Wert statt "--" bei der "Dauer"-Kachel zeigt (Sprint PTC-2, Task A;
+    "Verarbeitungsdauer" in der Meta-Tabelle wurde in Sprint PTC-S7, Task D
+    durch die "Dauer"-KPI-Kachel ersetzt)."""
     filelist_path = local_filelist("TC-B-001", 1)
     report_dir = tmp_path / "reports"
     report_dir.mkdir()
@@ -149,9 +150,9 @@ def test_batch_compare_single_report_shows_processing_duration_instead_of_dash(t
     page_text = doc[0].get_text()
     doc.close()
 
-    match = re.search(r"Verarbeitungsdauer\s*\n?\s*([\d,.]+)\s*s", page_text)
-    assert match is not None, f"Kein numerischer Dauerwert gefunden in: {page_text!r}"
-    assert match.group(1) != "--"
+    match = re.search(r"Dauer\s*\n?\s*(\d{2}:\d{2})", page_text)
+    assert match is not None, f"Kein MM:SS-Dauerwert gefunden in: {page_text!r}"
+    assert match.group(1) != "—"
 
 
 def test_read_filelist_without_header(tmp_path):

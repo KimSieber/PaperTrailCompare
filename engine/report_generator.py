@@ -30,7 +30,7 @@ from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, S
 
 from engine import __version__
 from engine.models import BatchResult, PairResult
-from engine.profile_loader import ExcludeRegion, OcrConfig, Profile
+from engine.profile_loader import CompareRegion, ExcludeRegion, OcrConfig, Profile
 from engine.text_comparator import CompareResult
 
 _ASSETS_DIR = Path(__file__).parent / "assets"
@@ -198,7 +198,7 @@ def _profile_label(profile: Optional[Profile], profile_path: Optional[Union[str,
     """Anzeigename des Vergleichsprofils für die Metadaten-/Kennzahlenanzeige
     - gemeinsam genutzt von Einzel- und Batch-Report."""
     if profile_path is not None:
-        label = Path(profile_path).name
+        label = Path(profile_path).stem
         if profile is not None:
             label += f" (v{profile.version})"
         return label
@@ -212,11 +212,33 @@ def _bool_label(value: bool) -> str:
     return "Ja" if value else "Nein"
 
 
+def _format_duration_mmss(seconds: Optional[float]) -> str:
+    """Format duration as MM:SS (whole seconds, no decimals).
+    Returns '—' if seconds is None."""
+    if seconds is None:
+        return "—"
+    total = int(round(seconds))
+    minutes = total // 60
+    secs = total % 60
+    return f"{minutes:02d}:{secs:02d}"
+
+
 def _region_page_label(region: ExcludeRegion) -> str:
     """Seitenbereichs-Anzeige für die Regionen-Tabelle: konkrete Seite,
     "Alle Seiten" (page=0) oder "Ab Seite N" (page_from) - siehe
     pdf_extractor._region_applies_to_page für die zugehörige Matching-
     Logik."""
+    if region.page is not None:
+        return "Alle Seiten" if region.page == 0 else f"Seite {region.page}"
+    return f"Ab Seite {region.page_from}"
+
+
+def _compare_region_page_label(region: CompareRegion) -> str:
+    """Seitenbereichs-Anzeige für die Vergleichs-Regionen-Tabelle: CompareRegion
+    hat dieselben page/page_from-Felder wie ExcludeRegion (siehe
+    profile_loader.CompareRegion), daher identische Logik wie
+    _region_page_label() - konkrete Seite, "Alle Seiten" (page=0) oder
+    "Ab Seite N" (page_from)."""
     if region.page is not None:
         return "Alle Seiten" if region.page == 0 else f"Seite {region.page}"
     return f"Ab Seite {region.page_from}"
@@ -278,7 +300,6 @@ def _build_summary_page_pdf_bytes(
     ref_pdf_path: Path,
     cnd_pdf_path: Path,
     total_pages: int,
-    comparisons: int,
     profile: Optional[Profile],
     profile_path: Optional[Union[str, Path]],
     duration_seconds: Optional[float],
@@ -312,7 +333,28 @@ def _build_summary_page_pdf_bytes(
     ))
     story.append(Spacer(1, 4))
     story.append(_build_hairline_table())
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 6))
+    subtitle_right_style = ParagraphStyle(
+        "report_subtitle_right", parent=_SUBTITLE_STYLE, alignment=2,
+    )
+    subtitle_table = Table(
+        [[
+            Paragraph(
+                f"Vergleich vom {datetime.now().strftime('%d.%m.%Y, %H:%M:%S')} Uhr",
+                _SUBTITLE_STYLE,
+            ),
+            Paragraph(f"Version {_tool_version()}", subtitle_right_style),
+        ]],
+        colWidths=[85 * mm, 85 * mm],
+    )
+    subtitle_table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(subtitle_table)
+    story.append(Spacer(1, 6))
 
     has_deltas = len(compare_result.deltas) > 0
     delta_accent = _COLOR_TILE_ORANGE if has_deltas else _COLOR_TILE_GREEN
@@ -320,7 +362,7 @@ def _build_summary_page_pdf_bytes(
 
     tiles = [
         _build_kpi_tile("Seiten", str(total_pages), _COLOR_TILE_NEUTRAL),
-        _build_kpi_tile("Vergleiche", str(comparisons), _COLOR_TILE_NEUTRAL),
+        _build_kpi_tile("Dauer", _format_duration_mmss(duration_seconds), _COLOR_TILE_NEUTRAL),
         _build_kpi_tile("Deltas", str(len(compare_result.deltas)), delta_accent, delta_value_color),
         _build_kpi_tile(
             "Übereinstimmung", f"{match_ratio * 100:.0f} %",
@@ -401,9 +443,6 @@ def _build_summary_page_pdf_bytes(
         ["Referenz-Datei", ref_pdf_path.name],
         ["Kandidat-Datei", cnd_pdf_path.name],
         ["OCR verwendet", "Ja" if compare_result.ocr_was_used else "Nein"],
-        ["Verarbeitungsdauer", f"{duration_seconds:.2f} s" if duration_seconds is not None else "—"],
-        ["Vergleichsdatum", datetime.now().strftime("%d.%m.%Y %H:%M:%S")],
-        ["Tool-Version", _tool_version()],
     ]
     meta_table = Table(
         [[Paragraph(f"<b>{html.escape(label)}</b>", _CELL_STYLE), Paragraph(html.escape(value), _CELL_STYLE)]
@@ -443,6 +482,67 @@ def _build_summary_page_pdf_bytes(
             story.append(Spacer(1, 6))
             for warning in region_warnings:
                 story.append(Paragraph(html.escape(warning), _BODY_STYLE))
+
+    # "Vergleichs-Regionen": zwei Zeilen je Region (Kommentar/Mode +
+    # Detailzeile mit Bedingung/Koordinaten) statt einer flachen Tabelle,
+    # weil der Kommentartext oft länger ist als eine einzelne Spalte
+    # sinnvoll fassen kann (siehe Task 2, docs/prompt_s7_task_a_deckblatt.md).
+    if profile is not None and profile.compare_regions:
+        story.append(Spacer(1, 14))
+        story.append(Paragraph("Vergleichs-Regionen", _TILE_LABEL_STYLE))
+        story.append(Spacer(1, 4))
+
+        cr_cell_style = ParagraphStyle("report_cr_cell", parent=_CELL_STYLE, fontSize=8, leading=10)
+        # Zwei Header-Zeilen, analog zur zweizeiligen Datenstruktur je Region:
+        # Zeile 1 = Kommentar/Modus-Spaltenköpfe, Zeile 2 = Detail-Spaltenköpfe.
+        cr_rows = [
+            ["#", "Kommentar", "", "", "", "", "Modus"],
+            ["", "Bedingung", "Seitenbereich", "x", "y", "Breite", "Höhe"],
+        ]
+        for i, region in enumerate(profile.compare_regions):
+            comment_text = html.escape(region.comment) if region.comment else "—"
+            cr_rows.append([
+                f"#{i + 1}",
+                Paragraph(comment_text, cr_cell_style),
+                "", "", "", "",
+                region.mode,
+            ])
+            cr_rows.append([
+                "",
+                Paragraph(html.escape(region.condition), cr_cell_style),
+                _compare_region_page_label(region),
+                f"{region.x:g}", f"{region.y:g}", f"{region.width:g}", f"{region.height:g}",
+            ])
+
+        cr_style_commands = [
+            # Volles GRID (Rahmen + interne Linien), analog zur
+            # Ausgeschlossene-Regionen-Tabelle.
+            ("GRID", (0, 0), (-1, -1), 0.5, _COLOR_HAIRLINE),
+            # Grauer Hintergrund für beide Header-Zeilen.
+            ("BACKGROUND", (0, 0), (-1, 1), _COLOR_HAIRLINE),
+            # Font size 8 throughout
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            # Padding
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            # Vertical alignment
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            # Kommentar-Spaltenkopf über Spalten 1-5 mergen (keine Trennlinie
+            # zwischen den beiden Header-Zeilen, wie bei den Datenzeilenpaaren).
+            ("SPAN", (1, 0), (5, 0)),
+        ]
+        for i in range(len(profile.compare_regions)):
+            comment_row = 2 + 2 * i
+            detail_row = 3 + 2 * i
+            # Merge comment across columns 1-5
+            cr_style_commands.append(("SPAN", (1, comment_row), (5, comment_row)))
+
+        cr_table = Table(
+            cr_rows,
+            colWidths=[8 * mm, 52 * mm, 22 * mm, 18 * mm, 18 * mm, 18 * mm, 29 * mm],
+        )
+        cr_table.setStyle(TableStyle(cr_style_commands))
+        story.append(cr_table)
 
     doc.build(story)
     return buf.getvalue()
@@ -857,7 +957,7 @@ def generate_report(
 
             summary_bytes = _build_summary_page_pdf_bytes(
                 compare_result, ref_pdf_path, cnd_pdf_path,
-                total_pages=total_pages, comparisons=1,
+                total_pages=total_pages,
                 profile=profile, profile_path=profile_path,
                 duration_seconds=duration_seconds,
                 region_warnings=region_warnings,
