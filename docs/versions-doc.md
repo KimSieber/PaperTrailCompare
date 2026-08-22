@@ -1,11 +1,12 @@
 *******************************
-*** V0.2.1    21.08.2025
-*******************************
+V0.2.1    21.08.2025
+===============================
 
 Sprint PTC-S7: Optimierung Ausgabe
 ----------------------------------
 Task A: compare_regions - Tabelle auf Deckblatt
-
+Task B: Ausgabe-Dateinamen vereinheitlichen inkl. Überschreib-Regel
+Task C: 
 Task D: Verarbeitungsdauer in die Kopf-Felder 
 
 Sprint PTC-S6: Dialog-Optimierungen
@@ -22,8 +23,8 @@ Zusatz-Punkte: H19-H21
 
 
 *******************************
-*** V0.2.0    16.08.2025
-*******************************
+V0.2.0    16.08.2025
+===============================
 
 Sprint PTC-S4: Bugfixes  (siehe sep. Doku-File)
 -----------------------------------------------
@@ -56,7 +57,7 @@ Block 6 (G): Batch-Abbruch – separater roter Button, cancel_batch-Command, "Ab
 
 
 *******************************
-*** V0.1.0   bis 13.08.2025
-*******************************
+V0.1.0   bis 13.08.2025
+===============================
 
 Ersterstellung bis Beginn Test

@@ -126,32 +126,37 @@ def test_compare_with_missing_file_returns_error_and_exit_code(capsys):
     assert "does-not-exist.pdf" in captured.err
 
 
-def test_compare_with_report_flag_generates_pdf_and_json_field(tmp_path, capsys):
+def test_compare_with_output_dir_generates_pdf_and_json_field(tmp_path, capsys):
+    """PTC-S7 Task B: --output-dir statt --report - die Engine baut den
+    Dateinamen selbst (build_comparison_report_filename), Rust/Aufrufer
+    übergeben nur noch das Zielverzeichnis."""
     ref_path = FIXTURES / "TC-R-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-R-001" / "cnd.pdf"
-    report_path = tmp_path / "report.pdf"
 
     exit_code = main(
-        ["compare", str(ref_path), str(cnd_path), "--report", str(report_path), "--json"]
+        ["compare", str(ref_path), str(cnd_path), "--output-dir", str(tmp_path), "--json"]
     )
 
     assert exit_code == 0
-    assert report_path.exists()
     payload = json.loads(capsys.readouterr().out)
-    assert payload["report_path"] == str(report_path)
+    report_path = Path(payload["report_path"])
+    assert report_path.exists()
+    assert report_path.parent == tmp_path
+    assert report_path.name.startswith("PTC-Vergleich_")
+    assert report_path.name.endswith("_ref_cnd.pdf")
 
 
-def test_compare_with_invalid_report_path_returns_error_and_exit_code(tmp_path, capsys):
+def test_compare_with_invalid_output_dir_returns_error_and_exit_code(tmp_path, capsys):
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
-    # Elternverzeichnis des Report-Pfads ist eine Datei statt eines Ordners
-    # -> generate_report() kann das Verzeichnis nicht anlegen und wirft.
+    # output-dir zeigt auf eine Datei statt einen Ordner -> generate_report()
+    # kann das Verzeichnis nicht anlegen und wirft.
     blocker = tmp_path / "blocker.txt"
     blocker.write_text("x")
-    report_path = blocker / "report.pdf"
+    output_dir = blocker / "reports"
 
     exit_code = main(
-        ["compare", str(ref_path), str(cnd_path), "--report", str(report_path), "--json"]
+        ["compare", str(ref_path), str(cnd_path), "--output-dir", str(output_dir), "--json"]
     )
 
     captured = capsys.readouterr()
@@ -160,7 +165,7 @@ def test_compare_with_invalid_report_path_returns_error_and_exit_code(tmp_path, 
     assert captured.err != ""
 
 
-def test_compare_without_report_flag_no_report_path_in_json(capsys):
+def test_compare_without_output_dir_flag_no_report_path_in_json(capsys):
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
 
@@ -171,18 +176,19 @@ def test_compare_without_report_flag_no_report_path_in_json(capsys):
     assert "report_path" not in payload
 
 
-def test_compare_with_report_without_json_shows_path_in_summary(tmp_path, capsys):
+def test_compare_with_output_dir_without_json_shows_path_in_summary(tmp_path, capsys):
     ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
     cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
-    report_path = tmp_path / "report.pdf"
 
     exit_code = main(
-        ["compare", str(ref_path), str(cnd_path), "--report", str(report_path)]
+        ["compare", str(ref_path), str(cnd_path), "--output-dir", str(tmp_path)]
     )
 
     assert exit_code == 0
-    assert report_path.exists()
-    assert str(report_path) in capsys.readouterr().out
+    out = capsys.readouterr().out
+    report_files = list(tmp_path.glob("PTC-Vergleich_*.pdf"))
+    assert len(report_files) == 1
+    assert str(report_files[0]) in out
 
 
 def test_compare_with_profile_flag_normalize_whitespace_suppresses_delta(tmp_path, capsys):
@@ -542,11 +548,20 @@ def test_batch_json_lines_emits_progress_per_pair_and_final_done_line(tmp_path, 
     assert report_path.exists()
     assert report_path.parent == tmp_path
     assert report_path.name.startswith("PTC-Batch-Report_")
+    # PTC-S7 Task B: der Batch-Report-Dateiname trägt zusätzlich den Stem
+    # der CSV-Dateiliste (hier "filelist", siehe local_filelist-Fixture).
+    assert report_path.name.endswith(f"_{filelist_path.stem}.pdf")
 
     # Punkt 1 (prompt_batch_fixes.md): pro Paar zusätzlich ein Einzel-Report
     # flach im selben --output-dir, nicht nur der Batch-Report.
     individual_reports = [p for p in tmp_path.glob("*.pdf") if p != report_path]
     assert len(individual_reports) == 10
+    # PTC-S7 Task B, Regel 3: Batch-Report und alle Einzel-Reports teilen
+    # sich denselben (Batch-Start-)Zeitstempel. Format des Batch-Reports:
+    # "PTC-Batch-Report_{YYYY-MM-DD}_{HH-MM}_{CSVStem}.pdf".
+    _, date_part, time_part, _ = report_path.name.split("_", 3)
+    batch_timestamp = f"{date_part}_{time_part}"
+    assert all(batch_timestamp in p.name for p in individual_reports)
 
 
 def test_batch_with_missing_file_is_logged_per_pair_tc_b_002(tmp_path, capsys, local_filelist):

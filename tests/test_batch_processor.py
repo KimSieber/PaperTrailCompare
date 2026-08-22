@@ -19,6 +19,7 @@ Fixtures: tests/fixtures/TC-B-001/ … TC-B-005/
 generate_tc_b_005).
 """
 import json
+from datetime import datetime
 from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
@@ -69,19 +70,20 @@ def test_batch_compare_generates_single_report_per_ok_pair_in_report_dir(tmp_pat
     """report_dir sorgt dafür, dass batch_compare pro erfolgreich verglichenem
     Paar einen Einzel-Report (analog zum Einzelvergleich) flach im gewählten
     Ausgabeverzeichnis ablegt - auch bei 0 Deltas (siehe prompt_batch_fixes.md,
-    Punkt 1)."""
+    Punkt 1). Namensschema PTC-S7 Task B: Zeitstempel VOR den Dokumentnamen."""
     filelist_path = local_filelist("TC-B-001", 10)
     report_dir = tmp_path / "reports"
     report_dir.mkdir()
+    timestamp = datetime(2026, 8, 22, 14, 5)
 
-    result = batch_compare(filelist_path, report_dir=report_dir)
+    result = batch_compare(filelist_path, report_dir=report_dir, timestamp=timestamp)
 
     assert result.ok_count == 10
     report_files = sorted(report_dir.glob("*.pdf"))
     assert len(report_files) == 10
     names = {p.name for p in report_files}
-    assert "PTC-Vergleich_doc_01_ref_doc_01_cnd.pdf" in names
-    assert "PTC-Vergleich_doc_10_ref_doc_10_cnd.pdf" in names
+    assert "PTC-Vergleich_2026-08-22_14-05_doc_01_ref_doc_01_cnd.pdf" in names
+    assert "PTC-Vergleich_2026-08-22_14-05_doc_10_ref_doc_10_cnd.pdf" in names
 
 
 def test_batch_compare_generates_no_single_report_for_error_pairs(tmp_path, local_filelist):
@@ -98,10 +100,12 @@ def test_batch_compare_generates_no_single_report_for_error_pairs(tmp_path, loca
     assert not any("doc_03" in p.name for p in report_files)
 
 
-def test_batch_compare_appends_counter_on_name_collision(tmp_path):
-    """Zwei CSV-Zeilen mit identischem Referenz-/Kandidat-Dateinamen (aber
-    unterschiedlichem Verzeichnis) dürfen sich beim Einzel-Report nicht
-    gegenseitig überschreiben (siehe prompt_batch_fixes.md, Punkt 1)."""
+def test_batch_compare_overwrites_report_on_same_pair_name_and_timestamp(tmp_path):
+    """PTC-S7 Task B, Regel 4: die frühere _1/_2-Kollisions-Zählerlogik
+    entfällt ersatzlos. Zwei CSV-Zeilen mit identischem Referenz-/
+    Kandidat-Dateinamen (aber unterschiedlichem Verzeichnis) erzeugen
+    denselben Report-Dateinamen (gleicher Batch-Zeitstempel) und
+    überschreiben sich bewusst gegenseitig - es entsteht nur eine Datei."""
     dir_a = tmp_path / "a"
     dir_b = tmp_path / "b"
     dir_a.mkdir()
@@ -117,12 +121,30 @@ def test_batch_compare_appends_counter_on_name_collision(tmp_path):
     )
     report_dir = tmp_path / "reports"
     report_dir.mkdir()
+    timestamp = datetime(2026, 8, 22, 14, 5)
 
-    result = batch_compare(filelist_path, report_dir=report_dir)
+    result = batch_compare(filelist_path, report_dir=report_dir, timestamp=timestamp)
 
     assert result.ok_count == 2
     report_files = sorted(p.name for p in report_dir.glob("*.pdf"))
-    assert report_files == ["PTC-Vergleich_ref_cnd.pdf", "PTC-Vergleich_ref_cnd_2.pdf"]
+    assert report_files == ["PTC-Vergleich_2026-08-22_14-05_ref_cnd.pdf"]
+
+
+def test_batch_individual_reports_use_batch_start_timestamp(tmp_path, local_filelist):
+    """PTC-S7 Task B: alle Einzel-Reports eines Batch-Laufs tragen denselben
+    Zeitstempel (die übergebene Batch-Startzeit), nicht ihre jeweilige
+    individuelle Fertigstellungszeit."""
+    filelist_path = local_filelist("TC-B-001", 3)
+    report_dir = tmp_path / "reports"
+    report_dir.mkdir()
+    timestamp = datetime(2026, 8, 22, 9, 30)
+
+    result = batch_compare(filelist_path, report_dir=report_dir, timestamp=timestamp)
+
+    assert result.ok_count == 3
+    report_files = sorted(report_dir.glob("*.pdf"))
+    assert len(report_files) == 3
+    assert all(p.name.startswith("PTC-Vergleich_2026-08-22_09-30_") for p in report_files)
 
 
 def test_batch_compare_single_report_shows_processing_duration_instead_of_dash(tmp_path, local_filelist):

@@ -25,7 +25,7 @@ Subcommands (`compare`, `batch`) prüfen __expiry__ dagegen vor jeder
 Ausführung und brechen mit Exit-Code 2 sowie einer deutschsprachigen
 Fehlermeldung auf stderr ab, wenn die Testversion abgelaufen ist
 (Exit-Code 1 bleibt für sonstige Laufzeitfehler reserviert).
-`compare <ref.pdf> <cnd.pdf> [--json] [--report <output.pdf>] [--profile <profil.json>]`
+`compare <ref.pdf> <cnd.pdf> [--json] [--output-dir <verzeichnis>] [--profile <profil.json>]`
 führt den Einzelvergleich aus (pdf_extractor + text_comparator) und gibt bei
 `--json` exakt die Felder von text_comparator.CompareResult/Delta als JSON
 aus. `--profile` lädt ein JSON-Vergleichsprofil (profile_loader.load_profile)
@@ -34,10 +34,13 @@ ocr.mode_reference/ocr.mode_candidate ("off"/"fallback"/"force", getrennt
 für Referenz und Kandidat einstellbar) und ocr.dpi über
 pdf_extractor.extract_pages_for_profile(role="reference"/"candidate"); ohne
 `--profile` gilt das bisherige Verhalten (case_sensitive=True, kein
-Whitespace-Toleranz-Filter, kein OCR). `--report` erzeugt
-zusätzlich einen PDF-Report mit rot markierten Delta-Stellen
-(report_generator.generate_report, TC-R-001); der Pfad erscheint bei
-`--json` als zusätzliches Feld `report_path`. Weitere Befehle
+Whitespace-Toleranz-Filter, kein OCR). `--output-dir` erzeugt zusätzlich
+einen PDF-Report mit rot markierten Delta-Stellen
+(report_generator.generate_report, TC-R-001); der Dateiname wird nach dem
+einheitlichen Schema `PTC-Vergleich_{Zeitstempel}_{RefStem}_{CndStem}.pdf`
+gebaut (report_generator.build_comparison_report_filename, PTC-S7 Task B) -
+identisch zum Schema der Batch-Einzel-Reports. Der resultierende Pfad
+erscheint bei `--json` als zusätzliches Feld `report_path`. Weitere Befehle
 (Batch-Verarbeitung) werden hier ergänzt, sobald die Tauri-Commands dafür
 angebunden werden.
 """
@@ -75,7 +78,12 @@ from engine.comparison import run_comparison
 from engine.log_config import configure_logging
 from engine.models import PairResult
 from engine.profile_loader import Profile, ValidationError, load_profile
-from engine.report_generator import generate_batch_report, generate_report
+from engine.report_generator import (
+    build_batch_report_filename,
+    build_comparison_report_filename,
+    generate_batch_report,
+    generate_report,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +91,16 @@ logger = logging.getLogger(__name__)
 def _run_compare(args: argparse.Namespace) -> int:
     """Führt den `compare`-Subcommand aus: lädt optional ein Profil, vergleicht
     ref_pdf/cnd_pdf und gibt das Ergebnis je nach `--json` als JSON-Zeile oder
-    als lesbare Zusammenfassung auf stdout aus; erzeugt bei `--report`
+    als lesbare Zusammenfassung auf stdout aus; erzeugt bei `--output-dir`
     zusätzlich das Delta-PDF. Gibt den Exit-Code zurück (0 = ok, 1 = Fehler
-    bei Profil, Vergleich oder Report-Erzeugung)."""
+    bei Profil, Vergleich oder Report-Erzeugung).
+
+    start_time wird vor Vergleichsbeginn erfasst und - falls ein Report
+    erzeugt wird - für dessen Dateinamen verwendet (PTC-S7 Task B,
+    build_comparison_report_filename); dasselbe Schema wie bei den
+    Batch-Einzel-Reports."""
+    start_time = datetime.now()
+
     profile: Optional[Profile] = None
     if args.profile:
         try:
@@ -108,10 +123,12 @@ def _run_compare(args: argparse.Namespace) -> int:
     duration_seconds = output.duration_seconds
 
     report_path = None
-    if args.report:
+    if args.output_dir:
+        filename = build_comparison_report_filename(args.ref_pdf, args.cnd_pdf, start_time)
+        target_path = Path(args.output_dir) / filename
         try:
             generate_report(
-                result, args.ref_pdf, args.cnd_pdf, args.report,
+                result, args.ref_pdf, args.cnd_pdf, target_path,
                 profile=profile, profile_path=args.profile,
                 duration_seconds=duration_seconds,
                 region_warnings=region_warnings,
@@ -119,7 +136,7 @@ def _run_compare(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001 - Fehler geht 1:1 an den Sidecar-Aufrufer
             logger.error("%s", exc)
             return 1
-        report_path = args.report
+        report_path = str(target_path)
 
     if args.json:
         payload = dataclasses.asdict(result)
@@ -184,15 +201,14 @@ def _run_batch(args: argparse.Namespace) -> int:
     try:
         result = batch_compare(
             args.filelist, profile=profile, on_progress=on_progress, report_dir=output_dir,
-            profile_path=args.profile,
+            profile_path=args.profile, timestamp=start_time,
         )
     except OSError as exc:
         logger.error("%s", exc)
         return 1
     duration_seconds = time.perf_counter() - start
 
-    timestamp = start_time.strftime("%Y-%m-%d_%H-%M")
-    report_path = output_dir / f"PTC-Batch-Report_{timestamp}.pdf"
+    report_path = output_dir / build_batch_report_filename(args.filelist, start_time)
     generate_batch_report(
         result, report_path, profile=profile, profile_path=args.profile,
         duration_seconds=duration_seconds, start_time=start_time,
@@ -231,9 +247,13 @@ def main(argv: list[str] | None = None) -> int:
         "--json", action="store_true", help="Ergebnis als JSON auf stdout ausgeben"
     )
     compare_parser.add_argument(
-        "--report",
+        "--output-dir",
         default=None,
-        help="Pfad für PDF-Report mit rot markierten Deltas (TC-R-001)",
+        help=(
+            "Ausgabeverzeichnis für den PDF-Report mit rot markierten Deltas "
+            "(TC-R-001); der Dateiname wird automatisch nach dem einheitlichen "
+            "PTC-Vergleich-Schema gebaut (PTC-S7 Task B)"
+        ),
     )
     compare_parser.add_argument(
         "--profile",

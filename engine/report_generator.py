@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import html
 import io
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
@@ -35,6 +36,47 @@ from engine.text_comparator import CompareResult
 
 _ASSETS_DIR = Path(__file__).parent / "assets"
 _REPORT_ICON_PATH = _ASSETS_DIR / "512x512.png"
+
+# Ersetzt alle Zeichen, die nicht auf jedem Zielbetriebssystem in Dateinamen
+# zulässig sind, durch Unterstriche - spiegelt (bisher)
+# src-tauri/src/lib.rs::sanitize_filename_part, damit Reports aus
+# Einzelvergleich und Batch demselben Namensschema folgen (PTC-S7 Task B).
+_FILENAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]")
+
+
+def _sanitize_filename_part(name: str) -> str:
+    """Ersetzt alle Zeichen, die nicht auf jedem Zielbetriebssystem in
+    Dateinamen zulässig sind, durch Unterstriche."""
+    return _FILENAME_SANITIZE_RE.sub("_", name)
+
+
+def build_comparison_report_filename(
+    ref_path: Union[str, Path],
+    cnd_path: Union[str, Path],
+    timestamp: datetime,
+) -> str:
+    """Baut den einheitlichen Report-Dateinamen für einen Einzelvergleich
+    (PTC-S7 Task B): `PTC-Vergleich_{YYYY-MM-DD_HH-MM}_{RefStem}_{CndStem}.pdf`,
+    Zeitstempel VOR den Dokumentnamen für eine natürliche Sortierreihenfolge.
+    Wird sowohl vom eigenständigen Einzelvergleich (`engine/__main__.py`) als
+    auch von den Einzel-Reports des Batch-Vergleichs (`batch_processor.py`)
+    verwendet, damit derselbe Dateipaar-Vergleich in derselben Minute in
+    beiden Fällen exakt denselben Dateinamen ergibt."""
+    ts = timestamp.strftime("%Y-%m-%d_%H-%M")
+    ref_stem = _sanitize_filename_part(Path(ref_path).stem)
+    cnd_stem = _sanitize_filename_part(Path(cnd_path).stem)
+    return f"PTC-Vergleich_{ts}_{ref_stem}_{cnd_stem}.pdf"
+
+
+def build_batch_report_filename(
+    csv_path: Union[str, Path],
+    timestamp: datetime,
+) -> str:
+    """Baut den Dateinamen für den Batch-Übersichts-Report (PTC-S7 Task B):
+    `PTC-Batch-Report_{YYYY-MM-DD_HH-MM}_{CSVStem}.pdf`."""
+    ts = timestamp.strftime("%Y-%m-%d_%H-%M")
+    csv_stem = _sanitize_filename_part(Path(csv_path).stem)
+    return f"PTC-Batch-Report_{ts}_{csv_stem}.pdf"
 _REPORT_ICON_HEIGHT_MM = 19.0
 
 _STYLES = getSampleStyleSheet()
