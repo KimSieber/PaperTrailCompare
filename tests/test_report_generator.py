@@ -29,7 +29,7 @@ from reportlab.pdfgen import canvas as rl_canvas
 
 from engine.models import BatchResult, PairResult
 from engine.pdf_extractor import extract_pages
-from engine.profile_loader import ExcludeRegion, Profile
+from engine.profile_loader import CompareRegion, ExcludeRegion, Profile
 from engine.report_generator import _find_delta_rects, generate_batch_report, generate_report
 from engine.text_comparator import CompareResult, Delta, compare
 
@@ -500,6 +500,83 @@ def test_summary_page_shows_profile_settings(tmp_path):
     assert "Textextraktion\nnative" in summary_text
 
 
+def test_summary_page_shows_date_as_subtitle_not_in_meta_table(tmp_path):
+    """Das Vergleichsdatum steht als Untertitel unter der Trennlinie (analog
+    zum Batch-Report), nicht mehr als Zeile in der Metadaten-Tabelle."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path)
+
+    report = pymupdf.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Vergleich vom" in summary_text
+    assert "Uhr" in summary_text
+    assert "Vergleichsdatum" not in summary_text
+
+
+def test_summary_page_shows_duration_tile_mmss_format(tmp_path):
+    """Die "Dauer"-Kachel ersetzt die "Vergleiche"-Kachel und zeigt die
+    Verarbeitungsdauer im MM:SS-Format; "Verarbeitungsdauer" verschwindet
+    aus der Metadaten-Tabelle (jetzt redundant zur Kachel)."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, duration_seconds=125.7)
+
+    report = pymupdf.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Dauer" in summary_text
+    assert "02:06" in summary_text
+    assert "Vergleiche" not in summary_text
+    assert "Verarbeitungsdauer" not in summary_text
+
+
+def test_summary_page_duration_tile_none_shows_dash(tmp_path):
+    """Ohne duration_seconds zeigt die "Dauer"-Kachel einen Platzhalter-Strich."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, duration_seconds=None)
+
+    report = pymupdf.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Dauer" in summary_text
+    assert "—" in summary_text
+
+
+def test_summary_page_duration_tile_zero_seconds(tmp_path):
+    """Sehr kurze Dauer (< 0.5s) rundet auf 00:00."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, duration_seconds=0.4)
+
+    report = pymupdf.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "00:00" in summary_text
+
+
 def test_summary_page_shows_exclude_regions_detail(tmp_path):
     """Die Regionen-Tabelle muss die Seitenbereichs-Anzeige für alle drei
     Varianten korrekt darstellen: konkrete Seite, "Alle Seiten" (page=0)
@@ -527,6 +604,117 @@ def test_summary_page_shows_exclude_regions_detail(tmp_path):
     assert "Seite 1" in summary_text
     assert "Alle Seiten" in summary_text
     assert "Ab Seite 2" in summary_text
+
+
+def test_summary_page_shows_compare_regions_table(tmp_path):
+    """Die Vergleichs-Regionen-Tabelle zeigt eine zweizeilige Kopfzeile
+    (deutsche Spaltenbezeichnungen) sowie je Region eine Kommentar-/Modus-
+    Zeile und eine Detailzeile mit Bedingung/Seitenbereich/Koordinaten;
+    fehlender Kommentar wird als "—" dargestellt, page=0 als "Alle Seiten"."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    profile = Profile(
+        version="1.0",
+        compare_regions=[
+            CompareRegion(
+                page=1, x=0, y=100, width=200, height=20,
+                condition="Registergericht Stuttgart", mode="unordered",
+                comment="Fußleiste mit Unternehmensdaten",
+            ),
+            CompareRegion(
+                page=2, x=10, y=20, width=30, height=40,
+                condition="Es schreibt Ihnen", mode="sequential",
+            ),
+            CompareRegion(
+                page=0, x=5, y=5, width=15, height=15,
+                condition="Postfach Ort variiert", mode="sequential",
+            ),
+        ],
+    )
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    report = pymupdf.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Vergleichs-Regionen" in summary_text
+    # Zweizeilige Kopfzeile mit deutschen Spaltenbezeichnungen.
+    assert "Kommentar" in summary_text
+    assert "Modus" in summary_text
+    assert "Bedingung" in summary_text
+    assert "Seitenbereich" in summary_text
+    assert "#1" in summary_text
+    assert "#2" in summary_text
+    assert "#3" in summary_text
+    assert "Registergericht Stuttgart" in summary_text
+    assert "Es schreibt Ihnen" in summary_text
+    assert "sequential" in summary_text
+    assert "unordered" in summary_text
+    assert "Seite 1" in summary_text
+    assert "Seite 2" in summary_text
+    assert "Alle Seiten" in summary_text
+    assert "10" in summary_text
+    assert "—" in summary_text
+
+
+def test_summary_page_without_compare_regions_shows_no_table(tmp_path):
+    """Ohne konfigurierte compare_regions darf die Vergleichs-Regionen-
+    Tabelle nicht erscheinen."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    profile = Profile(version="1.0")
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    report = pymupdf.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Vergleichs-Regionen" not in summary_text
+
+
+def test_summary_page_shows_both_exclude_and_compare_regions(tmp_path):
+    """Sind sowohl exclude_regions als auch compare_regions konfiguriert,
+    müssen beide Tabellen erscheinen, exclude_regions vor compare_regions."""
+    ref_path = FIXTURES / "TC-T-001" / "ref.pdf"
+    cnd_path = FIXTURES / "TC-T-001" / "cnd.pdf"
+
+    result = compare(extract_pages(str(ref_path)), extract_pages(str(cnd_path)))
+    profile = Profile(
+        version="1.0",
+        exclude_regions=[
+            ExcludeRegion(page=1, x=0, y=0, width=10, height=10),
+        ],
+        compare_regions=[
+            CompareRegion(
+                page=1, x=0, y=100, width=200, height=20,
+                condition="Registergericht Stuttgart", mode="unordered",
+            ),
+            CompareRegion(
+                page=0, x=5, y=5, width=15, height=15,
+                condition="Postfach Ort variiert", mode="sequential",
+            ),
+        ],
+    )
+
+    output_path = tmp_path / "report.pdf"
+    generate_report(result, ref_path, cnd_path, output_path, profile=profile)
+
+    report = pymupdf.open(str(output_path))
+    summary_text = report[0].get_text()
+    report.close()
+
+    assert "Ausgeschlossene Regionen" in summary_text
+    assert "Vergleichs-Regionen" in summary_text
+    assert summary_text.index("Ausgeschlossene Regionen") < summary_text.index("Vergleichs-Regionen")
+    assert "Alle Seiten" in summary_text
 
 
 def test_summary_page_without_profile_shows_defaults(tmp_path):
@@ -696,7 +884,8 @@ def test_tc_r_002_batch_report_shows_used_profile(tmp_path):
     text = report[0].get_text()
     report.close()
 
-    assert "mein_profil.json" in text
+    assert "mein_profil" in text
+    assert "mein_profil.json" not in text
     assert "2.0" in text
 
 

@@ -75,7 +75,12 @@ class CompareRegion:
       whitespace-unabhängig - für Regionen, deren Formatierer die Blöcke in
       unterschiedlicher Reihenfolge liefern (row-major vs. column-major,
       siehe docs/prompt_table_regions_char_multiset.md). Liefert EIN Delta
-      für die gesamte Region bei Abweichung."""
+      für die gesamte Region bei Abweichung.
+
+    comment ist ein rein dokumentarisches Freitextfeld (z.B. "Fußleiste mit
+    Unternehmensdaten") ohne Einfluss auf den Vergleich - dient nur der
+    Anzeige in der Vergleichs-Regionen-Tabelle des Reports (siehe
+    docs/prompt_s7_task_a_deckblatt.md, Task 2)."""
 
     x: float
     y: float
@@ -85,6 +90,7 @@ class CompareRegion:
     page: Optional[int] = None
     page_from: Optional[int] = None
     mode: str = "sequential"
+    comment: Optional[str] = None
 
 
 @dataclass
@@ -294,6 +300,7 @@ def load_profile(path: Union[str, Path]) -> Profile:
                     height=height,
                     condition=condition,
                     mode=region_mode,
+                    comment=region.get("comment"),
                 )
             )
         page_groups = [

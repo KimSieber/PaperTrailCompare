@@ -4,7 +4,9 @@
 
 Sprint PTC-S7: Optimierung Ausgabe
 ----------------------------------
+Task A: compare_regions - Tabelle auf Deckblatt
 
+Task D: Verarbeitungsdauer in die Kopf-Felder 
 
 Sprint PTC-S6: Dialog-Optimierungen
 -----------------------------------

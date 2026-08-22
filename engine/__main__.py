@@ -184,6 +184,7 @@ def _run_batch(args: argparse.Namespace) -> int:
     try:
         result = batch_compare(
             args.filelist, profile=profile, on_progress=on_progress, report_dir=output_dir,
+            profile_path=args.profile,
         )
     except OSError as exc:
         logger.error("%s", exc)
