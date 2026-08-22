@@ -30,7 +30,13 @@ from reportlab.pdfgen import canvas as rl_canvas
 from engine.models import BatchResult, PairResult
 from engine.pdf_extractor import extract_pages
 from engine.profile_loader import CompareRegion, ExcludeRegion, Profile
-from engine.report_generator import _find_delta_rects, generate_batch_report, generate_report
+from engine.report_generator import (
+    _find_delta_rects,
+    build_batch_report_filename,
+    build_comparison_report_filename,
+    generate_batch_report,
+    generate_report,
+)
 from engine.text_comparator import CompareResult, Delta, compare
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -1026,3 +1032,35 @@ def test_batch_report_total_deltas_tile_replaces_timestamp_tile(tmp_path):
     lines = text.splitlines()
     label_idx = lines.index("Summe Deltas")
     assert lines[label_idx + 1].strip() == "5"
+
+
+def test_build_comparison_report_filename_format():
+    """PTC-S7 Task B: einheitliches Namensschema für Einzel-Reports -
+    Zeitstempel VOR den Dokumentnamen (natürliche Sortierreihenfolge)."""
+    timestamp = datetime(2026, 8, 22, 14, 5)
+
+    filename = build_comparison_report_filename("ref_doc.pdf", "cnd_doc.pdf", timestamp)
+
+    assert filename == "PTC-Vergleich_2026-08-22_14-05_ref_doc_cnd_doc.pdf"
+
+
+def test_build_batch_report_filename_includes_csv_stem():
+    """PTC-S7 Task B: der Batch-Report-Dateiname enthält zusätzlich den
+    Stem der CSV-Dateiliste, nach dem Zeitstempel."""
+    timestamp = datetime(2026, 8, 22, 14, 5)
+
+    filename = build_batch_report_filename("/some/path/filelist.csv", timestamp)
+
+    assert filename == "PTC-Batch-Report_2026-08-22_14-05_filelist.pdf"
+
+
+def test_single_and_batch_report_filename_identical_for_same_pair():
+    """PTC-S7 Task B, Regel 5: ein Einzelvergleich und ein Batch-Vergleich
+    desselben Dateipaars zur selben Minute ergeben exakt denselben
+    Dateinamen."""
+    timestamp = datetime(2026, 8, 22, 14, 5)
+
+    single = build_comparison_report_filename("ref.pdf", "cnd.pdf", timestamp)
+    batch = build_comparison_report_filename("ref.pdf", "cnd.pdf", timestamp)
+
+    assert single == batch == "PTC-Vergleich_2026-08-22_14-05_ref_cnd.pdf"

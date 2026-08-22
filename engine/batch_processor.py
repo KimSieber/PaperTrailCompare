@@ -22,6 +22,7 @@ from __future__ import annotations
 import csv
 import logging
 import re
+from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple, Union
@@ -32,12 +33,11 @@ from engine.comparison import run_comparison
 from engine.models import BatchResult, PairResult
 from engine.page_group_detector import extract_page_groups
 from engine.profile_loader import Profile
-from engine.report_generator import generate_report
+from engine.report_generator import build_comparison_report_filename, generate_report
 
 logger = logging.getLogger(__name__)
 
 _XMP_IDENTIFIER_RE = re.compile(r"<dc:identifier>(.*?)</dc:identifier>")
-_FILENAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]")
 
 
 def read_filelist(filelist_path: Union[str, Path]) -> List[Tuple[str, str]]:
@@ -68,39 +68,21 @@ def _resolve_filelist_entry(entry: str, base_dir: Path) -> Path:
     return path if path.is_absolute() else base_dir / path
 
 
-def _sanitize_filename_part(name: str) -> str:
-    """Ersetzt alle Zeichen, die nicht auf jedem Zielbetriebssystem in
-    Dateinamen zulässig sind, durch Unterstriche - spiegelt
-    src-tauri/src/lib.rs::sanitize_filename_part, damit Einzel-Reports aus
-    Einzelvergleich und Batch demselben Namensschema folgen."""
-    return _FILENAME_SANITIZE_RE.sub("_", name)
-
-
-def _unique_report_path(report_dir: Path, ref_file: Path, cnd_file: Path) -> Path:
-    """Bildet den Ziel-Dateinamen für den Einzel-Report eines Batch-Paares
-    ({RefStem}_{CndStem}.pdf, siehe prompt_batch_fixes.md Punkt 1). Existiert
-    dieser Name bereits (Normalfall: nicht der Fall), wird ein Zähler
-    angehängt, damit kein bestehender Report überschrieben wird."""
-    base = f"PTC-Vergleich_{_sanitize_filename_part(ref_file.stem)}_{_sanitize_filename_part(cnd_file.stem)}"
-    candidate = report_dir / f"{base}.pdf"
-    counter = 2
-    while candidate.exists():
-        candidate = report_dir / f"{base}_{counter}.pdf"
-        counter += 1
-    return candidate
-
-
 def _compare_pair(
     ref_path: str,
     cnd_path: str,
     profile: Optional[Profile],
     report_dir: Optional[Union[str, Path]] = None,
     profile_path: Optional[Union[str, Path]] = None,
+    timestamp: Optional[datetime] = None,
 ) -> PairResult:
     """Vergleicht ein einzelnes Dateipaar für den Batch: prüft, ob beide Dateien
     existieren, ruft run_comparison() auf und erzeugt bei gesetztem report_dir
-    zusätzlich einen Einzel-Report (_unique_report_path). Fehlt eine Datei
-    oder schlägt der Vergleich fehl, wird dies als PairResult(status="error")
+    zusätzlich einen Einzel-Report mit dem einheitlichen Namensschema
+    (report_generator.build_comparison_report_filename, PTC-S7 Task B) -
+    keine Kollisions-Suffixe (_1/_2/...) mehr, ein Überschreiben innerhalb
+    derselben Minute wird bewusst in Kauf genommen. Fehlt eine Datei oder
+    schlägt der Vergleich fehl, wird dies als PairResult(status="error")
     zurückgegeben statt eine Exception zu werfen - eine defekte PDF darf den
     restlichen Batch nicht abbrechen (siehe Kommentar unten, B11)."""
     ref_file = Path(ref_path)
@@ -133,7 +115,9 @@ def _compare_pair(
         logger.warning("%s / %s: %s", ref_path, cnd_path, warning)
 
     if report_dir is not None:
-        report_path = _unique_report_path(Path(report_dir), ref_file, cnd_file)
+        ts = timestamp if timestamp is not None else datetime.now()
+        filename = build_comparison_report_filename(ref_file, cnd_file, ts)
+        report_path = Path(report_dir) / filename
         generate_report(
             output.result, ref_file, cnd_file, report_path,
             profile=profile, profile_path=profile_path,
@@ -148,12 +132,15 @@ def _compare_pair(
 
 
 def _compare_pair_worker(
-    args: Tuple[str, str, Optional[Profile], Optional[Union[str, Path]], Optional[Union[str, Path]]]
+    args: Tuple[
+        str, str, Optional[Profile], Optional[Union[str, Path]],
+        Optional[Union[str, Path]], Optional[datetime],
+    ]
 ) -> PairResult:
     """Modul-Top-Level-Wrapper für multiprocessing.Pool.map – Pool benötigt
     eine picklebare, importierbare Funktion (keine Closure/Lambda)."""
-    ref_path, cnd_path, profile, report_dir, profile_path = args
-    return _compare_pair(ref_path, cnd_path, profile, report_dir, profile_path)
+    ref_path, cnd_path, profile, report_dir, profile_path, timestamp = args
+    return _compare_pair(ref_path, cnd_path, profile, report_dir, profile_path, timestamp)
 
 
 def batch_compare(
@@ -163,6 +150,7 @@ def batch_compare(
     on_progress: Optional[Callable[[int, int, PairResult], None]] = None,
     report_dir: Optional[Union[str, Path]] = None,
     profile_path: Optional[Union[str, Path]] = None,
+    timestamp: Optional[datetime] = None,
 ) -> BatchResult:
     """Vergleicht alle Dateipaare aus einer CSV-Dateiliste.
 
@@ -188,10 +176,18 @@ def batch_compare(
     Paare mit status="error" erzeugen keinen Einzel-Report (siehe
     prompt_batch_fixes.md Punkt 1).
 
+    timestamp wird als Batch-Startzeit an jeden Einzel-Report-Dateinamen
+    durchgereicht (report_generator.build_comparison_report_filename,
+    PTC-S7 Task B) - alle Einzel-Reports eines Batches tragen so denselben
+    Zeitstempel wie der Batch-Report, unabhängig von ihrer individuellen
+    Fertigstellungszeit. Ohne übergebenen Wert wird zur Abwärtskompatibilität
+    (Aufrufer/Tests ohne Zeitstempel) datetime.now() verwendet.
+
     profile_path wird unverändert an generate_report() durchgereicht (zeigt
     den Profilnamen auf der Zusammenfassungsseite des Einzel-Reports, siehe
     report_generator._profile_label).
     """
+    ts = timestamp if timestamp is not None else datetime.now()
     pairs = read_filelist(filelist_path)
     total = len(pairs)
 
@@ -199,7 +195,7 @@ def batch_compare(
         with Pool(processes=workers) as pool:
             results_iter = pool.imap(
                 _compare_pair_worker,
-                [(ref, cnd, profile, report_dir, profile_path) for ref, cnd in pairs],
+                [(ref, cnd, profile, report_dir, profile_path, ts) for ref, cnd in pairs],
             )
             results = []
             for index, pair_result in enumerate(results_iter, start=1):
@@ -209,7 +205,7 @@ def batch_compare(
     else:
         results = []
         for index, (ref, cnd) in enumerate(pairs, start=1):
-            pair_result = _compare_pair(ref, cnd, profile, report_dir, profile_path)
+            pair_result = _compare_pair(ref, cnd, profile, report_dir, profile_path, ts)
             results.append(pair_result)
             if on_progress is not None:
                 on_progress(index, total, pair_result)

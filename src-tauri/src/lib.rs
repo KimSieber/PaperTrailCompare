@@ -214,25 +214,6 @@ fn reports_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// Ersetzt alle Zeichen, die nicht auf jedem Zielbetriebssystem in
-/// Dateinamen zulässig sind (Leerzeichen, Umlaute, Sonderzeichen), durch
-/// Unterstriche, damit der resultierende Report-Pfad sowohl unter macOS als
-/// auch unter Windows gültig ist.
-fn sanitize_filename_part(name: &str) -> String {
-    name.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
-}
-
-/// Dateiname ohne Endung, z. B. "Rechnung_2024_alt.pdf" -> "Rechnung_2024_alt".
-fn file_stem_sanitized(path: &str) -> String {
-    let stem = Path::new(path)
-        .file_stem()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string());
-    sanitize_filename_part(&stem)
-}
-
 /// Ermittelt den Benutzernamen aus der Umgebungsvariable (USER auf
 /// macOS/Linux, USERNAME auf Windows). Fallback "default" falls
 /// keiner gesetzt ist.
@@ -274,8 +255,12 @@ fn get_default_output_dir() -> Result<String, String> {
 
 /// Vergleicht zwei PDF-Dateien textlich über die Python Core Engine
 /// (Sidecar-Prozess, siehe CLAUDE.md Architekturentscheidung #1). Ruft
-/// `papertrail-engine compare <ref> <cnd> --json --report <pfad>` auf und
-/// parst die JSON-Ausgabe in ein typisiertes Ergebnis.
+/// `papertrail-engine compare <ref> <cnd> --json --output-dir <verzeichnis>`
+/// auf und parst die JSON-Ausgabe in ein typisiertes Ergebnis. Den Report-
+/// Dateinamen baut die Engine selbst (report_generator.
+/// build_comparison_report_filename, PTC-S7 Task B) - identisch zum Schema
+/// der Batch-Einzel-Reports; Rust übergibt nur noch das Zielverzeichnis und
+/// liest den tatsächlichen Pfad aus CompareOutput.report_path zurück.
 ///
 /// `output_dir` kommt aus der GUI (Block 4c, vorbelegt über
 /// get_default_output_dir, vom Nutzer änderbar) und wird bei Bedarf
@@ -295,12 +280,7 @@ async fn compare_documents(
         None => reports_dir(&app)?.join(now.format("%Y-%m-%d").to_string()),
     };
     std::fs::create_dir_all(&day_dir).map_err(|e| e.to_string())?;
-
-    let ref_name = file_stem_sanitized(&ref_path);
-    let cnd_name = file_stem_sanitized(&cnd_path);
-    let timestamp = now.format("%Y-%m-%d_%H-%M");
-    let report_path = day_dir.join(format!("PTC-Vergleich_{ref_name}_{cnd_name}_{timestamp}.pdf"));
-    let report_path_str = report_path.to_string_lossy().to_string();
+    let day_dir_str = day_dir.to_string_lossy().to_string();
 
     let sidecar = app
         .shell()
@@ -312,8 +292,8 @@ async fn compare_documents(
         ref_path.clone(),
         cnd_path.clone(),
         "--json".to_string(),
-        "--report".to_string(),
-        report_path_str.clone(),
+        "--output-dir".to_string(),
+        day_dir_str,
     ];
     if let Some(profile_path) = resolve_profile_path(&app, &profile_name)? {
         cli_args.push("--profile".to_string());
