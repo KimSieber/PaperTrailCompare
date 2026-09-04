@@ -100,7 +100,7 @@ def main() -> None:
         r'__expiry__\s*=\s*"[^"]*"',
         f'__expiry__ = "{expiry}"',
     )
-    print(f"  ✓ {init_py.relative_to(project_root)}")
+    print(f"  [ok] {init_py.relative_to(project_root)}")
 
     # 2. package.json — "version": "X.Y.Z"
     package_json = project_root / "package.json"
@@ -109,7 +109,7 @@ def main() -> None:
         r'"version"\s*:\s*"[^"]*"',
         f'"version": "{version}"',
     )
-    print(f"  ✓ {package_json.relative_to(project_root)}")
+    print(f"  [ok] {package_json.relative_to(project_root)}")
 
     # 3. src-tauri/tauri.conf.json — "version": "X.Y.Z"
     tauri_conf = project_root / "src-tauri" / "tauri.conf.json"
@@ -118,7 +118,7 @@ def main() -> None:
         r'"version"\s*:\s*"[^"]*"',
         f'"version": "{version}"',
     )
-    print(f"  ✓ {tauri_conf.relative_to(project_root)}")
+    print(f"  [ok] {tauri_conf.relative_to(project_root)}")
 
     # 4. src-tauri/Cargo.toml — version = "X.Y.Z"
     #    Nur im [package]-Abschnitt, nicht bei Dependency-Versionen.
@@ -131,7 +131,7 @@ def main() -> None:
         rf'\g<1>"{version}"',
         flags=re.MULTILINE,
     )
-    print(f"  ✓ {cargo_toml.relative_to(project_root)}")
+    print(f"  [ok] {cargo_toml.relative_to(project_root)}")
 
     print()
     print(f"Fertig — alle 4 Dateien auf version={version}, expiry={expiry} gesetzt.")
