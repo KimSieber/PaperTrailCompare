@@ -180,17 +180,24 @@ def test_batch_compare_single_report_shows_processing_duration_instead_of_dash(t
 def test_read_filelist_without_header(tmp_path):
     """CSV-Dateiliste hat keine Kopfzeile (Architekturentscheidung Batch-GUI-
     Prompt): jede Zeile ist direkt 'Referenzdatei,Kandidatendatei'."""
+    ref1 = tmp_path / "ref1.pdf"
+    cnd1 = tmp_path / "cnd1.pdf"
+    ref2 = tmp_path / "ref2.pdf"
+    cnd2 = tmp_path / "cnd2.pdf"
+    for f in (ref1, cnd1, ref2, cnd2):
+        f.touch()
+
     filelist_path = tmp_path / "filelist.csv"
     filelist_path.write_text(
-        "/pfad/ref1.pdf,/pfad/cnd1.pdf\n/pfad/ref2.pdf,/pfad/cnd2.pdf\n",
+        f"{ref1},{cnd1}\n{ref2},{cnd2}\n",
         encoding="utf-8",
     )
 
     pairs = read_filelist(filelist_path)
 
     assert pairs == [
-        ("/pfad/ref1.pdf", "/pfad/cnd1.pdf"),
-        ("/pfad/ref2.pdf", "/pfad/cnd2.pdf"),
+        (str(ref1), str(cnd1)),
+        (str(ref2), str(cnd2)),
     ]
 
 
