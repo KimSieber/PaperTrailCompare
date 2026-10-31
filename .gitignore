@@ -63,3 +63,5 @@ db.sqlite3-journal
 
 # PyPI configuration file (kann API-Token enthalten)
 .pypirc
+# Webseite (lokale Bearbeitung, nicht im öffentlichen Repo)
+Webseite/
