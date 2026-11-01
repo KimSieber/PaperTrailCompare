@@ -24,8 +24,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            target-triple: aarch64-apple-darwin
+          # - os: macos-latest
+          #   target-triple: aarch64-apple-darwin
           - os: windows-latest
             target-triple: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
