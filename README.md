@@ -1,5 +1,6 @@
 # PaperTrailCompare
 Programm zum Abgleich von PDF-Dateien (auch Batch) im Rahmen einer Drucksystem-Migration
+aktuell in v0.2.2
 
 ## Entwicklungs-Setup
 
