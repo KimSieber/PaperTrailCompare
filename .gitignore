@@ -67,3 +67,5 @@ db.sqlite3-journal
 Webseite/
 # Präsentationen (Dokumente für Produktvorstellungen)
 Präsentationen/
+# Persönliche Unterlagen (enthält personenbezogene Daten, aus Historie entfernt)
+docs/2026-07 Beschreibung Arbeitsablauf Vergleichsdurchlauf.pdf
